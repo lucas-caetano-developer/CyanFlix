@@ -1,0 +1,267 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ContentKind {
+  movie
+  series
+  anime
+}
+
+enum PackageType {
+  movie
+  season
+}
+
+enum PublicationState {
+  waiting_files
+  uploading
+  ready
+  validating
+  promoting
+  confirmed
+  failed
+}
+
+model Work {
+  id            String      @id @default(uuid())
+  stableId      String      @unique
+  contentKind   ContentKind
+  title         String
+  originalTitle String?
+  year          Int?
+  synopsis      String?
+  providerIds   Json        @default("{}")
+  metadata      Json        @default("{}")
+  hidden        Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  seasons       Season[]
+  episodes      Episode[]
+  assets        Asset[]
+  mediaObjects  MediaObject[]
+  favorites     Favorite[]
+  progress      ViewingProgress[]
+}
+
+model Season {
+  id              String   @id @default(uuid())
+  stableId        String   @unique
+  workId          String
+  number          Int
+  title           String?
+  metadata        Json     @default("{}")
+  completeness    Json     @default("{}")
+  activeRevisionId String?
+  hidden          Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  work            Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
+  episodes        Episode[]
+  assets          Asset[]
+}
+
+model Episode {
+  id               String   @id @default(uuid())
+  stableId         String   @unique
+  workId           String
+  seasonId         String
+  number           Int
+  absoluteNumber   Int?
+  title            String?
+  synopsis         String?
+  metadata         Json     @default("{}")
+  markers          Json     @default("[]")
+  sourceSha256     String?
+  mediaManifest    String?
+  activeRevisionId String?
+  hidden           Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  work             Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
+  season           Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  assets           Asset[]
+  mediaObjects     MediaObject[]
+  progress         ViewingProgress[]
+}
+
+model Asset {
+  id             String   @id @default(uuid())
+  stableId       String
+  type           String
+  relativePath   String
+  publicPath     String?
+  sizeBytes      BigInt
+  sha256         String
+  metadata       Json     @default("{}")
+  workId         String?
+  seasonId       String?
+  episodeId      String?
+  publicationId  String?
+  createdAt      DateTime @default(now())
+
+  work           Work?        @relation(fields: [workId], references: [id], onDelete: SetNull)
+  season         Season?      @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  episode        Episode?     @relation(fields: [episodeId], references: [id], onDelete: SetNull)
+  publication    Publication? @relation(fields: [publicationId], references: [id], onDelete: SetNull)
+
+  @@unique([publicationId, relativePath])
+}
+
+model MediaObject {
+  id             String   @id @default(uuid())
+  kind           String
+  relativePath   String
+  publicPath     String?
+  sha256         String?
+  sizeBytes      BigInt?
+  codecs         Json     @default("{}")
+  workId         String?
+  episodeId      String?
+  publicationId  String?
+  createdAt      DateTime @default(now())
+
+  work           Work?        @relation(fields: [workId], references: [id], onDelete: SetNull)
+  episode        Episode?     @relation(fields: [episodeId], references: [id], onDelete: SetNull)
+  publication    Publication? @relation(fields: [publicationId], references: [id], onDelete: SetNull)
+
+  @@unique([publicationId, relativePath])
+  @@index([workId, kind])
+  @@index([episodeId, kind])
+}
+
+model Publication {
+  id              String           @id @default(uuid())
+  uploadId        String           @unique
+  packageId       String           @unique
+  idempotencyKey  String           @unique
+  packageType     PackageType
+  manifestSha256  String
+  manifest        Json
+  state           PublicationState @default(waiting_files)
+  errorMessage    String?
+  totalSizeBytes  BigInt?
+  confirmedAt     DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  files           PublicationFile[]
+  receipt         PublicationReceipt?
+  revisions       Revision[]
+  assets          Asset[]
+  mediaObjects    MediaObject[]
+}
+
+model PublicationFile {
+  id             String      @id @default(uuid())
+  publicationId  String
+  relativePath   String
+  expectedSha256 String?
+  expectedBytes  BigInt?
+  receivedSha256 String?
+  receivedBytes  BigInt?
+  receivedAt     DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  publication    Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+
+  @@unique([publicationId, relativePath])
+}
+
+model PublicationReceipt {
+  id                String      @id @default(uuid())
+  publicationId     String      @unique
+  packageId         String
+  remoteWorkId      String?
+  remoteSeasonId    String?
+  remoteEpisodeIds  Json        @default("{}")
+  remoteRevision    Int
+  manifestSha256    String
+  status            String      @default("confirmed")
+  confirmedAt       DateTime    @default(now())
+
+  publication        Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+}
+
+model Revision {
+  id            String      @id @default(uuid())
+  publicationId String
+  number        Int
+  scopeKey      String
+  snapshot      Json        @default("{}")
+  active        Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+
+  publication   Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+
+  @@unique([scopeKey, number])
+}
+
+model Profile {
+  id        String   @id @default(uuid())
+  name      String
+  avatar    String?
+  role      String   @default("viewer")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  favorites Favorite[]
+  progress  ViewingProgress[]
+}
+
+model Favorite {
+  id        String   @id @default(uuid())
+  profileId String
+  workId    String
+  createdAt DateTime @default(now())
+
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  work      Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, workId])
+}
+
+model ViewingProgress {
+  id              String   @id @default(uuid())
+  profileId       String
+  workId          String?
+  episodeId       String?
+  positionSeconds Int      @default(0)
+  durationSeconds Int?
+  completed       Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  profile         Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  work            Work?    @relation(fields: [workId], references: [id], onDelete: Cascade)
+  episode         Episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, updatedAt])
+  @@unique([profileId, workId])
+  @@unique([profileId, episodeId])
+}
+
+model TranscodeJob {
+  id          String   @id @default(uuid())
+  cacheKey    String   @unique
+  sourcePath  String
+  outputPath  String
+  state       String   @default("queued")
+  error       String?
+  sizeBytes   BigInt?
+  lastAccessAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([state, createdAt])
+}

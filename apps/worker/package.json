@@ -1,0 +1,21 @@
+{
+  "name": "@cyanflix/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/worker.js",
+  "scripts": {
+    "dev": "tsx watch src/worker.ts",
+    "build": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json",
+    "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+    "start": "node dist/worker.js"
+  },
+  "dependencies": {
+    "@cyanflix/database": "workspace:*",
+    "@cyanflix/shared": "workspace:*",
+    "@prisma/client": "^5.20.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.1"
+  }
+}

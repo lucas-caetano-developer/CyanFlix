@@ -1,0 +1,16 @@
+{
+  "name": "@cyanflix/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json",
+    "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+    "dev": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json --watch"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.20.0"
+  }
+}

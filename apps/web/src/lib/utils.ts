@@ -1,0 +1,134 @@
+import { Asset, Episode, Season, Work } from './types';
+
+export function getAssetUrl(assets: Asset[] | undefined, ...types: string[]): string | null {
+  if (!assets) return null;
+  const normalizedTypes = types.flatMap((type) => [type, type.replace(/-/g, '_')]);
+  for (const type of normalizedTypes) {
+    const asset = assets.find((a) => a.type === type && a.publicPath);
+    if (asset && asset.publicPath) return asset.publicPath;
+  }
+  return null;
+}
+
+export function getPosterUrl(work: Work): string | null {
+  return getAssetUrl(work.assets, 'poster-card', 'poster_card', 'poster');
+}
+
+export function getBackdropUrl(work: Work): string | null {
+  return getAssetUrl(work.assets, 'hero', 'backdrop-card', 'backdrop_card', 'backdrop');
+}
+
+export function getLogoUrl(work: Work): string | null {
+  return getAssetUrl(work.assets, 'logo');
+}
+
+export function getEpisodeThumbnail(episode: Episode): string | null {
+  return getAssetUrl(episode.assets, 'thumbnail_webp', 'thumbnail', 'episode_thumbnail');
+}
+
+export function getTrailerUrl(work: Work): string | null {
+  return getAssetUrl(work.assets, 'trailer');
+}
+
+export function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+export function formatDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = Math.floor(minutes % 60);
+  if (h > 0) return `${h}h ${m}min`;
+  return `${m}min`;
+}
+
+export function formatMs(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
+}
+
+export function labelKind(kind: Work['contentKind']): string {
+  switch (kind) {
+    case 'movie': return 'Filme';
+    case 'series': return 'Série';
+    case 'anime': return 'Anime';
+    default: return kind;
+  }
+}
+
+export function labelKindTag(kind: Work["contentKind"]): string {
+  return labelKind(kind);
+}
+
+export function getMetaField<T>(metadata: Record<string, unknown> | undefined, ...path: string[]): T | undefined {
+  if (!metadata) return undefined;
+  let current: any = metadata;
+  for (const key of path) {
+    if (current === null || current === undefined) return undefined;
+    current = current[key];
+  }
+  return current as T;
+}
+
+export function getRating(work: Work, source: 'tmdb' | 'mal', season?: Season): { value: number; votes: number; label: string } | null {
+  const toNumber = (value: unknown): number | null => {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string') {
+      const parsed = Number(value.replace(',', '.'));
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  };
+
+  if (work.contentKind === 'movie') {
+    const val = toNumber(getMetaField<unknown>(work.metadata, 'rating'));
+    const votes = toNumber(getMetaField<unknown>(work.metadata, 'vote_count')) || 0;
+    if (val !== null) return { value: val, votes, label: 'TMDb' };
+  } else if (work.seasons && work.seasons.length > 0) {
+    const s1 = season ?? work.seasons[0];
+    const valKey = source === 'tmdb' ? 'tmdb_rating' : 'mal_rating';
+    const votesKey = source === 'tmdb' ? 'tmdb_vote_count' : 'mal_vote_count';
+    const val = toNumber(getMetaField<unknown>(s1.metadata, valKey));
+    const votes = toNumber(getMetaField<unknown>(s1.metadata, votesKey)) || 0;
+    if (val !== null) return { value: val, votes, label: source === 'tmdb' ? 'TMDb' : 'MAL' };
+  }
+  return null;
+}
+
+export function getGenres(metadata: Record<string, unknown> | undefined): string[] {
+  const anilistGenres = getMetaField<string[]>(metadata, 'anilist', 'genres');
+  if (anilistGenres && anilistGenres.length > 0) return anilistGenres;
+  const tmdbGenres = getMetaField<string[]>(metadata, 'genres');
+  return tmdbGenres || [];
+}
+
+export function getCertification(metadata: Record<string, unknown> | undefined): string | null {
+  return getMetaField<string>(metadata, 'certification') || null;
+}
+
+export function getCast(metadata: Record<string, unknown> | undefined): Array<{ name: string; profile_url?: string; role?: string }> {
+  return getMetaField<Array<{ name: string; profile_url?: string; role?: string }>>(metadata, 'cast') || [];
+}
+
+export function getStudios(metadata: Record<string, unknown> | undefined): string[] {
+  const studios = getMetaField<Array<{ name: string }>>(metadata, 'anilist', 'studios');
+  if (!studios) return [];
+  return studios.map(s => s.name);
+}
+
+export function stripHtml(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return doc.body.textContent || '';
+}
+
+export function getSynopsis(work: Work): string {
+  if (work.synopsis) return work.synopsis;
+  const anilistDesc = getMetaField<string>(work.metadata, 'anilist', 'description');
+  if (anilistDesc) return stripHtml(anilistDesc);
+  return '';
+}

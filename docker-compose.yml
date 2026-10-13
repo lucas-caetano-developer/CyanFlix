@@ -1,0 +1,113 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cyanflix}
+      POSTGRES_USER: ${POSTGRES_USER:-cyanflix}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?configure POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cyanflix} -d ${POSTGRES_DB:-cyanflix}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    build:
+      context: .
+      target: migrate
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?configure DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      target: api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      APP_URL: ${APP_URL:?configure APP_URL}
+      PORT: 3000
+      TRUST_PROXY: "true"
+      DATABASE_URL: ${DATABASE_URL:?configure DATABASE_URL}
+      PUBLISHER_TOKEN: ${PUBLISHER_TOKEN:?configure PUBLISHER_TOKEN}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?configure ADMIN_PASSWORD}
+      SESSION_SECRET: ${SESSION_SECRET:?configure SESSION_SECRET}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-168}
+      PUBLISHER_ACCESS_TTL_MINUTES: ${PUBLISHER_ACCESS_TTL_MINUTES:-15}
+      DATA_ROOT: /data
+      API_BODY_LIMIT_BYTES: ${API_BODY_LIMIT_BYTES:-2097152}
+      MAX_UPLOAD_SIZE_BYTES: ${MAX_UPLOAD_SIZE_BYTES:-10737418240}
+      MAX_PACKAGE_SIZE_BYTES: ${MAX_PACKAGE_SIZE_BYTES:-536870912000}
+      MAX_PACKAGE_FILES: ${MAX_PACKAGE_FILES:-100000}
+      FFMPEG_CONCURRENCY: ${FFMPEG_CONCURRENCY:-1}
+      FFMPEG_PRESET: ${FFMPEG_PRESET:-veryfast}
+      FFMPEG_CRF: ${FFMPEG_CRF:-22}
+      TRANSCODE_CACHE_MAX_GB: ${TRANSCODE_CACHE_MAX_GB:-100}
+      TRANSCODE_CACHE_TTL_HOURS: ${TRANSCODE_CACHE_TTL_HOURS:-168}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - media-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  worker:
+    build:
+      context: .
+      target: worker
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      APP_URL: ${APP_URL:?configure APP_URL}
+      DATABASE_URL: ${DATABASE_URL:?configure DATABASE_URL}
+      PUBLISHER_TOKEN: ${PUBLISHER_TOKEN:?configure PUBLISHER_TOKEN}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?configure ADMIN_PASSWORD}
+      SESSION_SECRET: ${SESSION_SECRET:?configure SESSION_SECRET}
+      DATA_ROOT: /data
+      FFMPEG_CONCURRENCY: ${FFMPEG_CONCURRENCY:-1}
+      FFMPEG_PRESET: ${FFMPEG_PRESET:-veryfast}
+      FFMPEG_CRF: ${FFMPEG_CRF:-22}
+      TRANSCODE_CACHE_MAX_GB: ${TRANSCODE_CACHE_MAX_GB:-100}
+      TRANSCODE_CACHE_TTL_HOURS: ${TRANSCODE_CACHE_TTL_HOURS:-168}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - media-data:/data
+
+  gateway:
+    build:
+      context: .
+      target: gateway
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${GATEWAY_PORT:-8080}:80"
+    volumes:
+      - media-data:/data:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  postgres-data:
+  media-data:
