@@ -62,6 +62,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY prisma ./prisma
 COPY package.json pnpm-workspace.yaml ./
+
+RUN chown -R node:node /app/node_modules /app/prisma
+
 USER node
 CMD ["pnpm", "db:migrate"]
 
