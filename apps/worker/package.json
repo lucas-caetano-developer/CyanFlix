@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@cyanflix/database": "workspace:*",
+    "@cyanflix/ingestion": "workspace:*",
     "@cyanflix/shared": "workspace:*",
     "@prisma/client": "^5.20.0"
   },

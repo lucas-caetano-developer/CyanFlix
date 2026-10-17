@@ -1,0 +1,14 @@
+{
+  "name": "CyanFlix",
+  "short_name": "CyanFlix",
+  "description": "Plataforma privada de streaming",
+  "start_url": "/browse",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#070b12",
+  "theme_color": "#070b12",
+  "orientation": "any",
+  "icons": [
+    { "src": "/cyanflix-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

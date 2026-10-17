@@ -1,25 +1,61 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Work } from '../../lib/types';
-import { getBackdropUrl, getLogoUrl, getGenres, getCertification } from '../../lib/utils';
+import { getBackdropUrl, getLogoUrl, getGenres, getCertification, getMotionPreviewUrl } from '../../lib/utils';
 import { Badge } from '../ui/Badge';
 
 export function HeroCarousel({ items }: { items: Work[] }) {
   const carouselItems = items.slice(0, 5);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [motionAllowed, setMotionAllowed] = useState(false);
+  const [showMotion, setShowMotion] = useState(false);
+  const [pageVisible, setPageVisible] = useState(() => document.visibilityState === 'visible');
 
   useEffect(() => {
-    if (isPaused || carouselItems.length <= 1) return;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const precisePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+    const refresh = () => setMotionAllowed(!reducedMotion.matches && precisePointer.matches && !connection?.saveData && !['slow-2g', '2g'].includes(connection?.effectiveType ?? ''));
+    refresh();
+    reducedMotion.addEventListener('change', refresh);
+    precisePointer.addEventListener('change', refresh);
+    return () => {
+      reducedMotion.removeEventListener('change', refresh);
+      precisePointer.removeEventListener('change', refresh);
+    };
+  }, []);
+
+  useEffect(() => {
+    const refresh = () => setPageVisible(document.visibilityState === 'visible');
+    document.addEventListener('visibilitychange', refresh);
+    return () => document.removeEventListener('visibilitychange', refresh);
+  }, []);
+
+  useEffect(() => {
+    if (isPaused || !pageVisible || !motionAllowed || carouselItems.length <= 1) return;
     const timer = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % carouselItems.length);
     }, 8000);
     return () => clearInterval(timer);
-  }, [carouselItems.length, isPaused]);
-
-  if (carouselItems.length === 0) return null;
+  }, [carouselItems.length, isPaused, motionAllowed, pageVisible]);
 
   const currentWork = carouselItems[currentIndex];
+  const motionPreview = currentWork ? getMotionPreviewUrl(currentWork) : null;
+
+  useEffect(() => {
+    setShowMotion(false);
+    if (!motionAllowed || !motionPreview || !pageVisible) return;
+    const timer = window.setTimeout(() => setShowMotion(true), 1_200);
+    return () => window.clearTimeout(timer);
+  }, [currentWork?.id, motionAllowed, motionPreview, pageVisible]);
+
+  useEffect(() => {
+    if (currentIndex >= carouselItems.length && carouselItems.length > 0) setCurrentIndex(0);
+  }, [carouselItems.length, currentIndex]);
+
+  if (!currentWork) return null;
+
   const backdrop = getBackdropUrl(currentWork);
   const logo = getLogoUrl(currentWork);
   const genres = getGenres(currentWork.metadata);
@@ -39,6 +75,7 @@ export function HeroCarousel({ items }: { items: Work[] }) {
       {backdrop && (
         <img src={backdrop} alt={currentWork.title} className="hero__backdrop" />
       )}
+      {showMotion && motionPreview && <video key={motionPreview} className="hero__motion" src={motionPreview} muted autoPlay loop playsInline preload="metadata" aria-hidden="true" onError={() => setShowMotion(false)} />}
       <div className="hero__gradient-overlay"></div>
       
       <div className="hero__content">
@@ -61,18 +98,24 @@ export function HeroCarousel({ items }: { items: Work[] }) {
         )}
 
         <div className="hero__actions">
-          <Link to={playUrl} className="btn btn--primary">▶ Assistir</Link>
-          <Link to={`/title/${currentWork.id}`} className="btn btn--secondary">ℹ Mais Informações</Link>
+          <Link to={playUrl} className="btn btn--primary">Assistir</Link>
+          <Link to={`/title/${currentWork.id}`} className="btn btn--secondary">Mais informações</Link>
         </div>
       </div>
 
       <div className="hero__dots">
+        {motionAllowed && carouselItems.length > 1 && (
+          <button className="hero__pause" type="button" onClick={() => setIsPaused((paused) => !paused)} aria-pressed={isPaused}>
+            {isPaused ? 'Retomar destaques' : 'Pausar destaques'}
+          </button>
+        )}
         {carouselItems.map((_, idx) => (
           <button 
             key={idx} 
             className={`hero__dot ${idx === currentIndex ? 'hero__dot--active' : ''}`}
             onClick={() => setCurrentIndex(idx)}
-            aria-label={`Go to slide ${idx + 1}`}
+            aria-label={`Exibir destaque ${idx + 1}`}
+            aria-current={idx === currentIndex ? 'true' : undefined}
           />
         ))}
       </div>

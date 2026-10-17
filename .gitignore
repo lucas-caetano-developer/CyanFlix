@@ -7,3 +7,7 @@ coverage
 .DS_Store
 /data
 /tmp
+/test-results
+/playwright-report
+/blob-report
+/PLANO_REFATORACAO.md

@@ -30,6 +30,10 @@ export function getTrailerUrl(work: Work): string | null {
   return getAssetUrl(work.assets, 'trailer');
 }
 
+export function getMotionPreviewUrl(work: Work): string | null {
+  return getAssetUrl(work.assets, 'motion_preview');
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
@@ -116,6 +120,8 @@ export function getCast(metadata: Record<string, unknown> | undefined): Array<{ 
 }
 
 export function getStudios(metadata: Record<string, unknown> | undefined): string[] {
+  const productionStudios = getMetaField<string[]>(metadata, 'production_studios');
+  if (productionStudios?.length) return productionStudios;
   const studios = getMetaField<Array<{ name: string }>>(metadata, 'anilist', 'studios');
   if (!studios) return [];
   return studios.map(s => s.name);

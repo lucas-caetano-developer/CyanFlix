@@ -29,6 +29,26 @@ enum PublicationState {
   failed
 }
 
+enum AccountRole {
+  owner
+  admin
+  viewer
+}
+
+model Account {
+  id           String      @id @default(uuid())
+  username     String      @unique
+  passwordHash String
+  role         AccountRole @default(viewer)
+  disabled     Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  profiles     Profile[]
+  editorialOverrides EditorialOverride[]
+  auditLogs     AuditLog[]
+}
+
 model Work {
   id            String      @id @default(uuid())
   stableId      String      @unique
@@ -37,6 +57,7 @@ model Work {
   originalTitle String?
   year          Int?
   synopsis      String?
+  searchText    String      @default("")
   providerIds   Json        @default("{}")
   metadata      Json        @default("{}")
   hidden        Boolean     @default(false)
@@ -49,6 +70,77 @@ model Work {
   mediaObjects  MediaObject[]
   favorites     Favorite[]
   progress      ViewingProgress[]
+  editorialOverride EditorialOverride?
+  collectionItems EditorialCollectionItem[]
+}
+
+model EditorialCollection {
+  id                   String   @id @default(uuid())
+  slug                 String   @unique
+  title                String
+  description          String?
+  state                String   @default("draft")
+  active               Boolean  @default(true)
+  featured             Boolean  @default(false)
+  sortOrder             Int      @default(0)
+  metadata              Json     @default("{}")
+  createdByAccountId   String
+  updatedByAccountId   String
+  publishedAt           DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  items                 EditorialCollectionItem[]
+
+  @@index([state, active, sortOrder])
+}
+
+model EditorialCollectionItem {
+  collectionId String
+  workId       String
+  position     Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  collection   EditorialCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  work         Work                @relation(fields: [workId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, workId])
+  @@index([collectionId, position])
+  @@index([workId])
+}
+
+model EditorialOverride {
+  id                 String   @id @default(uuid())
+  workId             String   @unique
+  title              String?
+  synopsis           String?
+  hidden             Boolean?
+  featured           Boolean?
+  metadata           Json     @default("{}")
+  updatedByAccountId String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  work               Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
+  updatedBy          Account  @relation(fields: [updatedByAccountId], references: [id], onDelete: Restrict)
+
+  @@index([featured, hidden])
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  actorAccountId String
+  action         String
+  targetType     String
+  targetId       String
+  beforeValue    Json?
+  afterValue     Json?
+  createdAt      DateTime @default(now())
+
+  actor           Account @relation(fields: [actorAccountId], references: [id], onDelete: Restrict)
+
+  @@index([targetType, targetId, createdAt])
+  @@index([actorAccountId, createdAt])
 }
 
 model Season {
@@ -149,6 +241,11 @@ model Publication {
   manifest        Json
   state           PublicationState @default(waiting_files)
   errorMessage    String?
+  finalizationAttempts Int         @default(0)
+  finalizationWorkerId String?
+  finalizationLeaseUntil DateTime?
+  finalizationNextAttemptAt DateTime?
+  finalizationHeartbeatAt DateTime?
   totalSizeBytes  BigInt?
   confirmedAt     DateTime?
   createdAt       DateTime         @default(now())
@@ -159,6 +256,8 @@ model Publication {
   revisions       Revision[]
   assets          Asset[]
   mediaObjects    MediaObject[]
+
+  @@index([state, finalizationNextAttemptAt, finalizationLeaseUntil])
 }
 
 model PublicationFile {
@@ -207,16 +306,41 @@ model Revision {
   @@unique([scopeKey, number])
 }
 
+model RevisionCleanupJob {
+  id                   String   @id @default(uuid())
+  publicationId        String   @unique
+  state                String   @default("queued")
+  requestedByAccountId String
+  attempts             Int      @default(0)
+  sizeBytes             BigInt?
+  error                 String?
+  workerId              String?
+  leaseUntil            DateTime?
+  createdAt             DateTime @default(now())
+  startedAt             DateTime?
+  completedAt           DateTime?
+  updatedAt             DateTime @updatedAt
+
+  @@index([state, leaseUntil, createdAt])
+}
+
 model Profile {
   id        String   @id @default(uuid())
+  accountId String?
   name      String
   avatar    String?
   role      String   @default("viewer")
+  preferences Json   @default("{}")
+  pinHash   String?
+  maxAgeRating Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: Cascade)
   favorites Favorite[]
   progress  ViewingProgress[]
+
+  @@index([accountId, createdAt])
 }
 
 model Favorite {
@@ -260,8 +384,25 @@ model TranscodeJob {
   error       String?
   sizeBytes   BigInt?
   lastAccessAt DateTime?
+  protectedUntil DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([state, createdAt])
+  @@index([state, protectedUntil, lastAccessAt])
+}
+
+model IntegrityCheck {
+  id            String    @id @default(uuid())
+  bucket        String    @unique
+  state         String    @default("running")
+  checkedAssets Int       @default(0)
+  hashedAssets  Int       @default(0)
+  missingAssets Int       @default(0)
+  corruptAssets Int       @default(0)
+  details       Json      @default("[]")
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  @@index([startedAt])
 }

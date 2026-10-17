@@ -1,8 +1,8 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, type CSSProperties } from 'react';
 import { formatMs } from '../../lib/utils';
+import { Icon } from '../ui/Icon';
 
 interface PlayerControlsProps {
-  videoRef: React.RefObject<HTMLVideoElement>;
   playing: boolean;
   currentTime: number;
   duration: number;
@@ -10,7 +10,6 @@ interface PlayerControlsProps {
   volume: number;
   muted: boolean;
   fullscreen: boolean;
-  title: string;
   onPlay: () => void;
   onPause: () => void;
   onSeek: (time: number) => void;
@@ -19,6 +18,25 @@ interface PlayerControlsProps {
   onFullscreenToggle: () => void;
   onPipToggle: () => void;
   visible: boolean;
+  audioTracks: Array<{ id: number; label: string }>;
+  selectedAudioTrack: number;
+  onAudioTrackChange: (trackId: number) => void;
+  subtitleTracks: Array<{ id: number; label: string }>;
+  selectedSubtitleTrack: number;
+  onSubtitleTrackChange: (trackId: number) => void;
+  playbackRate: number;
+  onPlaybackRateChange: (rate: number) => void;
+  qualityLevels: Array<{ id: number; label: string }>;
+  selectedQuality: number;
+  onQualityChange: (levelId: number) => void;
+  markers: Array<{ type: string; start_ms: number; end_ms: number }>;
+  subtitleStyle: "small" | "medium" | "large";
+  onSubtitleStyleChange: (style: "small" | "medium" | "large") => void;
+  autoPlayNextEpisode: boolean;
+  onAutoPlayNextEpisodeChange: (enabled: boolean) => void;
+  episodes: Array<{ id: string; number: number; title?: string | null }>;
+  currentEpisodeId?: string;
+  onEpisodeChange: (episodeId: string) => void;
 }
 
 export function PlayerControls({
@@ -29,7 +47,6 @@ export function PlayerControls({
   volume,
   muted,
   fullscreen,
-  title,
   onPlay,
   onPause,
   onSeek,
@@ -38,6 +55,25 @@ export function PlayerControls({
   onFullscreenToggle,
   onPipToggle,
   visible,
+  audioTracks,
+  selectedAudioTrack,
+  onAudioTrackChange,
+  subtitleTracks,
+  selectedSubtitleTrack,
+  onSubtitleTrackChange,
+  playbackRate,
+  onPlaybackRateChange,
+  qualityLevels,
+  selectedQuality,
+  onQualityChange,
+  markers,
+  subtitleStyle,
+  onSubtitleStyleChange,
+  autoPlayNextEpisode,
+  onAutoPlayNextEpisodeChange,
+  episodes,
+  currentEpisodeId,
+  onEpisodeChange,
 }: PlayerControlsProps) {
   const progressRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -77,66 +113,150 @@ export function PlayerControls({
 
   const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
   const bufferedPercentage = buffered * 100;
+  const dynamicStyle = (values: Record<string, string | number>) => values as CSSProperties;
+
+  const handleProgressKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault();
+      onSeek(Math.max(0, Math.min(duration, currentTime + (event.key === 'ArrowRight' ? 10 : -10))));
+    } else if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      onSeek(event.key === 'End' ? duration : 0);
+    }
+  };
 
   return (
-    <div className={`player__controls ${visible ? 'player__controls--visible' : ''}`} style={{
-      opacity: visible ? 1 : 0,
-      transition: 'opacity 0.3s',
-      position: 'absolute',
-      bottom: 0, left: 0, right: 0,
-      background: 'linear-gradient(transparent, rgba(0,0,0,0.8))',
-      padding: '20px clamp(1rem, 4vw, 4%)',
-      display: 'flex', flexDirection: 'column', gap: '10px',
-      pointerEvents: visible ? 'auto' : 'none',
-      zIndex: 10
-    }}>
+    <div className={`player__controls ${visible ? 'player__controls--visible' : 'player__controls--hidden'}`}>
       <div 
-        className="player__progress-container"
+        className="player__progress"
         ref={progressRef}
         onPointerDown={handlePointerDown}
-        style={{ height: '5px', background: 'rgba(255,255,255,0.2)', cursor: 'pointer', position: 'relative', borderRadius: '2px' }}
+        onKeyDown={handleProgressKeyDown}
+        role="slider"
+        tabIndex={0}
+        aria-label="Posição da reprodução"
+        aria-valuemin={0}
+        aria-valuemax={Math.max(0, Math.round(duration))}
+        aria-valuenow={Math.max(0, Math.round(currentTime))}
+        aria-valuetext={`${formatMs(currentTime * 1000)} de ${formatMs(duration * 1000)}`}
       >
-        <div className="player__progress-buffered" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${bufferedPercentage}%`, background: 'rgba(255,255,255,0.4)', borderRadius: '2px' }} />
-        <div className="player__progress-current" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${progressPercentage}%`, background: 'var(--red)', borderRadius: '2px' }} />
-        <div className="player__progress-thumb" style={{
-          position: 'absolute', left: `${progressPercentage}%`, top: '50%', transform: 'translate(-50%, -50%)',
-          width: '12px', height: '12px', background: 'var(--red)', borderRadius: '50%', opacity: isDragging ? 1 : 0, transition: 'opacity 0.2s'
-        }} />
+        <div className="player__progress-buffered" style={dynamicStyle({ width: `${bufferedPercentage}%` })} />
+        <div className="player__progress-current" style={dynamicStyle({ width: `${progressPercentage}%` })} />
+        {duration > 0 && markers.map((marker, index) => {
+          const start = Math.max(0, Math.min(100, marker.start_ms / 1000 / duration * 100));
+          const end = Math.max(start, Math.min(100, marker.end_ms / 1000 / duration * 100));
+          return <span key={`${marker.type}-${marker.start_ms}-${index}`} className={`player__timeline-marker player__timeline-marker--${marker.type}`}
+                       title={markerLabel(marker.type)} style={dynamicStyle({ left: `${start}%`, width: `${Math.max(0.2, end - start)}%` })} />;
+        })}
+        <div className={`player__progress-thumb ${isDragging ? 'player__progress-thumb--visible' : ''}`} style={dynamicStyle({ left: `${progressPercentage}%` })} />
       </div>
 
-      <div className="player__controls-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div className="player__controls-left" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <button className="player__btn" onClick={playing ? onPause : onPlay} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '24px' }}>
-            {playing ? '⏸' : '▶'}
+      <div className="player__controls-bar">
+        <div className="player__controls-left">
+          <button className="player__btn" onClick={playing ? onPause : onPlay} aria-label={playing ? 'Pausar' : 'Reproduzir'}>
+            <Icon name={playing ? 'pause' : 'play'} />
           </button>
           
-          <div className="player__volume-container" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <button className="player__btn" onClick={onMuteToggle} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '20px' }}>
-              {muted || volume === 0 ? '🔇' : volume < 0.5 ? '🔈' : '🔊'}
+          <div className="player__volume-wrapper">
+            <button className="player__btn" onClick={onMuteToggle} aria-label={muted || volume === 0 ? 'Ativar som' : 'Silenciar'}>
+              <Icon name={muted || volume === 0 ? 'muted' : 'volume'} />
             </button>
             <input 
               className="player__volume-slider"
               type="range" min={0} max={1} step={0.01} 
               value={muted ? 0 : volume} 
               onChange={e => onVolumeChange(parseFloat(e.target.value))}
-              style={{ width: '80px', cursor: 'pointer' }}
+              aria-label="Volume"
             />
           </div>
 
-          <div className="player__time" style={{ color: 'white', fontSize: '14px', fontFamily: 'monospace' }}>
+          <div className="player__time">
             {formatMs(currentTime * 1000)} / {formatMs(duration * 1000)}
           </div>
         </div>
 
-        <div className="player__controls-right" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <button className="player__btn" onClick={onPipToggle} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '20px' }} title="Picture in Picture">
-            ⊡
+        <div className="player__controls-right">
+          {episodes.length > 1 && currentEpisodeId && (
+            <label className="player__track-control">
+              <span>Episódio</span>
+              <select aria-label="Selecionar episódio" value={currentEpisodeId} onChange={(event) => onEpisodeChange(event.target.value)}>
+                {episodes.map((episode) => <option key={episode.id} value={episode.id}>E{episode.number} · {episode.title || `Episódio ${episode.number}`}</option>)}
+              </select>
+            </label>
+          )}
+          {audioTracks.length > 1 && (
+            <label className="player__track-control">
+              <span>Áudio</span>
+              <select aria-label="Faixa de áudio" value={selectedAudioTrack}
+                      onChange={(event) => onAudioTrackChange(Number(event.target.value))}>
+                {audioTracks.map((track) => <option key={track.id} value={track.id}>{track.label}</option>)}
+              </select>
+            </label>
+          )}
+          {subtitleTracks.length > 0 && (
+            <>
+              <label className="player__track-control">
+                <span>Legendas</span>
+                <select aria-label="Faixa de legenda" value={selectedSubtitleTrack}
+                        onChange={(event) => onSubtitleTrackChange(Number(event.target.value))}>
+                  <option value={-1}>Desligadas</option>
+                  {subtitleTracks.map((track) => <option key={track.id} value={track.id}>{track.label}</option>)}
+                </select>
+              </label>
+              <label className="player__track-control">
+                <span>Tamanho</span>
+                <select aria-label="Tamanho da legenda" value={subtitleStyle}
+                        onChange={(event) => onSubtitleStyleChange(event.target.value as "small" | "medium" | "large")}>
+                  <option value="small">Pequena</option>
+                  <option value="medium">Média</option>
+                  <option value="large">Grande</option>
+                </select>
+              </label>
+            </>
+          )}
+          <label className="player__track-control">
+            <span>Velocidade</span>
+            <select aria-label="Velocidade de reprodução" value={playbackRate}
+                    onChange={(event) => onPlaybackRateChange(Number(event.target.value))}>
+              {[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => (
+                <option key={rate} value={rate}>{rate === 1 ? 'Normal' : `${rate}×`}</option>
+              ))}
+            </select>
+          </label>
+          {qualityLevels.length > 0 && (
+            <label className="player__track-control">
+              <span>Qualidade</span>
+              <select aria-label="Qualidade de vídeo" value={selectedQuality}
+                      onChange={(event) => onQualityChange(Number(event.target.value))}>
+                <option value={-1}>Automática</option>
+                {qualityLevels.map((level) => <option key={level.id} value={level.id}>{level.label}</option>)}
+              </select>
+            </label>
+          )}
+          <label className="player__track-control">
+            <span>Próximo</span>
+            <select aria-label="Reprodução automática do próximo episódio" value={autoPlayNextEpisode ? "on" : "off"}
+                    onChange={(event) => onAutoPlayNextEpisodeChange(event.target.value === "on")}>
+              <option value="on">Automático</option>
+              <option value="off">Manual</option>
+            </select>
+          </label>
+          <button className="player__btn" onClick={onPipToggle} aria-label="Picture in Picture">
+            <Icon name="pip" />
           </button>
-          <button className="player__btn" onClick={onFullscreenToggle} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '20px' }}>
-            {fullscreen ? '⛶' : '⛶'}
+          <button className="player__btn" onClick={onFullscreenToggle} aria-label={fullscreen ? 'Sair da tela cheia' : 'Entrar em tela cheia'}>
+            <Icon name={fullscreen ? 'exit-fullscreen' : 'fullscreen'} />
           </button>
         </div>
       </div>
     </div>
   );
+}
+
+function markerLabel(type: string): string {
+  if (type === 'opening') return 'Abertura';
+  if (type === 'ending') return 'Encerramento';
+  if (type === 'credits') return 'Créditos';
+  if (type === 'next_episode') return 'Próximo episódio';
+  return type;
 }

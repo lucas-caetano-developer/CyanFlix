@@ -22,7 +22,7 @@ export function MyListPage() {
       {isLoading && <Spinner />}
       
       {isError && !isLoading && (
-        <div style={{ color: "var(--text-muted)", padding: "2rem 0" }}>
+        <div className="empty-state">
           Sua lista está vazia ou a sincronização de favoritos ainda não foi iniciada.
         </div>
       )}
@@ -35,7 +35,7 @@ export function MyListPage() {
         </div>
       )}
       {favorites && favorites.length === 0 && !isLoading && (
-        <div style={{ color: "var(--text-muted)", padding: "2rem 0" }}>
+        <div className="empty-state">
           Sua lista está vazia. Adicione títulos pela página da obra.
         </div>
       )}

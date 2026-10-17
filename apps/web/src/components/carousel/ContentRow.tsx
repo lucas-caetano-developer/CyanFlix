@@ -25,7 +25,7 @@ export function ContentRow({ title, items, seeAllLink }: { title: string; items:
         )}
       </div>
       <div className="content-row__container">
-        <button className="content-row__arrow content-row__arrow--left" onClick={() => scroll('left')}>❮</button>
+        <button className="content-row__arrow content-row__arrow--left" onClick={() => scroll('left')} aria-label={`Voltar em ${title}`}><span aria-hidden="true">❮</span></button>
         <div className="content-row__rail" ref={railRef}>
           {items.map((item) => (
             <div key={item.id} className="content-row__item">
@@ -33,7 +33,7 @@ export function ContentRow({ title, items, seeAllLink }: { title: string; items:
             </div>
           ))}
         </div>
-        <button className="content-row__arrow content-row__arrow--right" onClick={() => scroll('right')}>❯</button>
+        <button className="content-row__arrow content-row__arrow--right" onClick={() => scroll('right')} aria-label={`Avançar em ${title}`}><span aria-hidden="true">❯</span></button>
       </div>
     </div>
   );

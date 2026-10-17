@@ -40,39 +40,42 @@ async function canonicalManifestSha256(manifest: Record<string, unknown>): Promi
   return sha256Bytes(new TextEncoder().encode(JSON.stringify(sortForJson(copy))));
 }
 
-function validateManifest(manifest: any): string[] {
+function validateManifest(manifest: unknown): string[] {
   const problems: string[] = [];
   if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) return ["not a JSON object"];
+  const value = manifest as Record<string, unknown>;
 
-  if (manifest.schema_version !== 1) problems.push("schema_version must be 1");
+  if (value.schema_version !== 1) problems.push("schema_version must be 1");
   for (const field of ["package_id", "idempotency_key", "package_type", "generated_at", "manifest_sha256"]) {
-    if (typeof manifest[field] !== "string" || !manifest[field]) problems.push(`missing '${field}'`);
+    if (typeof value[field] !== "string" || !value[field]) problems.push(`missing '${field}'`);
   }
-  if (manifest.package_type && !["movie", "season"].includes(manifest.package_type)) {
+  if (typeof value.package_type === "string" && !["movie", "season"].includes(value.package_type)) {
     problems.push("'package_type' must be 'movie' or 'season'");
   }
-  if (typeof manifest.manifest_sha256 === "string" && !/^[a-f0-9]{64}$/.test(manifest.manifest_sha256)) {
+  if (typeof value.manifest_sha256 === "string" && !/^[a-f0-9]{64}$/.test(value.manifest_sha256)) {
     problems.push("'manifest_sha256' must be a lowercase SHA-256 digest");
   }
 
-  const work = manifest.work;
-  if (!work || typeof work !== "object") {
+  const work = readRecord(value.work);
+  if (!work) {
     problems.push("missing 'work'");
   } else {
     if (typeof work.id !== "string" || !work.id) problems.push("missing 'work.id'");
     if (typeof work.title !== "string" || !work.title) problems.push("missing 'work.title'");
-    if (!["movie", "series", "anime"].includes(work.content_kind)) problems.push("'work.content_kind' must be movie, series or anime");
+    if (typeof work.content_kind !== "string" || !["movie", "series", "anime"].includes(work.content_kind)) problems.push("'work.content_kind' must be movie, series or anime");
   }
 
-  if (manifest.package_type === "season" && !(manifest.season && typeof manifest.season === "object" && manifest.season.id)) {
+  const season = readRecord(value.season);
+  if (value.package_type === "season" && !season?.id) {
     problems.push("missing 'season.id' in a season package");
   }
 
-  if (!Array.isArray(manifest.assets)) {
+  if (!Array.isArray(value.assets)) {
     problems.push("'assets' must be an array");
   } else {
-    manifest.assets.forEach((asset: any, index: number) => {
-      if (!asset || typeof asset !== "object") {
+    value.assets.forEach((entry, index: number) => {
+      const asset = readRecord(entry);
+      if (!asset) {
         problems.push(`assets[${index}] is not an object`);
         return;
       }
@@ -91,7 +94,7 @@ function summarizeList(items: string[], limit = 5): string {
   return items.length > limit ? `${items.slice(0, limit).join(", ")}… (${items.length} total)` : items.join(", ");
 }
 
-function browserPath(f: any): string {
+function browserPath(f: File): string {
   return f.webkitRelativePath || f.name;
 }
 
@@ -99,24 +102,65 @@ function normalizeBrowserRelativePath(path: string): string {
   return path.replace(/\\/g, '/');
 }
 
+function readRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
 function encodeRelativePath(path: string): string {
   return path.split('/').map(segment => encodeURIComponent(segment)).join('/');
+}
+
+type PublicationStatus = {
+  state?: string;
+  error?: string | null;
+  receipt?: { status?: string; remote_revision?: number } | null;
+};
+
+const delay = (milliseconds: number) => new Promise(resolve => window.setTimeout(resolve, milliseconds));
+
+async function waitForConfirmedPublication(
+  uploadId: string,
+  initial: PublicationStatus,
+  onStateChange: (state: string) => void
+): Promise<PublicationStatus> {
+  const deadline = Date.now() + 15 * 60_000;
+  let status = initial;
+  let previousState = "";
+
+  while (Date.now() < deadline) {
+    const state = String(status.state ?? "unknown");
+    if (state !== previousState) {
+      previousState = state;
+      onStateChange(state);
+    }
+    if (state === "confirmed" && status.receipt?.status === "confirmed") return status;
+    if (state === "failed") throw new Error(status.error || "Server failed while processing the publication.");
+
+    await delay(2_000);
+    const response = await fetch(`/v1/publications/${encodeURIComponent(uploadId)}`);
+    if (!response.ok) throw new Error(`Failed to check publication status: ${await describeHttpError(response)}`);
+    status = await response.json() as PublicationStatus;
+  }
+
+  throw new Error("Publication processing timed out. The upload was preserved and can be resumed.");
 }
 
 async function describeHttpError(res: Response): Promise<string> {
   if (res.status === 413) return "File is too large (413 Payload Too Large). Check proxy max body size.";
   const text = await res.text().catch(() => "");
-  let data: any = null;
+  let data: unknown = null;
   if (text) {
     try { data = JSON.parse(text); } catch { data = null; }
   }
   let message = "";
-  if (typeof data?.message === "string" && data.message) message = data.message;
-  else if (typeof data?.error === "string" && data.error) message = data.error;
-  else if (typeof data?.error?.message === "string" && data.error.message) message = data.error.message;
+  const object = readRecord(data);
+  const nestedError = readRecord(object?.error);
+  if (typeof object?.message === "string" && object.message) message = object.message;
+  else if (typeof object?.error === "string" && object.error) message = object.error;
+  else if (typeof nestedError?.message === "string" && nestedError.message) message = nestedError.message;
 
-  const extras = data && typeof data === "object"
-    ? Object.fromEntries(Object.entries(data).filter(([key]) => !["error", "message", "statusCode", "code"].includes(key)))
+  const extras = object
+    ? Object.fromEntries(Object.entries(object).filter(([key]) => !["error", "message", "statusCode", "code"].includes(key)))
     : {};
   if (message && Object.keys(extras).length) message += `: ${JSON.stringify(extras)}`;
   if (!message) message = text ? text.slice(0, 400) : `HTTP ${res.status}`;
@@ -125,13 +169,15 @@ async function describeHttpError(res: Response): Promise<string> {
 
 export function ImportPanel() {
   const [busy, setBusy] = useState(false);
-  const [phase, setPhase] = useState<"idle" | "reading" | "starting" | "hashing" | "uploading" | "completing" | "done">("idle");
+  const [phase, setPhase] = useState<"idle" | "reading" | "starting" | "hashing" | "uploading" | "completing" | "paused" | "done">("idle");
   const [status, setStatus] = useState<"none" | "ok" | "error">("none");
   const [progress, setProgress] = useState({ current: 0, total: 0, bytesUploaded: 0, totalBytes: 0 });
   const [currentFile, setCurrentFile] = useState("");
   const [summary, setSummary] = useState<{ pkgId: string; pubId: string; files: number; totalSize: number } | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const dirInputRef = useRef<HTMLInputElement>(null);
+  const pauseRequestedRef = useRef(false);
+  const uploadAbortRef = useRef<AbortController | null>(null);
 
   const log = (msg: string) => {
     setLogs(prev => [...prev.slice(-9), msg]);
@@ -147,6 +193,7 @@ export function ImportPanel() {
     setLogs([]);
     setSummary(null);
     setCurrentFile("");
+    pauseRequestedRef.current = false;
     
     try {
       const fullPathOf = (file: File) => normalizeBrowserRelativePath(browserPath(file));
@@ -166,7 +213,7 @@ export function ImportPanel() {
       }
 
       log("Reading manifest.json...");
-      let manifest: Record<string, any>;
+      let manifest: Record<string, unknown>;
       try {
         manifest = JSON.parse(await manifestFile.text());
       } catch (err) {
@@ -267,6 +314,7 @@ export function ImportPanel() {
       let completedFiles = receivedPaths.size;
 
       for (const relativePath of expectedPaths) {
+        if (pauseRequestedRef.current) throw new DOMException("Upload paused", "AbortError");
         if (receivedPaths.has(relativePath)) {
           continue;
         }
@@ -283,6 +331,8 @@ export function ImportPanel() {
         log(`Uploading ${relativePath} (${formatBytes(file.size)})...`);
 
         const uploadUrl = `/v1/publications/${encodeURIComponent(uploadId)}/files/${encodeRelativePath(relativePath)}`;
+        const uploadController = new AbortController();
+        uploadAbortRef.current = uploadController;
         const upRes = await fetch(uploadUrl, {
           method: "PUT",
           headers: {
@@ -292,8 +342,10 @@ export function ImportPanel() {
             "Content-Type": "application/octet-stream",
             "X-Content-SHA256": fileSha256
           },
-          body: file
+          body: file,
+          signal: uploadController.signal,
         });
+        uploadAbortRef.current = null;
 
         if (!upRes.ok) {
           throw new Error(`Failed to upload ${relativePath}: ${await describeHttpError(upRes)}`);
@@ -316,16 +368,28 @@ export function ImportPanel() {
         throw new Error(`Failed to complete publication: ${await describeHttpError(compRes)}`);
       }
 
-      const compData = await compRes.json();
+      const accepted = await compRes.json() as PublicationStatus;
+      const compData = await waitForConfirmedPublication(uploadId, accepted, remoteState => {
+        if (remoteState === "validating") log("Server is validating manifest and checksums...");
+        else if (remoteState === "promoting") log("Server is promoting the new catalog revision...");
+        else if (remoteState !== "confirmed") log(`Server state: ${remoteState}`);
+      });
       setPhase("done");
       setStatus("ok");
       setCurrentFile("");
       log(`Publication confirmed: state=${compData.state}, revision=${compData.receipt?.remote_revision ?? "-"}, receipt=${compData.receipt ? "yes" : "no"}`);
       log("Publication imported successfully!");
 
-    } catch (error: any) {
-      log(`ERROR: ${error.message}`);
-      setStatus("error");
+    } catch (error: unknown) {
+      if (pauseRequestedRef.current || (error instanceof DOMException && error.name === 'AbortError')) {
+        setPhase('paused');
+        setCurrentFile('');
+        setStatus('none');
+        log('Upload pausado. Selecione a mesma pasta para retomar sem reenviar arquivos confirmados.');
+      } else {
+        log(`ERROR: ${error instanceof Error ? error.message : String(error)}`);
+        setStatus("error");
+      }
     } finally {
       setBusy(false);
       if (dirInputRef.current) dirInputRef.current.value = "";
@@ -350,6 +414,7 @@ export function ImportPanel() {
       case "hashing": return "Calculando SHA-256...";
       case "uploading": return "Enviando arquivo...";
       case "completing": return "Finalizando...";
+      case "paused": return "Pausado";
       case "done": return "Concluído";
       default: return p;
     }
@@ -377,14 +442,13 @@ export function ImportPanel() {
           <input 
              type="file" 
              ref={dirInputRef}
-             //@ts-ignore
-             webkitdirectory="true" 
-             directory="true" 
-             style={{ display: 'none' }}
+             {...({ webkitdirectory: '', directory: '' } as React.InputHTMLAttributes<HTMLInputElement>)}
+             className="import-panel__directory-input"
              onChange={importFolder}
              disabled={busy}
           />
         </label>
+        {busy && (phase === 'uploading' || phase === 'hashing') && <button className="btn btn--secondary" onClick={() => { pauseRequestedRef.current = true; uploadAbortRef.current?.abort(); }}>Pausar upload</button>}
       </div>
 
       {(progress.total > 0 || busy || status !== "none") && (
@@ -407,12 +471,7 @@ export function ImportPanel() {
           )}
 
           {progress.total > 0 && (
-            <div className="import-panel__progress">
-              <span 
-                className="import-panel__progress-bar"
-                style={{ width: `${Math.max(5, (progress.bytesUploaded / progress.totalBytes) * 100)}%` }} 
-              />
-            </div>
+            <div className="import-panel__progress"><progress className="import-panel__progress-bar" value={progress.bytesUploaded} max={progress.totalBytes} aria-label="Progresso do upload" /></div>
           )}
 
           {currentFile && (

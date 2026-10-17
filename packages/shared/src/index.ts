@@ -12,11 +12,19 @@ export type AppEnv = {
   maxUploadSizeBytes: number;
   maxPackageSizeBytes: number;
   maxPackageFiles: number;
+  manifestBodyLimitBytes: number;
   ffmpegConcurrency: number;
   ffmpegPreset: string;
   ffmpegCrf: number;
   transcodeCacheMaxGb: number;
   transcodeCacheTtlHours: number;
+  publicationWorkers: number;
+  publicationMaxAttempts: number;
+  publicationLeaseSeconds: number;
+  integrityIntervalHours: number;
+  integrityHashSampleSize: number;
+  revisionRetentionDays: number;
+  revisionKeepPerScope: number;
 };
 
 export function readEnv(env = process.env): AppEnv {
@@ -34,11 +42,20 @@ export function readEnv(env = process.env): AppEnv {
     maxUploadSizeBytes: positiveNumber(env.MAX_UPLOAD_SIZE_BYTES, 10 * 1024 ** 3, "MAX_UPLOAD_SIZE_BYTES"),
     maxPackageSizeBytes: positiveNumber(env.MAX_PACKAGE_SIZE_BYTES, 500 * 1024 ** 3, "MAX_PACKAGE_SIZE_BYTES"),
     maxPackageFiles: positiveNumber(env.MAX_PACKAGE_FILES, 100_000, "MAX_PACKAGE_FILES"),
+    manifestBodyLimitBytes: positiveNumber(
+      env.MANIFEST_BODY_LIMIT_BYTES, 64 * 1024 ** 2, "MANIFEST_BODY_LIMIT_BYTES"),
     ffmpegConcurrency: positiveNumber(env.FFMPEG_CONCURRENCY, 1, "FFMPEG_CONCURRENCY"),
     ffmpegPreset: env.FFMPEG_PRESET ?? "veryfast",
     ffmpegCrf: Number(env.FFMPEG_CRF ?? 22),
     transcodeCacheMaxGb: Number(env.TRANSCODE_CACHE_MAX_GB ?? 100),
-    transcodeCacheTtlHours: Number(env.TRANSCODE_CACHE_TTL_HOURS ?? 168)
+    transcodeCacheTtlHours: Number(env.TRANSCODE_CACHE_TTL_HOURS ?? 168),
+    publicationWorkers: positiveInteger(env.PUBLICATION_WORKERS, 1, "PUBLICATION_WORKERS"),
+    publicationMaxAttempts: positiveInteger(env.PUBLICATION_MAX_ATTEMPTS, 3, "PUBLICATION_MAX_ATTEMPTS"),
+    publicationLeaseSeconds: positiveInteger(env.PUBLICATION_LEASE_SECONDS, 120, "PUBLICATION_LEASE_SECONDS"),
+    integrityIntervalHours: positiveNumber(env.INTEGRITY_INTERVAL_HOURS, 24, "INTEGRITY_INTERVAL_HOURS"),
+    integrityHashSampleSize: positiveInteger(env.INTEGRITY_HASH_SAMPLE_SIZE, 25, "INTEGRITY_HASH_SAMPLE_SIZE"),
+    revisionRetentionDays: positiveInteger(env.REVISION_RETENTION_DAYS, 30, "REVISION_RETENTION_DAYS"),
+    revisionKeepPerScope: positiveInteger(env.REVISION_KEEP_PER_SCOPE, 2, "REVISION_KEEP_PER_SCOPE")
   };
   if (value.nodeEnv === "production") {
     for (const [name, secret] of [["PUBLISHER_TOKEN", value.publisherToken], ["ADMIN_PASSWORD", value.adminPassword], ["SESSION_SECRET", value.sessionSecret]] as const) {
@@ -56,6 +73,12 @@ function required(value: string | undefined, name: string): string {
 function positiveNumber(value: string | undefined, fallback: number, name: string): number {
   const parsed = Number(value ?? fallback);
   if (!Number.isFinite(parsed) || parsed <= 0) throw new Error(`${name} must be a positive number`);
+  return parsed;
+}
+
+function positiveInteger(value: string | undefined, fallback: number, name: string): number {
+  const parsed = positiveNumber(value, fallback, name);
+  if (!Number.isSafeInteger(parsed)) throw new Error(`${name} must be a positive integer`);
   return parsed;
 }
 

@@ -1,7 +1,8 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import Hls from 'hls.js';
 import { PlayerControls } from './PlayerControls';
 import { PlayerOverlay } from './PlayerOverlay';
+import { Icon } from '../ui/Icon';
 
 interface VideoPlayerProps {
   src: string;
@@ -12,8 +13,16 @@ interface VideoPlayerProps {
   onNextEpisode?: () => void;
   startTime?: number; // resume position in seconds
   onTimeUpdate?: (currentTime: number, duration: number) => void;
+  onProgressCommit?: (currentTime: number, duration: number) => void;
   subtitles?: Array<{ url?: string | null; metadata?: Record<string, unknown> }>;
   onPlaybackError?: () => void;
+  autoPlayNextEpisode?: boolean;
+  subtitleStyle?: "small" | "medium" | "large";
+  onSubtitleStyleChange?: (style: "small" | "medium" | "large") => void;
+  onAutoPlayNextEpisodeChange?: (enabled: boolean) => void;
+  episodes?: Array<{ id: string; number: number; title?: string | null }>;
+  currentEpisodeId?: string;
+  onEpisodeChange?: (episodeId: string) => void;
 }
 
 export function VideoPlayer({
@@ -25,11 +34,20 @@ export function VideoPlayer({
   onNextEpisode,
   startTime,
   onTimeUpdate,
+  onProgressCommit,
   subtitles = [],
-  onPlaybackError
+  onPlaybackError,
+  autoPlayNextEpisode = true,
+  subtitleStyle = "medium",
+  onSubtitleStyleChange,
+  onAutoPlayNextEpisodeChange,
+  episodes = [],
+  currentEpisodeId,
+  onEpisodeChange,
 }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
 
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -39,9 +57,19 @@ export function VideoPlayer({
   const [muted, setMuted] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [audioTracks, setAudioTracks] = useState<Array<{ id: number; label: string }>>([]);
+  const [selectedAudioTrack, setSelectedAudioTrack] = useState(-1);
+  const [selectedSubtitleTrack, setSelectedSubtitleTrack] = useState(-1);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [qualityLevels, setQualityLevels] = useState<Array<{ id: number; label: string }>>([]);
+  const [selectedQuality, setSelectedQuality] = useState(-1);
+
+  const availableSubtitles = useMemo(() => subtitles.filter((track) => track.url), [subtitles]);
+  const playNextEpisode = useCallback(() => onNextEpisode?.(), [onNextEpisode]);
 
   const controlsTimeoutRef = useRef<number>();
   const fallbackRequestedRef = useRef(false);
+  const resumeTimeRef = useRef(0);
 
   const hideControls = useCallback(() => setControlsVisible(false), []);
   const resetControlsTimeout = useCallback(() => {
@@ -59,21 +87,37 @@ export function VideoPlayer({
     if (!src || !videoRef.current) return;
     const video = videoRef.current;
     fallbackRequestedRef.current = false;
+    setAudioTracks([]);
+    setSelectedAudioTrack(-1);
+    setQualityLevels([]);
+    setSelectedQuality(-1);
+    const resumeAt = Math.max(resumeTimeRef.current, startTime ?? 0);
     
     let hls: Hls;
 
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = src;
-      if (startTime) video.currentTime = startTime;
+       if (resumeAt) video.currentTime = resumeAt;
       video.play().catch(e => console.warn(e));
     } else if (Hls.isSupported()) {
       hls = new Hls({ enableWorker: true });
+      hlsRef.current = hls;
       hls.loadSource(src);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        if (startTime) video.currentTime = startTime;
+        setAudioTracks(hls.audioTracks.map((track, index) => ({
+          id: index,
+          label: track.name || track.lang || `Faixa ${index + 1}`,
+        })));
+        setSelectedAudioTrack(hls.audioTrack);
+        setQualityLevels(hls.levels.map((level, index) => ({
+          id: index,
+          label: level.height ? `${level.height}p${level.bitrate ? ` · ${(level.bitrate / 1_000_000).toFixed(1)} Mbps` : ''}` : `Nível ${index + 1}`,
+        })));
+        if (resumeAt) video.currentTime = resumeAt;
         video.play().catch(e => console.warn(e));
       });
+      hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_event, data) => setSelectedAudioTrack(data.id));
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal && !fallbackRequestedRef.current) {
           fallbackRequestedRef.current = true;
@@ -84,8 +128,25 @@ export function VideoPlayer({
 
     return () => {
       if (hls) hls.destroy();
+      hlsRef.current = null;
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
     };
   }, [src, startTime, onPlaybackError]);
+
+  useEffect(() => {
+    const defaultIndex = availableSubtitles.findIndex((track) => track.metadata?.default === true);
+    setSelectedSubtitleTrack(defaultIndex);
+  }, [availableSubtitles]);
+
+  useEffect(() => {
+    const textTracks = videoRef.current?.textTracks;
+    if (!textTracks) return;
+    for (let index = 0; index < textTracks.length; index += 1) {
+      textTracks[index].mode = index === selectedSubtitleTrack ? 'showing' : 'disabled';
+    }
+  }, [selectedSubtitleTrack, availableSubtitles]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -165,6 +226,7 @@ export function VideoPlayer({
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
     setCurrentTime(videoRef.current.currentTime);
+    resumeTimeRef.current = videoRef.current.currentTime;
     onTimeUpdate?.(videoRef.current.currentTime, videoRef.current.duration || 0);
   };
   
@@ -194,31 +256,39 @@ export function VideoPlayer({
     }
   }, [volume]);
 
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.playbackRate = playbackRate;
+  }, [playbackRate]);
+
   const isNearEnd = duration > 0 && duration - currentTime <= 30;
 
   return (
     <div 
-      className="player"
+      className={`player ${controlsVisible ? '' : 'player--controls-hidden'}`}
       ref={containerRef}
       onMouseMove={resetControlsTimeout}
       onMouseLeave={hideControls}
-      style={{ 
-        position: 'fixed', inset: 0, background: '#000', 
-        cursor: controlsVisible ? 'default' : 'none',
-        display: 'flex', flexDirection: 'column', overflow: 'hidden'
-      }}
     >
       <video
         ref={videoRef}
-        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+        className={`player__video player__video--subtitles-${subtitleStyle}`}
         onClick={togglePlay}
         onDoubleClick={toggleFullscreen}
         onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
+        onPause={() => {
+          setPlaying(false);
+          if (videoRef.current) onProgressCommit?.(videoRef.current.currentTime, videoRef.current.duration || 0);
+        }}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={onLoadedMetadata}
         onProgress={onProgress}
-        onEnded={() => setPlaying(false)}
+        onSeeked={() => {
+          if (videoRef.current) onProgressCommit?.(videoRef.current.currentTime, videoRef.current.duration || 0);
+        }}
+        onEnded={() => {
+          setPlaying(false);
+          if (videoRef.current) onProgressCommit?.(videoRef.current.duration || videoRef.current.currentTime, videoRef.current.duration || 0);
+        }}
         onError={() => {
           if (!fallbackRequestedRef.current) {
             fallbackRequestedRef.current = true;
@@ -227,30 +297,19 @@ export function VideoPlayer({
         }}
         playsInline
       >
-        {subtitles.filter((track) => track.url).map((track, index) => {
+        {availableSubtitles.map((track, index) => {
           const language = typeof track.metadata?.language === 'string' ? track.metadata.language : 'und';
           const label = typeof track.metadata?.title === 'string' ? track.metadata.title : language;
           return <track key={`${track.url}-${index}`} kind="subtitles" src={track.url!}
-                        srcLang={language} label={label} default={track.metadata?.default === true} />;
+                        srcLang={language} label={label} />;
         })}
       </video>
 
-      <div 
-        className="player__top-bar"
-        style={{
-          position: 'absolute', top: 0, left: 0, right: 0,
-          padding: '20px clamp(1rem, 4vw, 4%)',
-          background: 'linear-gradient(rgba(0,0,0,0.8), transparent)',
-          opacity: controlsVisible ? 1 : 0, transition: 'opacity 0.3s',
-          display: 'flex', alignItems: 'center', gap: '20px',
-          pointerEvents: controlsVisible ? 'auto' : 'none',
-          zIndex: 10
-        }}
-      >
-        <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '24px' }}>
-          ←
+      <div className={`player__top-bar ${controlsVisible ? '' : 'player__top-bar--hidden'}`}>
+        <button className="player__back" onClick={onBack} aria-label="Voltar">
+          <Icon name="back" />
         </button>
-        <h1 style={{ color: 'white', margin: 0, fontSize: '1.5rem', fontWeight: 'normal' }}>{title}</h1>
+        <h1 className="player__title-text">{title}</h1>
       </div>
 
       <PlayerOverlay
@@ -261,11 +320,11 @@ export function VideoPlayer({
         onSkip={(toMs) => {
           if (videoRef.current) videoRef.current.currentTime = toMs / 1000;
         }}
-        onNextEpisode={() => onNextEpisode && onNextEpisode()}
+        onNextEpisode={playNextEpisode}
+        autoPlayNextEpisode={autoPlayNextEpisode}
       />
 
       <PlayerControls
-        videoRef={videoRef}
         playing={playing}
         currentTime={currentTime}
         duration={duration}
@@ -273,7 +332,6 @@ export function VideoPlayer({
         volume={volume}
         muted={muted}
         fullscreen={fullscreen}
-        title={title}
         visible={controlsVisible}
         onPlay={() => videoRef.current?.play()}
         onPause={() => videoRef.current?.pause()}
@@ -282,6 +340,36 @@ export function VideoPlayer({
         onMuteToggle={() => setMuted(m => !m)}
         onFullscreenToggle={toggleFullscreen}
         onPipToggle={togglePip}
+        audioTracks={audioTracks}
+        selectedAudioTrack={selectedAudioTrack}
+        onAudioTrackChange={(trackId) => {
+          if (hlsRef.current) hlsRef.current.audioTrack = trackId;
+          setSelectedAudioTrack(trackId);
+        }}
+        subtitleTracks={availableSubtitles.map((track, index) => ({
+          id: index,
+          label: typeof track.metadata?.title === 'string'
+            ? track.metadata.title
+            : typeof track.metadata?.language === 'string' ? track.metadata.language : `Legenda ${index + 1}`,
+        }))}
+        selectedSubtitleTrack={selectedSubtitleTrack}
+        onSubtitleTrackChange={setSelectedSubtitleTrack}
+        playbackRate={playbackRate}
+        onPlaybackRateChange={setPlaybackRate}
+        qualityLevels={qualityLevels}
+        selectedQuality={selectedQuality}
+        onQualityChange={(levelId) => {
+          if (hlsRef.current) hlsRef.current.currentLevel = levelId;
+          setSelectedQuality(levelId);
+        }}
+        markers={markers}
+        subtitleStyle={subtitleStyle}
+        onSubtitleStyleChange={(style) => onSubtitleStyleChange?.(style)}
+        autoPlayNextEpisode={autoPlayNextEpisode}
+        onAutoPlayNextEpisodeChange={(enabled) => onAutoPlayNextEpisodeChange?.(enabled)}
+        episodes={episodes}
+        currentEpisodeId={currentEpisodeId}
+        onEpisodeChange={(episodeId) => onEpisodeChange?.(episodeId)}
       />
     </div>
   );

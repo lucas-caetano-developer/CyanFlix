@@ -7,13 +7,13 @@ export function EpisodeCard({ episode, workTitle, onClick }: { episode: Episode;
   const duration = getMetaField<number>(episode.metadata, 'duration_minutes') || getMetaField<number>(episode.metadata, 'runtime');
 
   return (
-    <div className="episode-card" onClick={onClick} role="button" tabIndex={0}>
+    <button type="button" className="episode-card" onClick={onClick}>
       <div className="episode-card__number">{episode.number}</div>
       <div className="episode-card__thumbnail-wrapper">
         {thumbnail ? (
           <img src={thumbnail} alt={episode.title || `Episode ${episode.number}`} className="episode-card__thumbnail" loading="lazy" />
         ) : (
-          <div className="episode-card__placeholder">▶</div>
+          <div className="episode-card__placeholder"><span aria-hidden="true" /></div>
         )}
       </div>
       <div className="episode-card__content">
@@ -23,6 +23,6 @@ export function EpisodeCard({ episode, workTitle, onClick }: { episode: Episode;
         </div>
         {episode.synopsis && <p className="episode-card__synopsis">{episode.synopsis}</p>}
       </div>
-    </div>
+    </button>
   );
 }

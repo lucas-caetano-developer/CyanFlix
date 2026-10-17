@@ -44,6 +44,81 @@ GET  /v1/publications/{upload_id}
 Todos os arquivos exigem `Content-Length` e `X-Content-SHA256`. O recibo somente é emitido
 depois da validação integral e da promoção transacional do catálogo.
 
+`POST /v1/publications/{upload_id}/complete` aceita a finalização com HTTP 202 e executa a
+validação em segundo plano. Repetir a chamada é idempotente: enquanto estiver em
+`validating`/`promoting`, a API devolve o estado existente; quando estiver `confirmed`, devolve
+o mesmo recibo. Clientes devem acompanhar o processamento com
+`GET /v1/publications/{upload_id}`.
+
+A API apenas aceita a finalização e persiste o estado `validating`. O serviço `worker` consome
+essa fila, valida o pacote, promove os arquivos e cria a revisão e o recibo. Se o worker for
+reiniciado, publicações em `validating` ou `promoting` são retomadas sem novo envio.
+
+Cada finalização recebe um lease exclusivo renovado por heartbeat. Isso permite executar mais de
+uma réplica do worker sem processar deliberadamente o mesmo pacote em paralelo. Falhas são
+reagendadas com backoff exponencial até `PUBLICATION_MAX_ATTEMPTS`; depois disso a publicação entra
+em `failed` e pode ser novamente concluída para reiniciar as tentativas.
+
+O Admin recebe alterações operacionais por SSE em `/api/admin/events`; o Nginx desativa buffering
+apenas nessa rota. O worker também executa uma auditoria por período configurado em
+`INTEGRITY_INTERVAL_HOURS`: todos os assets confirmados têm existência e tamanho verificados, e
+`INTEGRITY_HASH_SAMPLE_SIZE` arquivos formam uma amostra rotativa para validação SHA-256.
+
+## Conta inicial e perfis
+
+Na primeira inicialização após as migrations, a API cria a conta `owner` usando `ADMIN_PASSWORD`
+somente como credencial de bootstrap. A senha persistida usa `scrypt` com salt; alterações futuras
+em `ADMIN_PASSWORD` não substituem a senha da conta existente. Perfis legados sem conta são
+associados a esse owner durante a migração lógica de inicialização.
+
+Contas têm função `owner`, `admin` ou `viewer`. Apenas owner/admin acessam `/api/admin/*`, e cada
+conta só pode ler ou alterar os próprios perfis, favoritos e progresso. O owner pode administrar
+contas por `GET/POST/PATCH /api/admin/accounts`.
+
+Alterações editoriais de título, sinopse, visibilidade e destaque são armazenadas em
+`EditorialOverride`; o manifesto e os registros canônicos de ingestão permanecem intactos. Cada
+mudança gera um `AuditLog` com a conta responsável e os valores anterior e posterior.
+
+Perfis podem ter PIN numérico opcional e classificação etária máxima. O desbloqueio cria uma
+sessão de perfil assinada em cookie HTTP-only, vinculada à conta autenticada. O limite etário é
+aplicado pela API em catálogo, busca, detalhes, favoritos, progresso e playback; o hash do PIN
+nunca é retornado ao frontend.
+
+A coleta de revisões é executada pelo worker através de uma fila persistente. O Admin apresenta
+um preview e somente permite enfileirar publicações confirmadas, antigas e sem referências em
+temporadas ou episódios. `REVISION_RETENTION_DAYS` controla a idade mínima e
+`REVISION_KEEP_PER_SCOPE` preserva as revisões mais recentes para rollback.
+
+Quando o dispositivo não suporta o HEVC canônico, o worker gera um cache H.264 adaptativo com
+representações 1080p, 720p e 480p, omitindo níveis acima da resolução original. Áudio e legendas
+continuam referenciando os assets imutáveis da publicação; a ladder temporária permanece sujeita
+às políticas de proteção, tamanho e expiração do cache.
+
+## Testes
+
+- `pnpm test`: contratos, autenticação, workers e testes de componentes com Vitest/Testing Library.
+- `pnpm test:unit`: somente os testes do frontend.
+- `pnpm test:e2e`: fluxos Viewer/Admin no Chromium com Playwright.
+
+Na primeira execução local do E2E, instale o navegador com `pnpm exec playwright install chromium`.
+
+O manifesto de uma temporada contém o inventário de todos os segmentos HLS e usa o limite
+específico `MANIFEST_BODY_LIMIT_BYTES` (64 MiB por padrão). Esse limite não amplia as demais
+rotas JSON. Cada arquivo de mídia é enviado separadamente como `application/octet-stream` e
+encaminhado diretamente para o staging em disco, com hash calculado durante o stream; a API
+não carrega o arquivo inteiro na memória. O limite por arquivo continua sendo
+`MAX_UPLOAD_SIZE_BYTES`.
+
+Uploads repetidos são idempotentes: um arquivo já confirmado com o mesmo tamanho e SHA-256
+retorna sucesso sem ser gravado novamente. A API também impede duas gravações simultâneas do
+mesmo caminho. Tentativas incompletas podem ser removidas pelo publicador somente mediante
+confirmação do `package_id` e do hash selado do manifesto.
+
+No painel **Admin → Publicações**, o proprietário pode excluir um pacote por completo. A tela
+exige que o `package_id` inteiro seja digitado e remove staging, biblioteca, arquivos, recibo,
+revisão e registro do banco. Uma revisão ativa ou ainda referenciada pelo catálogo nunca é
+excluída; outra revisão precisa ser ativada primeiro.
+
 ## Implantação no Coolify
 
 1. Crie um recurso **Docker Compose** apontando para a pasta/repositório do CyanFlix.
@@ -67,6 +142,13 @@ PUBLISHER_TOKEN=<segredo aleatório, mínimo 32 caracteres>
 
 Variáveis de capacidade e fallback estão documentadas em `.env.example`. A migration é
 executada por um serviço de execução única antes da API iniciar.
+
+A atualização atual inclui a migration aditiva `20261014001000_editorial_collections`.
+Execute `pnpm db:migrate` antes de iniciar API e worker quando o deploy não usar o serviço
+automático de migrations.
+
+O frontend também pode ser instalado como PWA. O service worker guarda somente o shell e os
+assets estáticos versionados; APIs autenticadas, biblioteca, HLS e fallback nunca entram no cache.
 
 ## Persistência e backup
 

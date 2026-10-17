@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { getBackdropUrl, getPosterUrl, getCertification, getGenres, getCast, getRating, labelKind, getSynopsis } from "../lib/utils";
+import { getBackdropUrl, getPosterUrl, getCertification, getGenres, getCast, getRating, getStudios, getTrailerUrl, labelKind, getSynopsis } from "../lib/utils";
 import { Rating } from "../components/ui/Rating";
 import { Badge } from "../components/ui/Badge";
 import { EpisodeCard } from "../components/cards/EpisodeCard";
@@ -16,6 +16,8 @@ export function TitlePage() {
   const navigate = useNavigate();
   const profileId = useProfileStore((state) => state.profileId);
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [trailerOpen, setTrailerOpen] = useState(false);
   
   const { data: work, isLoading, isError, error } = useQuery({
     queryKey: ["work", id],
@@ -23,10 +25,14 @@ export function TitlePage() {
     enabled: !!id,
   });
 
-  const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
   const favorites = useQuery({
     queryKey: ["favorites", profileId],
     queryFn: () => api.getFavorites(profileId!),
+    enabled: Boolean(profileId),
+  });
+  const continueWatching = useQuery({
+    queryKey: ["continue-watching", profileId],
+    queryFn: () => api.getContinueWatching(profileId!),
     enabled: Boolean(profileId),
   });
   const favoriteMutation = useMutation({
@@ -41,9 +47,9 @@ export function TitlePage() {
   if (isLoading || !work) {
     if (isError) {
       return (
-        <div className="title-page" style={{ padding: "8rem var(--side-padding) 2rem" }}>
-          <h1 style={{ marginBottom: "1rem" }}>Não foi possível carregar este título</h1>
-          <p style={{ color: "var(--text-secondary)", marginBottom: "1.5rem" }}>
+        <div className="title-page title-page--error">
+          <h1>Não foi possível carregar este título</h1>
+          <p>
             {error instanceof Error ? error.message : "Erro desconhecido"}
           </p>
           <Link to="/browse" className="btn btn--secondary">Voltar ao início</Link>
@@ -54,7 +60,7 @@ export function TitlePage() {
     return (
       <div className="title-page">
         <Skeleton variant="backdrop" />
-        <div style={{ padding: "2rem var(--side-padding)" }}>
+        <div className="title-page__loading">
           <Spinner />
         </div>
       </div>
@@ -69,16 +75,29 @@ export function TitlePage() {
   const synopsis = getSynopsis(work);
 
   const seasons: Season[] = work.seasons || [];
-  const currentSeason = seasons.find((s: Season) => s.id === (selectedSeasonId || seasons[0]?.id)) || seasons[0];
+  const requestedSeason = searchParams.get("season");
+  const currentSeason = seasons.find((season) => season.id === requestedSeason || String(season.number) === requestedSeason) || seasons[0];
 
   const tmdbRating = getRating(work, "tmdb", currentSeason);
   const malRating = work.contentKind === "anime" ? getRating(work, "mal", currentSeason) : null;
 
+  const resume = continueWatching.data?.find((item) => item.id === work.id)?.continueWatching;
   const firstEpisodeId = currentSeason?.episodes?.[0]?.id;
-  const playUrl = work.contentKind === "movie" 
+  const playUrl = resume ? `/watch/${resume.itemType}/${resume.itemId}` : work.contentKind === "movie" 
     ? `/watch/movie/${work.id}` 
     : (firstEpisodeId ? `/watch/episode/${firstEpisodeId}` : null);
+  const playLabel = resume
+    ? resume.itemType === "episode" ? `Continuar T${resume.seasonNumber ?? "?"} E${resume.episodeNumber ?? "?"}` : "Continuar filme"
+    : work.contentKind === "movie" ? "Assistir filme" : "Começar agora";
   const isFavorite = Boolean(favorites.data?.some((item) => item.id === work.id));
+  const trailer = getTrailerUrl(work) || getTrailerUrl({ ...work, assets: currentSeason?.assets });
+  const seasonMetadata = currentSeason?.metadata;
+  const availability = typeof seasonMetadata?.media_availability === "string" ? seasonMetadata.media_availability : null;
+  const audioLanguages = stringArray(seasonMetadata?.audio_languages);
+  const subtitleLanguages = stringArray(seasonMetadata?.subtitle_languages).filter((language) => !/indispon/i.test(language));
+  const studios = getStudios(seasonMetadata ?? work.metadata);
+  const completeness = recordValue(currentSeason?.completeness);
+  const missingEpisodes = numberArray(completeness.missing_episode_numbers);
 
   return (
     <div className="title-page">
@@ -121,7 +140,7 @@ export function TitlePage() {
             <div className="title-page__actions">
               {playUrl ? (
                 <Link to={playUrl} className="btn btn--primary btn--lg">
-                  ▶ Assistir {work.contentKind === "movie" ? "Filme" : "Agora"}
+                  {playLabel}
                 </Link>
               ) : (
                 <button className="btn btn--secondary btn--lg" disabled>
@@ -133,6 +152,7 @@ export function TitlePage() {
                       onClick={() => favoriteMutation.mutate(isFavorite)}>
                 {isFavorite ? "✓ Minha Lista" : "+ Minha Lista"}
               </button>
+              {trailer && <button className="btn btn--secondary btn--lg" onClick={() => setTrailerOpen(true)}>Ver trailer</button>}
             </div>
           </div>
         </div>
@@ -148,7 +168,7 @@ export function TitlePage() {
                   <button
                     key={season.id}
                     className={`title-page__season-tab ${season.id === currentSeason?.id ? "title-page__season-tab--active" : ""}`}
-                    onClick={() => setSelectedSeasonId(season.id)}
+                    onClick={() => setSearchParams((current) => { const next = new URLSearchParams(current); next.set("season", String(season.number)); return next; })}
                   >
                     {season.title || `Temporada ${season.number}`}
                   </button>
@@ -156,11 +176,20 @@ export function TitlePage() {
               </div>
             )}
 
-            {currentSeason?.completeness && (currentSeason.completeness as any).is_complete === false && (
-              <div style={{ marginBottom: "1rem" }}>
-                <Badge variant="incomplete" label="Temporada Incompleta (Novos episódios em breve)" />
+            {currentSeason?.completeness && completeness.is_complete === false && (
+              <div className="title-page__completeness">
+                <Badge variant="incomplete" label="Temporada incompleta" />
+                <span>{Number(completeness.included_episode_count ?? currentSeason.episodes?.length ?? 0)} de {String(completeness.expected_episode_count ?? "?")} episódios disponíveis</span>
+                {missingEpisodes.length > 0 && <span>Ausentes: {missingEpisodes.join(", ")}</span>}
               </div>
             )}
+
+            {(availability || audioLanguages.length > 0 || subtitleLanguages.length > 0 || studios.length > 0) && <div className="title-page__delivery">
+              {availability && <Badge variant={availability.includes("DUB") ? "dub" : "leg"} label={availability} />}
+              {audioLanguages.length > 0 && <span>Áudio: {audioLanguages.join(", ")}</span>}
+              {subtitleLanguages.length > 0 && <span>Legendas: {subtitleLanguages.join(", ")}</span>}
+              {studios.length > 0 && <span>Estúdio: {studios.join(", ")}</span>}
+            </div>}
 
             <div className="title-page__episodes-list">
               {currentSeason?.episodes && currentSeason.episodes.length > 0 ? (
@@ -173,7 +202,7 @@ export function TitlePage() {
                   />
                 ))
               ) : (
-                <div style={{ color: "var(--text-muted)", padding: "1rem 0" }}>
+                <div className="empty-state empty-state--compact">
                   Nenhum episódio cadastrado para esta temporada.
                 </div>
               )}
@@ -191,7 +220,7 @@ export function TitlePage() {
                   {member.profile_url ? (
                     <img src={member.profile_url} alt={member.name} className="title-page__cast-photo" />
                   ) : (
-                    <div className="title-page__cast-photo" style={{ display: "grid", placeItems: "center" }}>👤</div>
+                    <div className="title-page__cast-photo title-page__cast-placeholder" aria-hidden="true"><span /></div>
                   )}
                   <div className="title-page__cast-name">{member.name}</div>
                 </div>
@@ -200,6 +229,24 @@ export function TitlePage() {
           </div>
         )}
       </div>
+      {trailerOpen && trailer && <div className="title-page__trailer" role="dialog" aria-modal="true" aria-label={`Trailer de ${work.title}`} onClick={() => setTrailerOpen(false)}>
+        <div className="title-page__trailer-content" onClick={(event) => event.stopPropagation()}>
+          <button aria-label="Fechar trailer" onClick={() => setTrailerOpen(false)}>×</button>
+          <video src={trailer} controls autoPlay playsInline />
+        </div>
+      </div>}
     </div>
   );
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())) : [];
+}
+
+function numberArray(value: unknown): number[] {
+  return Array.isArray(value) ? value.filter((item): item is number => typeof item === "number" && Number.isFinite(item)) : [];
 }
