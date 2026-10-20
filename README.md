@@ -109,6 +109,10 @@ encaminhado diretamente para o staging em disco, com hash calculado durante o st
 não carrega o arquivo inteiro na memória. O limite por arquivo continua sendo
 `MAX_UPLOAD_SIZE_BYTES`.
 
+O gateway mantém conexões persistentes com a API durante publicações. Isso é importante para
+pacotes HLS com milhares de segmentos: remover o `keepalive` faz cada arquivo pagar uma nova
+conexão TCP interna e reduz drasticamente a vazão efetiva.
+
 Uploads repetidos são idempotentes: um arquivo já confirmado com o mesmo tamanho e SHA-256
 retorna sucesso sem ser gravado novamente. A API também impede duas gravações simultâneas do
 mesmo caminho. Tentativas incompletas podem ser removidas pelo publicador somente mediante
