@@ -169,7 +169,7 @@ export function HeroCarousel({ items }: { items: Work[] }) {
         )}
 
         <div className="hero__actions">
-          <Link to={playUrl} className="btn btn--primary">
+          <Link to={playUrl} className="btn btn--primary" data-spatial-initial="true">
             <span className="hero__action-icon" aria-hidden="true"><Icon name="play" /></span>
             Assistir
           </Link>

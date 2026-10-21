@@ -23,7 +23,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const clearProfile = useProfileStore((state) => state.clearProfile);
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell" data-spatial-scope="admin">
       <aside className="admin-sidebar">
         <Link to="/admin" className="admin-sidebar__brand">
           <span className="admin-sidebar__brand-mark">C</span>

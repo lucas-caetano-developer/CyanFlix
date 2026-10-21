@@ -9,10 +9,12 @@ import { BrowsePage } from './pages/BrowsePage';
 import { SearchPage } from './pages/SearchPage';
 import { TitlePage } from './pages/TitlePage';
 import { MyListPage } from './pages/MyListPage';
+import { AccountPage } from './pages/AccountPage';
 import { LoginPage } from './pages/LoginPage';
 import { api } from './lib/api';
 import { Spinner } from './components/ui/Spinner';
 import { ProfileGate } from './components/layout/ProfileGate';
+import { SpatialNavigation } from './components/layout/SpatialNavigation';
 import './styles/index.css';
 
 const WatchPage = lazy(() => import('./pages/WatchPage').then((module) => ({ default: module.WatchPage })));
@@ -31,6 +33,7 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <SpatialNavigation />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route element={<AuthenticatedRoutes />}>
@@ -41,6 +44,7 @@ export function App() {
           <Route path="/title/:id" element={<Shell><TitlePage /></Shell>} />
           <Route path="/watch/:kind/:id" element={<ProfileGate><Suspense fallback={<Spinner fullScreen />}><WatchPage /></Suspense></ProfileGate>} />
           <Route path="/my-list" element={<Shell><MyListPage /></Shell>} />
+          <Route path="/account" element={<Shell><AccountPage /></Shell>} />
           <Route path="/admin" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminPage /></Suspense></AdminShell></AdminRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

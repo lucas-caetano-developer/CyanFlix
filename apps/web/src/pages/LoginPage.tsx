@@ -27,8 +27,8 @@ export function LoginPage() {
   }
 
   return (
-    <div className="profiles-page">
-      <form className="login-form" onSubmit={submit}>
+    <div className="profiles-page" data-spatial-scope="login">
+      <form className="login-form" onSubmit={submit} data-spatial-initial="true">
         <div className="profiles-page__logo">CyanFlix</div>
         <h1 className="profiles-page__heading">Acesso privado</h1>
         <p className="profiles-page__subheading">Entre para acessar sua biblioteca.</p>

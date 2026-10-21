@@ -1,93 +1,140 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { findActiveMarker, skipLabel } from '../../lib/player';
+import type { Marker } from '../../lib/types';
 
 interface PlayerOverlayProps {
-  markers: Array<{ type: string; start_ms: number; end_ms: number }>;
+  markers: Marker[];
   currentTimeMs: number;
   nextEpisode?: { id: string; title?: string | null; number: number } | null;
-  isNearEnd: boolean; // true when within last 30 seconds
+  isNearEnd: boolean;
+  countdownReady: boolean;
+  ended: boolean;
   onSkip: (toMs: number) => void;
   onNextEpisode: () => void;
   autoPlayNextEpisode: boolean;
+  playing: boolean;
+  interactionPaused: boolean;
+  workTitle?: string;
 }
+
+const COUNTDOWN_SECONDS = 10;
 
 export function PlayerOverlay({
   markers,
   currentTimeMs,
   nextEpisode,
   isNearEnd,
+  countdownReady,
+  ended,
   onSkip,
   onNextEpisode,
   autoPlayNextEpisode,
+  playing,
+  interactionPaused,
+  workTitle,
 }: PlayerOverlayProps) {
-  const [countdown, setCountdown] = useState(10);
+  const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
   const [autoPlayCancelled, setAutoPlayCancelled] = useState(false);
+  const dispatchedRef = useRef(false);
 
-  // Find active marker
-  const activeMarker = markers?.find(m => currentTimeMs >= m.start_ms && currentTimeMs < m.end_ms);
-  const showNextEpisode = isNearEnd || activeMarker?.type === 'next_episode';
-  const skippableMarker = activeMarker && activeMarker.type !== 'next_episode' ? activeMarker : null;
+  const activeMarker = findActiveMarker(markers, currentTimeMs);
+  const activeSkipLabel = activeMarker ? skipLabel(activeMarker.type) : null;
+  const skippableMarker = activeSkipLabel ? activeMarker : null;
+  const showNextEpisode = Boolean(nextEpisode) && (isNearEnd || activeMarker?.type === 'next_episode');
+  const countdownRunning = Boolean(
+    showNextEpisode
+    && autoPlayNextEpisode
+    && !autoPlayCancelled
+    && (playing || ended)
+    && !interactionPaused
+    && countdownReady,
+  );
 
   useEffect(() => {
-    let interval: number;
-    if (showNextEpisode && nextEpisode && autoPlayNextEpisode && !autoPlayCancelled) {
-      if (countdown > 0) {
-        interval = window.setInterval(() => {
-          setCountdown(c => Math.max(0, c - 1));
-        }, 1000);
-      } else if (countdown === 0) {
-        onNextEpisode();
-      }
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [showNextEpisode, nextEpisode, autoPlayNextEpisode, autoPlayCancelled, countdown, onNextEpisode]);
+    setCountdown(COUNTDOWN_SECONDS);
+    setAutoPlayCancelled(false);
+    dispatchedRef.current = false;
+  }, [nextEpisode?.id, showNextEpisode, countdownReady]);
 
-  // Reset countdown if near end status changes
   useEffect(() => {
-    if (!showNextEpisode) {
-      setCountdown(10);
-      setAutoPlayCancelled(false);
-    }
-  }, [showNextEpisode]);
+    if (!autoPlayNextEpisode) return;
+    setAutoPlayCancelled(false);
+    setCountdown(COUNTDOWN_SECONDS);
+    dispatchedRef.current = false;
+  }, [autoPlayNextEpisode]);
+
+  useEffect(() => {
+    if (!countdownRunning || countdown <= 0) return;
+    const timer = window.setTimeout(() => setCountdown((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [countdown, countdownRunning]);
+
+  useEffect(() => {
+    if (!countdownRunning || countdown > 0 || dispatchedRef.current) return;
+    dispatchedRef.current = true;
+    onNextEpisode();
+  }, [countdown, countdownRunning, onNextEpisode]);
+
+  if (!skippableMarker && !showNextEpisode) return null;
+
+  const countdownPaused = (!playing && !ended) || interactionPaused;
+  const showCountdown = autoPlayNextEpisode && !autoPlayCancelled && countdownReady;
+  const kicker = showCountdown
+    ? `Próximo episódio em ${countdown}s${countdownPaused ? ' · pausado' : ''}`
+    : 'Próximo episódio';
 
   return (
     <div className="player__overlay">
-      
-      {skippableMarker && (
-        <div className={`player__skip ${showNextEpisode ? 'player__skip--left' : 'player__skip--right'}`}>
-          <button 
-            className="player__skip-btn"
-            onClick={() => onSkip(skippableMarker.end_ms)}
-          >
-            {skippableMarker.type === 'opening' ? 'Pular abertura' : skippableMarker.type === 'ending' ? 'Pular encerramento' : 'Pular créditos'}
-          </button>
-        </div>
+      <span className="sr-only" aria-live="polite">
+        {showNextEpisode
+          ? showCountdown
+            ? 'Próximo episódio disponível. Reprodução automática em 10 segundos.'
+            : 'Próximo episódio disponível.'
+          : ''}
+      </span>
+
+      {skippableMarker && activeSkipLabel && (
+        <button
+          className={`player__skip-btn${showNextEpisode ? ' player__skip-btn--with-next' : ''}`}
+          onClick={(event) => {
+            event.currentTarget.blur();
+            onSkip(skippableMarker.end_ms);
+          }}
+        >
+          {activeSkipLabel}
+        </button>
       )}
 
       {showNextEpisode && nextEpisode && (
-        <div className="player__next-episode">
-          <div className="player__next-kicker" aria-live="polite">
-            {autoPlayNextEpisode && !autoPlayCancelled ? `Próximo episódio em ${countdown}s` : 'Próximo episódio'}
-          </div>
-          <div className="player__next-title">
-            Ep {nextEpisode.number} {nextEpisode.title ? `- ${nextEpisode.title}` : ''}
-          </div>
+        <section className="player__next-episode" aria-label="Próximo episódio">
+          {workTitle && <p className="player__next-work">{workTitle}</p>}
+          <p className="player__next-kicker">{kicker}</p>
+          <p className="player__next-title">{nextEpisode.title || `Episódio ${nextEpisode.number}`}</p>
+          <p className="player__next-meta">Episódio {nextEpisode.number}</p>
           <div className="player__next-actions">
-            <button 
-              onClick={onNextEpisode}
+            <button
               className="player__next-play"
+              onClick={(event) => {
+                event.currentTarget.blur();
+                dispatchedRef.current = true;
+                onNextEpisode();
+              }}
             >
-              Reproduzir Agora
+              Reproduzir agora
             </button>
-            {autoPlayNextEpisode && !autoPlayCancelled && <button 
-              onClick={() => setAutoPlayCancelled(true)}
-              className="player__next-cancel"
-            >
-              Cancelar
-            </button>}
+            {autoPlayNextEpisode && !autoPlayCancelled && (
+              <button
+                className="player__next-cancel"
+                onClick={(event) => {
+                  event.currentTarget.blur();
+                  setAutoPlayCancelled(true);
+                }}
+              >
+                Cancelar
+              </button>
+            )}
           </div>
-        </div>
+        </section>
       )}
     </div>
   );

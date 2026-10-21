@@ -45,15 +45,17 @@ export function formatBytes(bytes: number): string {
 export function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = Math.floor(minutes % 60);
-  if (h > 0) return `${h}h ${m}min`;
+  if (h > 0) return m > 0 ? `${h}h ${m}min` : `${h}h`;
   return `${m}min`;
 }
 
 export function formatMs(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const m = Math.floor(totalSeconds / 60);
+  const totalSeconds = Math.max(0, Math.floor(Number.isFinite(ms) ? ms / 1000 : 0));
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
   const s = totalSeconds % 60;
-  return `${m}:${s < 10 ? '0' : ''}${s}`;
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${m}:${String(s).padStart(2, '0')}`;
 }
 
 export function labelKind(kind: Work['contentKind']): string {
@@ -105,26 +107,50 @@ export function getRating(work: Work, source: 'tmdb' | 'mal', season?: Season): 
 }
 
 export function getGenres(metadata: Record<string, unknown> | undefined): string[] {
-  const anilistGenres = getMetaField<string[]>(metadata, 'anilist', 'genres');
-  if (anilistGenres && anilistGenres.length > 0) return anilistGenres;
-  const tmdbGenres = getMetaField<string[]>(metadata, 'genres');
-  return tmdbGenres || [];
+  const anilistGenres = getMetaField<unknown>(metadata, 'anilist', 'genres');
+  const tmdbGenres = getMetaField<unknown>(metadata, 'genres');
+  const normalize = (value: unknown) => Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())).map((item) => item.trim())
+    : [];
+  const anilist = normalize(anilistGenres);
+  return anilist.length > 0 ? anilist : normalize(tmdbGenres);
 }
 
 export function getCertification(metadata: Record<string, unknown> | undefined): string | null {
-  return getMetaField<string>(metadata, 'certification') || null;
+  const value = getMetaField<unknown>(metadata, 'certification');
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 export function getCast(metadata: Record<string, unknown> | undefined): Array<{ name: string; profile_url?: string; role?: string }> {
-  return getMetaField<Array<{ name: string; profile_url?: string; role?: string }>>(metadata, 'cast') || [];
+  const cast = getMetaField<unknown>(metadata, 'cast');
+  if (!Array.isArray(cast)) return [];
+
+  return cast.flatMap((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
+    const record = item as Record<string, unknown>;
+    const name = typeof record.name === 'string' ? record.name.trim() : '';
+    if (!name) return [];
+    const profileUrl = typeof record.profile_url === 'string' && record.profile_url.trim() ? record.profile_url.trim() : undefined;
+    const role = typeof record.role === 'string' && record.role.trim() ? record.role.trim() : undefined;
+    return [{ name, ...(profileUrl ? { profile_url: profileUrl } : {}), ...(role ? { role } : {}) }];
+  });
 }
 
 export function getStudios(metadata: Record<string, unknown> | undefined): string[] {
-  const productionStudios = getMetaField<string[]>(metadata, 'production_studios');
-  if (productionStudios?.length) return productionStudios;
-  const studios = getMetaField<Array<{ name: string }>>(metadata, 'anilist', 'studios');
-  if (!studios) return [];
-  return studios.map(s => s.name);
+  const productionStudios = getMetaField<unknown>(metadata, 'production_studios');
+  const normalize = (value: unknown) => Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())).map((item) => item.trim())
+    : [];
+  const production = normalize(productionStudios);
+  if (production.length > 0) return production;
+
+  const studios = getMetaField<unknown>(metadata, 'anilist', 'studios');
+  if (!Array.isArray(studios)) return [];
+  return studios.flatMap((studio) => {
+    if (!studio || typeof studio !== 'object' || Array.isArray(studio)) return [];
+    const name = (studio as Record<string, unknown>).name;
+    return typeof name === 'string' && name.trim() ? [name.trim()] : [];
+  });
 }
 
 export function stripHtml(html: string): string {

@@ -19,9 +19,9 @@ export function WatchPage() {
   const [subtitleStyle, setSubtitleStyle] = useState<"small" | "medium" | "large">("medium");
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['playback', id],
+    queryKey: ['playback', profileId, id],
     queryFn: () => api.getPlayback(id!),
-    enabled: !!id,
+    enabled: Boolean(profileId && id),
   });
   const progress = useQuery({
     queryKey: ['progress', profileId, id],
@@ -138,8 +138,11 @@ export function WatchPage() {
 
   if (isLoading || (profileId && (progress.isLoading || preferences.isLoading))) {
     return (
-      <div className="watch-state">
-        <div className="watch-state__loading">Carregando...</div>
+      <div className="watch-state" aria-busy="true">
+        <div className="watch-state__card">
+          <span className="watch-state__spinner" aria-hidden="true" />
+          <div className="watch-state__loading" role="status">Preparando reprodução…</div>
+        </div>
       </div>
     );
   }
@@ -147,10 +150,13 @@ export function WatchPage() {
   if (error || !data) {
     return (
       <div className="watch-state watch-state--error">
-        <div className="watch-state__error">Erro ao carregar o vídeo.</div>
-        <button className="btn btn--primary" onClick={() => navigate(-1)}>
-          Voltar
-        </button>
+        <div className="watch-state__card" role="alert">
+          <div className="watch-state__error">Não foi possível carregar o vídeo.</div>
+          <p className="watch-state__hint">Volte ao catálogo e tente novamente.</p>
+          <button className="btn btn--primary" onClick={() => navigate(-1)}>
+            Voltar
+          </button>
+        </div>
       </div>
     );
   }
@@ -184,6 +190,8 @@ export function WatchPage() {
         key={id}
         src={src}
         title={data.title}
+        itemType={data.itemType}
+        seasonNumber={data.seasonNumber}
         markers={data.markers}
         subtitles={data.subtitles}
         nextEpisode={data.nextEpisode}

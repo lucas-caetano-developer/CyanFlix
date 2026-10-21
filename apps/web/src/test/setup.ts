@@ -7,6 +7,22 @@ afterEach(() => {
   localStorage.clear();
 });
 
+Object.defineProperty(window, 'scrollTo', {
+  writable: true,
+  value: () => undefined,
+});
+
+Object.defineProperty(window, 'scrollBy', {
+  writable: true,
+  value: () => undefined,
+});
+
+Object.defineProperty(HTMLElement.prototype, 'scrollBy', {
+  configurable: true,
+  writable: true,
+  value: () => undefined,
+});
+
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: (query: string) => ({
