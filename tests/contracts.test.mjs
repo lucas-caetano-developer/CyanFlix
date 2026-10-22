@@ -41,6 +41,17 @@ test("accepts a sealed contract manifest", () => {
   assert.equal(manifestHash(manifest), manifest.manifest_sha256);
 });
 
+test("accepts one-episode replacement packages", () => {
+  const manifest = validManifest();
+  manifest.package_type = "episode_replacement";
+  manifest.movie = null;
+  manifest.manifest_sha256 = manifestHash(manifest);
+  assert.equal(manifestSchema.parse(manifest).package_type, "episode_replacement");
+  manifest.episodes.push({ ...manifest.episodes[0], id: "episode_other", number: 2 });
+  manifest.manifest_sha256 = manifestHash(manifest);
+  assert.equal(manifestSchema.safeParse(manifest).success, false);
+});
+
 test("rejects duplicate paths and invalid hashes", () => {
   const manifest = validManifest();
   manifest.assets.push({ ...manifest.assets[0], id: "asset_other", sha256: "short" });

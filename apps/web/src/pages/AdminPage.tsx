@@ -139,14 +139,16 @@ export function AdminPage() {
       <div className="admin__section" id="revisions">
         <h2 className="admin__section-title">Revisões do Catálogo</h2>
         <p className="admin__section-description">
-          Ativar uma revisão altera atomicamente as artes e mídias servidas. Episódios preservados por publicações parciais continuam apontando para sua última versão válida.
+          Ativar uma revisão altera atomicamente as artes e mídias servidas. Episódios preservados por publicações parciais continuam apontando para sua última versão válida. Substituições de episódio têm revisão própria e não alteram a temporada; ativar uma revisão de temporada desfaz as substituições dos episódios que ela contém.
         </p>
         <div className="admin__table">
           {revisions && revisions.length > 0 ? revisions.map((revision: Revision) => (
             <div key={revision.id} className="admin__revision-row">
               <div className="admin__revision-title">
                 <strong>{revision.workTitle}</strong>
-                <span>{revision.seasonTitle || (revision.packageType === "movie" ? "Filme" : revision.scopeKey)}</span>
+                <span>{revision.packageType === "episode_replacement"
+                  ? `Substituição · ${revision.episodeNumber ? `E${String(revision.episodeNumber).padStart(2, '0')} · ` : ''}${revision.episodeTitle || revision.seasonTitle || revision.scopeKey}`
+                  : revision.seasonTitle || (revision.packageType === "movie" ? "Filme" : revision.scopeKey)}</span>
               </div>
               <div>Revisão {revision.number}</div>
               <div className="admin__package-id">{revision.packageId}</div>

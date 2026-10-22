@@ -49,8 +49,8 @@ function validateManifest(manifest: unknown): string[] {
   for (const field of ["package_id", "idempotency_key", "package_type", "generated_at", "manifest_sha256"]) {
     if (typeof value[field] !== "string" || !value[field]) problems.push(`missing '${field}'`);
   }
-  if (typeof value.package_type === "string" && !["movie", "season"].includes(value.package_type)) {
-    problems.push("'package_type' must be 'movie' or 'season'");
+  if (typeof value.package_type === "string" && !["movie", "season", "episode_replacement"].includes(value.package_type)) {
+    problems.push("'package_type' must be 'movie', 'season' or 'episode_replacement'");
   }
   if (typeof value.manifest_sha256 === "string" && !/^[a-f0-9]{64}$/.test(value.manifest_sha256)) {
     problems.push("'manifest_sha256' must be a lowercase SHA-256 digest");
@@ -66,8 +66,11 @@ function validateManifest(manifest: unknown): string[] {
   }
 
   const season = readRecord(value.season);
-  if (value.package_type === "season" && !season?.id) {
-    problems.push("missing 'season.id' in a season package");
+  if (["season", "episode_replacement"].includes(String(value.package_type)) && !season?.id) {
+    problems.push(`missing 'season.id' in a ${value.package_type} package`);
+  }
+  if (value.package_type === "episode_replacement" && (!Array.isArray(value.episodes) || value.episodes.length !== 1)) {
+    problems.push("'episode_replacement' requires exactly one episode");
   }
 
   if (!Array.isArray(value.assets)) {

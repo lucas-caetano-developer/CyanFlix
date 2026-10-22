@@ -65,7 +65,7 @@ export const manifestSchema = z.object({
   schema_version: z.literal(1),
   package_id: z.string().min(1),
   idempotency_key: z.string().min(1),
-  package_type: z.enum(["movie", "season"]),
+  package_type: z.enum(["movie", "season", "episode_replacement"]),
   generated_at: z.string().datetime({ offset: true }),
   work: z.object({
     id: z.string().min(1),
@@ -87,6 +87,10 @@ export const manifestSchema = z.object({
     if (!manifest.season) context.addIssue({ code: z.ZodIssueCode.custom, path: ["season"], message: "Season package requires season" });
     if (manifest.movie) context.addIssue({ code: z.ZodIssueCode.custom, path: ["movie"], message: "Season package cannot contain movie" });
     if (!manifest.episodes.length) context.addIssue({ code: z.ZodIssueCode.custom, path: ["episodes"], message: "Season package requires episodes" });
+  } else if (manifest.package_type === "episode_replacement") {
+    if (!manifest.season) context.addIssue({ code: z.ZodIssueCode.custom, path: ["season"], message: "Episode replacement requires season" });
+    if (manifest.movie) context.addIssue({ code: z.ZodIssueCode.custom, path: ["movie"], message: "Episode replacement cannot contain movie" });
+    if (manifest.episodes.length !== 1) context.addIssue({ code: z.ZodIssueCode.custom, path: ["episodes"], message: "Episode replacement requires exactly one episode" });
   } else {
     if (!manifest.movie) context.addIssue({ code: z.ZodIssueCode.custom, path: ["movie"], message: "Movie package requires movie" });
     if (manifest.season || manifest.episodes.length) context.addIssue({ code: z.ZodIssueCode.custom, path: ["season"], message: "Movie package cannot contain season episodes" });

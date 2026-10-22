@@ -1,4 +1,4 @@
-import type { Profile, ProfilePreferences, HomeData, SearchResult, Work, PlaybackData, FallbackJob, AdminDashboard, Publication, PublicationDetail, Revision, RevisionCleanup, Session, Account, IntegrityCheck, AdminCatalogWork, AdminWorkDetail, AuditEntry, EditorialCollection, EditorialCollectionPreview, StorageMetrics } from './types';
+import type { Profile, ProfilePreferences, HomeData, SearchResult, Work, PlaybackData, FallbackJob, AdminDashboard, Publication, PublicationDetail, Revision, RevisionCleanup, Session, Account, IntegrityCheck, AdminCatalogWork, AdminWorkDetail, AuditEntry, EditorialCollection, EditorialCollectionPreview, StorageMetrics, WorkDeletionPreview } from './types';
 
 export async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { credentials: 'same-origin', ...init });
@@ -37,6 +37,8 @@ export const api = {
   getAdminIntegrity: () => fetchApi<IntegrityCheck[]>('/api/admin/integrity'),
   getAdminCatalog: (q = '', cursor?: string) => fetchApi<{ items: AdminCatalogWork[]; nextCursor?: string | null }>(`/api/admin/catalog${q || cursor ? `?${new URLSearchParams({ ...(q ? { q } : {}), ...(cursor ? { cursor } : {}) })}` : ''}`),
   getAdminWork: (id: string) => fetchApi<AdminWorkDetail>(`/api/admin/works/${encodeURIComponent(id)}`),
+  getWorkDeletionPreview: (id: string) => fetchApi<WorkDeletionPreview>(`/api/admin/works/${encodeURIComponent(id)}/deletion-preview`),
+  deleteAdminWork: (id: string, confirmTitle: string) => fetchApi<{ deleted: boolean; workId: string; stableId: string; title: string }>(`/api/admin/works/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmTitle }) }),
   updateAdminSeason: (id: string, hidden: boolean) => fetchApi<{ id: string; hidden: boolean; workId: string }>(`/api/admin/seasons/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hidden }) }),
   updateAdminEpisode: (id: string, hidden: boolean) => fetchApi<{ id: string; hidden: boolean; workId: string }>(`/api/admin/episodes/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hidden }) }),
   updatePresentationAsset: (workId: string, assetType: string, assetId: string) => fetchApi<void>(`/api/admin/works/${encodeURIComponent(workId)}/presentation`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assetType, assetId }) }),

@@ -17,6 +17,7 @@ enum ContentKind {
 enum PackageType {
   movie
   season
+  episode_replacement
 }
 
 enum PublicationState {

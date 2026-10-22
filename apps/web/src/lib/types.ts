@@ -35,7 +35,15 @@ export type Publication = { id: string; uploadId: string; packageId: string; pac
 export type PublicationDetail = Publication & { manifest: Record<string, unknown>; diff: { previousRevision?: number | null; added: string[]; removed: string[]; changed: string[] } };
 export type StorageMetrics = { assets: { count: number; bytes: number }; media: { count: number; bytes: number }; publications: { count: number; bytes: number }; transcodeCache: { count: number; bytes: number }; disk?: { totalBytes: number; freeBytes: number } | null };
 
-export type Revision = { id: string; scopeKey: string; number: number; active: boolean; createdAt: string; packageId: string; packageType: "movie" | "season"; publicationState: string; receiptStatus?: string | null; workTitle: string; seasonTitle?: string | null };
+export type Revision = { id: string; scopeKey: string; number: number; active: boolean; createdAt: string; packageId: string; packageType: "movie" | "season" | "episode_replacement"; publicationState: string; receiptStatus?: string | null; workTitle: string; seasonTitle?: string | null; episodeTitle?: string | null; episodeNumber?: number | null };
+export type WorkDeletionPreview = {
+  work: { id: string; stableId: string; title: string; contentKind: "movie" | "series" | "anime" };
+  counts: { seasons: number; episodes: number; assets: number; mediaObjects: number; favorites: number; progress: number; collectionItems: number; publications: number; transcodeJobs: number; bytes: number };
+  blockers: string[];
+  canDelete: boolean;
+  publications: Array<{ id: string; packageId: string; packageType: string; state: string; receiptStatus?: string | null; revisions: Array<{ id: string; scopeKey: string; number: number; active: boolean }>; fileCount: number; totalSizeBytes: number }>;
+  transcodeJobs: Array<{ id: string; state: string; sizeBytes: number }>;
+};
 export type RevisionCleanup = {
   policy: { retentionDays: number; keepPerScope: number };
   candidates: Array<{ publicationId: string; packageId: string; scopeKey: string; revisionNumber: number; createdAt: string; sizeBytes?: number | null }>;
