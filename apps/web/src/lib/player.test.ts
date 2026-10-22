@@ -1,14 +1,19 @@
 import {
+  applyAudioInitPts,
+  audioInitPtsForOffset,
   dedupeSubtitleTracks,
   findActiveMarker,
+  isSafariBrowser,
   markerLabel,
   markerTone,
+  playbackAudioOffsetSeconds,
   shouldIgnorePlayerShortcut,
   skipLabel,
   splitPlaybackTitle,
   subtitleTrackLabel,
   trackLabel,
 } from './player';
+import { vi } from 'vitest';
 import type { Marker, PlaybackTrack } from './types';
 
 test('labels editorial markers using only known semantics', () => {
@@ -64,6 +69,46 @@ test('builds understandable audio and subtitle labels', () => {
   expect(trackLabel('pt', 'pt-BR', 'Faixa 1')).toBeTruthy();
   expect(trackLabel('audio_1', 'pt-BR', 'Faixa 1')).not.toBe('audio_1');
   expect(trackLabel(undefined, undefined, 'Faixa 1')).toBe('Faixa 1');
+});
+
+test('reads the A/V offset declared by the publication delivery', () => {
+  expect(playbackAudioOffsetSeconds(undefined)).toBe(0);
+  expect(playbackAudioOffsetSeconds({})).toBe(0);
+  expect(playbackAudioOffsetSeconds({ av_offset_seconds: [0] })).toBe(0);
+  expect(playbackAudioOffsetSeconds({ av_offset_seconds: [0.724] })).toBe(0.724);
+  expect(playbackAudioOffsetSeconds({ av_offset_seconds: 1.585 })).toBe(1.585);
+  expect(playbackAudioOffsetSeconds({ av_offset_seconds: [-0.5] })).toBe(-0.5);
+  expect(playbackAudioOffsetSeconds({ av_offset_seconds: ['nope'] })).toBe(0);
+  expect(playbackAudioOffsetSeconds({ av_offset_seconds: [null] })).toBe(0);
+  expect(playbackAudioOffsetSeconds({ av_offset_seconds: 99 })).toBe(10);
+});
+
+test('keeps native HLS only for Safari', () => {
+  vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 Chrome/155.0.0.0 Safari/537.36' });
+  expect(isSafariBrowser()).toBe(false);
+  vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1' });
+  expect(isSafariBrowser()).toBe(true);
+  vi.unstubAllGlobals();
+});
+
+test('converts the A/V offset to the hls.js initPTS timescale', () => {
+  expect(audioInitPtsForOffset(0, 90_000, 2)).toEqual({ baseTime: 0, timescale: 90_000, trackId: 2 });
+  expect(audioInitPtsForOffset(1.585, 90_000, 2)).toEqual({ baseTime: 142_650, timescale: 90_000, trackId: 2 });
+  expect(audioInitPtsForOffset(0.5, 0, 1)).toEqual({ baseTime: 45_000, timescale: 90_000, trackId: 1 });
+  expect(audioInitPtsForOffset(-0.5, 90_000, 1)).toEqual({ baseTime: -45_000, timescale: 90_000, trackId: 1 });
+  expect(audioInitPtsForOffset(99, 90_000, 1)).toEqual({ baseTime: 900_000, timescale: 90_000, trackId: 1 });
+  expect(audioInitPtsForOffset(Number.NaN, 90_000, 1)).toEqual({ baseTime: 0, timescale: 90_000, trackId: 1 });
+});
+
+test('replaces only the main-rendition copy of the audio initPTS', () => {
+  const offsets = [{ baseTime: 65_160, timescale: 90_000, trackId: 1 }];
+  const hls = { audioStreamController: { initPTS: offsets } };
+  expect(applyAudioInitPts(hls, { id: 'audio', frag: { cc: 0 }, timescale: 90_000, trackId: 2 }, 1.585)).toBe(false);
+  expect(offsets[0].baseTime).toBe(65_160);
+  expect(applyAudioInitPts(hls, { id: 'main', frag: { cc: 0 }, timescale: 90_000, trackId: 2 }, 1.585)).toBe(true);
+  expect(offsets[0]).toEqual({ baseTime: 142_650, timescale: 90_000, trackId: 2 });
+  expect(applyAudioInitPts({}, { id: 'main', frag: { cc: 0 }, timescale: 90_000, trackId: 2 }, 0)).toBe(false);
+  expect(applyAudioInitPts(null, { id: 'main', frag: { cc: 0 }, timescale: 90_000, trackId: 2 }, 0)).toBe(false);
 });
 
 test('ignores player shortcuts while the user operates interactive controls', () => {

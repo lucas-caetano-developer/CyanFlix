@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import Hls from 'hls.js';
 import { api } from '../lib/api';
+import { isSafariBrowser, playbackAudioOffsetSeconds } from '../lib/player';
 import { VideoPlayer } from '../components/player/VideoPlayer';
 import { useProfileStore } from '../stores/useProfileStore';
 
@@ -201,6 +203,7 @@ export function WatchPage() {
         onBack={() => navigate(-1)}
         onNextEpisode={handleNextEpisode}
         startTime={progress.data?.completed ? 0 : progress.data?.positionSeconds}
+        audioOffsetSeconds={playbackAudioOffsetSeconds(data.delivery)}
         onTimeUpdate={(positionSeconds, durationSeconds) => {
           hasPlaybackSnapshotRef.current = true;
           latestProgressRef.current = { positionSeconds, durationSeconds };
@@ -248,7 +251,10 @@ function requiresCompatibilityFallback(delivery: Record<string, unknown> | undef
   if (!declared.some((codec) => codec.includes("hevc") || codec.includes("h265") || codec.includes("hvc1") || codec.includes("hev1"))) return false;
 
   const video = document.createElement("video");
-  if (video.canPlayType("application/vnd.apple.mpegurl")) return false;
+  // Mirrors the player's source selection: Chromium reports native HLS support
+  // but the player uses hls.js there, so the fallback must test MSE codecs.
+  const usesHlsJs = Hls.isSupported() && !isSafariBrowser();
+  if (!usesHlsJs && video.canPlayType("application/vnd.apple.mpegurl")) return false;
   if (typeof MediaSource === "undefined") return true;
   return ![
     'video/mp4; codecs="hvc1.1.6.L120.B0"',

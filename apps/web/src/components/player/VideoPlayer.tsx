@@ -3,7 +3,7 @@ import Hls from 'hls.js';
 import { PlayerControls } from './PlayerControls';
 import { PlayerOverlay } from './PlayerOverlay';
 import { Icon, type IconName } from '../ui/Icon';
-import { dedupeSubtitleTracks, shouldIgnorePlayerShortcut, splitPlaybackTitle, subtitleTrackLabel, trackLabel } from '../../lib/player';
+import { applyAudioInitPts, dedupeSubtitleTracks, isSafariBrowser, shouldIgnorePlayerShortcut, splitPlaybackTitle, subtitleTrackLabel, trackLabel } from '../../lib/player';
 import type { Marker } from '../../lib/types';
 
 interface VideoPlayerProps {
@@ -16,6 +16,7 @@ interface VideoPlayerProps {
   onBack: () => void;
   onNextEpisode?: () => void;
   startTime?: number; // resume position in seconds
+  audioOffsetSeconds?: number; // declared A/V offset used to realign the audio rendition
   onTimeUpdate?: (currentTime: number, duration: number) => void;
   onProgressCommit?: (currentTime: number, duration: number) => void;
   subtitles?: Array<{ url?: string | null; metadata?: Record<string, unknown> }>;
@@ -53,6 +54,7 @@ export function VideoPlayer({
   onBack,
   onNextEpisode,
   startTime,
+  audioOffsetSeconds = 0,
   onTimeUpdate,
   onProgressCommit,
   subtitles = [],
@@ -75,6 +77,7 @@ export function VideoPlayer({
   const fallbackRequestedRef = useRef(false);
   const resumeTimeRef = useRef(0);
   const mountedRef = useRef(true);
+  const audioOffsetSecondsRef = useRef(audioOffsetSeconds);
 
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -165,6 +168,10 @@ export function VideoPlayer({
       if (feedbackTimeoutRef.current) window.clearTimeout(feedbackTimeoutRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    audioOffsetSecondsRef.current = audioOffsetSeconds;
+  }, [audioOffsetSeconds]);
 
   const seekTo = useCallback((time: number) => {
     const video = videoRef.current;
@@ -287,14 +294,24 @@ export function VideoPlayer({
 
     let hls: Hls | undefined;
 
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = src;
-      if (resumeAt) video.currentTime = resumeAt;
-      void video.play().catch(() => undefined);
-    } else if (Hls.isSupported()) {
+    // Chromium also answers "maybe" for native HLS, but native playback gives
+    // no control over the audio SourceBuffer timeline. Prefer hls.js there so
+    // the packager's A/V offset can be compensated; Safari keeps native HLS.
+    const useHlsJs = Hls.isSupported() && !isSafariBrowser();
+    const canPlayNativeHls = Boolean(video.canPlayType('application/vnd.apple.mpegurl'));
+
+    if (useHlsJs) {
       const hlsInstance = new Hls({ enableWorker: true });
       hls = hlsInstance;
       hlsRef.current = hlsInstance;
+      // Publications record how far the video track starts after the audio.
+      // hls.js loses that offset when it aligns both renditions to the first
+      // fragment timestamp, so speech arrives late. Replace the audio initPTS
+      // with the declared offset: hls.js turns it into a negative SourceBuffer
+      // timestampOffset and moves the audio back onto the video timeline.
+      hlsInstance.on(Hls.Events.INIT_PTS_FOUND, (_event, data) => {
+        applyAudioInitPts(hlsInstance, data, audioOffsetSecondsRef.current);
+      });
       const syncAudioTracks = () => {
         const seen = new Set<string>();
         const tracks = hlsInstance.audioTracks.flatMap((track, index) => {
@@ -331,6 +348,10 @@ export function VideoPlayer({
           onPlaybackError?.();
         }
       });
+    } else if (canPlayNativeHls) {
+      video.src = src;
+      if (resumeAt) video.currentTime = resumeAt;
+      void video.play().catch(() => undefined);
     } else {
       setLoadState('error');
       setPlaybackError(true);

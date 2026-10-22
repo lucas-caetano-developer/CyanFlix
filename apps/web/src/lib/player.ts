@@ -27,6 +27,59 @@ export function markerTone(type: string): 'opening' | 'ending' | 'credits' | 'ne
   return 'other';
 }
 
+export type AudioInitPts = { baseTime: number; timescale: number; trackId: number };
+
+const MAX_AUDIO_OFFSET_SECONDS = 10;
+
+export function isSafariBrowser(): boolean {
+  return typeof navigator !== 'undefined' && /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+}
+
+/**
+ * Publications record how far the video track starts after the audio track.
+ * hls.js normalises both renditions to the first fragment timestamp, which
+ * drops that offset and makes speech arrive late. Reading the declared offset
+ * lets the player move the audio rendition back onto the video timeline.
+ */
+export function playbackAudioOffsetSeconds(delivery?: Record<string, unknown>): number {
+  const offsets = delivery?.av_offset_seconds;
+  const first = Array.isArray(offsets) ? offsets[0] : offsets;
+  const value = Number(first);
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(-MAX_AUDIO_OFFSET_SECONDS, Math.min(MAX_AUDIO_OFFSET_SECONDS, value));
+}
+
+/**
+ * hls.js derives the audio SourceBuffer timestampOffset as
+ * `-baseTime / timescale`. A positive baseTime therefore moves audio earlier,
+ * compensating a video track that starts later than the audio.
+ */
+export function audioInitPtsForOffset(offsetSeconds: number, timescale: number, trackId: number): AudioInitPts {
+  const scale = Number.isFinite(timescale) && timescale > 0 ? timescale : 90_000;
+  const offset = Number.isFinite(offsetSeconds)
+    ? Math.max(-MAX_AUDIO_OFFSET_SECONDS, Math.min(MAX_AUDIO_OFFSET_SECONDS, offsetSeconds))
+    : 0;
+  return { baseTime: Math.round(offset * scale), timescale: scale, trackId };
+}
+
+/**
+ * hls.js copies the main-rendition initPTS into the audio controller. Replace
+ * only the audio entry with the declared A/V offset so the audio SourceBuffer
+ * is shifted back onto the video timeline. Returns true when it was replaced.
+ */
+export function applyAudioInitPts(
+  hls: unknown,
+  data: { id: string; frag: { cc: number }; timescale: number; trackId: number },
+  offsetSeconds: number,
+): boolean {
+  if (data.id !== 'main') return false;
+  const controller = (hls as { audioStreamController?: { initPTS?: AudioInitPts[] } } | null | undefined)?.audioStreamController;
+  const offsets = controller?.initPTS;
+  if (!offsets) return false;
+  offsets[data.frag.cc] = audioInitPtsForOffset(offsetSeconds, data.timescale, data.trackId);
+  return true;
+}
+
 export function skipLabel(type: string): string | null {
   return SKIP_LABELS[type] ?? null;
 }
