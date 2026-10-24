@@ -1,9 +1,10 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from "react";
+import { findAvatar } from "./avatars";
 
 export function ProfileAvatar({
   name,
   avatar,
-  className = '',
+  className = "",
   children,
 }: {
   name?: string | null;
@@ -11,11 +12,13 @@ export function ProfileAvatar({
   className?: string;
   children?: ReactNode;
 }) {
-  const safeName = name?.trim() || 'Perfil';
-  const initial = safeName.charAt(0).toLocaleUpperCase('pt-BR') || '?';
-  const imageSource = typeof avatar === 'string' && avatar.startsWith('/') && !avatar.startsWith('//')
-    ? avatar
-    : null;
+  const safeName = name?.trim() || "Perfil";
+  const initial = safeName.charAt(0).toLocaleUpperCase("pt-BR") || "?";
+  const avatarDef = avatar ? findAvatar(String(avatar)) : undefined;
+  const imageSource =
+    typeof avatar === "string" && avatar.startsWith("/") && !avatar.startsWith("//")
+      ? avatar
+      : null;
   const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
@@ -24,7 +27,9 @@ export function ProfileAvatar({
 
   return (
     <span className={`profile-avatar ${className}`.trim()}>
-      {imageSource && !imageFailed ? (
+      {avatarDef ? (
+        <span className="profile-avatar__svg" dangerouslySetInnerHTML={{ __html: avatarDef.svg }} />
+      ) : imageSource && !imageFailed ? (
         <img
           src={imageSource}
           alt=""

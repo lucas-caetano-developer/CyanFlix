@@ -29,7 +29,7 @@ test('requires the PIN before entering a protected profile', async () => {
     <Route path="/browse" element={<div>Catálogo liberado</div>} />
   </Routes></MemoryRouter></QueryClientProvider>);
   await user.click(await screen.findByRole('button', { name: /entrar no perfil protegido/i }));
-  expect(screen.getByRole('dialog', { name: /pin de protegido/i })).toBeInTheDocument();
+  expect(screen.getByRole('dialog', { name: /desbloquear protegido/i })).toBeInTheDocument();
   await user.type(screen.getByLabelText('PIN'), '1234');
   await user.click(screen.getByRole('button', { name: 'Desbloquear' }));
   expect(api.unlockProfile).toHaveBeenCalledWith('profile-1', '1234');
@@ -46,7 +46,7 @@ test('highlights the active profile and continues without asking for the PIN aga
     <Route path="/browse" element={<div>Catálogo liberado</div>} />
   </Routes></MemoryRouter></QueryClientProvider>);
 
-  expect(await screen.findByText('Perfil ativo')).toBeInTheDocument();
+  expect(await screen.findByText(/ativo/i)).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: /continuar com perfil protegido/i }));
 
   expect(api.unlockProfile).not.toHaveBeenCalled();
