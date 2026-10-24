@@ -22,11 +22,6 @@ export function Navbar({ children }: { children?: React.ReactNode }) {
     enabled: Boolean(profileId),
     retry: false,
   });
-  const session = useQuery({
-    queryKey: ['auth', 'session'],
-    queryFn: api.getSession,
-    retry: false,
-  });
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchValue, setSearchValue] = useState('');
@@ -54,7 +49,6 @@ export function Navbar({ children }: { children?: React.ReactNode }) {
   const isSearchPage = location.pathname === '/search';
   const isAccountPage = location.pathname === '/account';
   const profileName = activeProfile.data?.name?.trim();
-  const accountName = session.data?.username?.trim();
 
   const navItems = [
     { to: '/browse', label: 'Início', active: isBrowse && !activeKind },
@@ -354,7 +348,6 @@ export function Navbar({ children }: { children?: React.ReactNode }) {
                 />
                 <div className="navbar__account-identity-copy">
                   <strong>{profileName ?? 'Perfil'}</strong>
-                  <span>{accountName ? `Conta: ${accountName}` : 'Perfil ativo'}</span>
                 </div>
               </div>
 
@@ -445,7 +438,6 @@ export function Navbar({ children }: { children?: React.ReactNode }) {
               />
               <div>
                 <strong>{profileName ?? 'Perfil'}</strong>
-                <span>{accountName ? `Conta: ${accountName}` : 'Perfil ativo'}</span>
               </div>
             </div>
             <Link

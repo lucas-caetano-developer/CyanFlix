@@ -20,6 +20,10 @@ const profileUnlockAttempts = new Map<string, { count: number; resetAt: number }
 const requestSessions = new WeakMap<FastifyRequest, { accountId: string; role: "owner" | "admin" | "viewer" }>();
 const activeUploads = new Set<string>();
 const activeWorkDeletions = new Set<string>();
+// HLS packages contain hundreds of sibling segments.  Cache directory creation
+// per API process so every segment does not contend on the Docker volume's
+// directory metadata before its actual stream can be written.
+const uploadDirectories = new Map<string, Promise<void>>();
 
 await app.register(cors, { origin: allowedOrigin, credentials: true });
 app.addContentTypeParser("application/octet-stream", (_request, payload, done) => done(null, payload));
@@ -36,8 +40,14 @@ app.addHook("onRequest", async (request, reply) => {
     return;
   }
   if (pathname.startsWith("/api/")) {
-    const tokenIdentity = auth.session(request);
-    if (!tokenIdentity) return reply.code(401).send({ error: "Authentication required" });
+    let tokenIdentity = auth.session(request);
+    if (!tokenIdentity) {
+      // Entrada livre: não há tela de login. Cria uma sessão implícita para a
+      // conta do sistema (owner), criada no bootstrap, de modo que perfis e
+      // catálogo estejam disponíveis sem exigir credenciais do usuário.
+      tokenIdentity = { accountId: bootstrapAccount.id, role: bootstrapAccount.role };
+      auth.setSession(reply, tokenIdentity);
+    }
     const account = await prisma.account.findFirst({ where: { id: tokenIdentity.accountId, disabled: false }, select: { id: true, role: true } });
     if (!account) { auth.clearSession(reply); return reply.code(401).send({ error: "Authentication required" }); }
     const identity = { accountId: account.id, role: account.role };
@@ -78,8 +88,7 @@ app.post("/api/auth/login", async (request, reply) => {
 });
 app.post("/api/auth/logout", async (_request, reply) => { auth.clearSession(reply); return reply.code(204).send(); });
 app.get("/api/auth/session", async (request, reply) => {
-  const identity = auth.session(request);
-  if (!identity) return reply.code(401).send({ error: "Authentication required" });
+  const identity = sessionIdentity(request);
   const account = await prisma.account.findFirst({ where: { id: identity.accountId, disabled: false }, select: { id: true, username: true, role: true } });
   if (!account) { auth.clearSession(reply); return reply.code(401).send({ error: "Session account unavailable" }); }
   return { authenticated: true, accountId: account.id, username: account.username, role: account.role };
@@ -927,7 +936,7 @@ app.post("/api/admin/accounts", async (request, reply) => {
   const body = request.body as { username?: string; password?: string; role?: string };
   const username = normalizeUsername(body?.username);
   if (!username) return reply.code(400).send({ error: "Usuário deve ter entre 3 e 64 caracteres e usar apenas letras, números, ponto, hífen ou sublinhado" });
-  if (!body?.password || body.password.length < 12) return reply.code(400).send({ error: "Senha deve ter pelo menos 12 caracteres" });
+  if (!body?.password || body.password.length < 4) return reply.code(400).send({ error: "Senha deve ter pelo menos 4 caracteres" });
   const role = body.role === "admin" || body.role === "viewer" ? body.role : null;
   if (!role) return reply.code(400).send({ error: "Função deve ser admin ou viewer" });
   const passwordHash = await hashPassword(body.password);
@@ -950,7 +959,7 @@ app.patch("/api/admin/accounts/:id", async (request, reply) => {
   }
   const role = body.role === undefined ? undefined : body.role === "admin" || body.role === "viewer" ? body.role : null;
   if (role === null) return reply.code(400).send({ error: "Função inválida" });
-  if (body.password !== undefined && body.password.length < 12) return reply.code(400).send({ error: "Senha deve ter pelo menos 12 caracteres" });
+  if (body.password !== undefined && body.password.length < 4) return reply.code(400).send({ error: "Senha deve ter pelo menos 4 caracteres" });
   const account = await prisma.account.findUnique({ where: { id }, select: { role: true } });
   if (!account) return reply.code(404).send({ error: "Conta não encontrada" });
   if (account.role === "owner" && id !== identity.accountId) return reply.code(403).send({ error: "Outra conta owner não pode ser alterada" });
@@ -1151,7 +1160,11 @@ app.post("/v1/publications", { bodyLimit: env.manifestBodyLimitBytes }, async (r
     for (const rows of chunks(records, 1000)) await tx.publicationFile.createMany({ data: rows });
     return created;
   }, { timeout: 60_000 });
-  try { await fs.promises.mkdir(stagingFilesRoot(uploadId), { recursive: true }); }
+  try {
+    const directories = new Set(expectedPaths.map((relativePath) =>
+      path.dirname(safeDataPath("staging", uploadId, "files", relativePath))));
+    await Promise.all([...directories].map((directory) => ensureUploadDirectory(directory)));
+  }
   catch (error) { await prisma.publication.delete({ where: { id: publication.id } }); throw error; }
   return publicationStatus(publication.id, reply);
 });
@@ -1226,7 +1239,7 @@ app.put("/v1/publications/:uploadId/files/*", { bodyLimit: env.maxUploadSizeByte
   try {
     const destination = safeDataPath("staging", uploadId, "files", relativePath);
     const temporary = `${destination}.tmp-${crypto.randomUUID()}`;
-    await fs.promises.mkdir(path.dirname(destination), { recursive: true });
+    await ensureUploadDirectory(path.dirname(destination));
     const hash = crypto.createHash("sha256");
     let bytes = 0;
     const limiter = new Transform({ transform(chunk: Buffer, _encoding, callback) { bytes += chunk.length; if (bytes > declaredBytes || bytes > env.maxUploadSizeBytes) callback(new Error("Upload excedeu o tamanho declarado")); else { hash.update(chunk); callback(null, chunk); } } });
@@ -1623,6 +1636,17 @@ function safeDataPath(...parts: string[]): string {
   return target;
 }
 function stagingFilesRoot(uploadId: string): string { return safeDataPath("staging", uploadId, "files"); }
+function ensureUploadDirectory(directory: string): Promise<void> {
+  const key = path.resolve(directory);
+  const existing = uploadDirectories.get(key);
+  if (existing) return existing;
+  const creating = fs.promises.mkdir(key, { recursive: true }).then(() => undefined);
+  uploadDirectories.set(key, creating);
+  creating.catch(() => {
+    if (uploadDirectories.get(key) === creating) uploadDirectories.delete(key);
+  });
+  return creating;
+}
 async function directoryExists(value: string): Promise<boolean> { try { return (await fs.promises.stat(value)).isDirectory(); } catch { return false; } }
 async function cleanupUploadTemporaries(): Promise<void> {
   const root = safeDataPath("staging");

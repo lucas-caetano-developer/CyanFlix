@@ -10,7 +10,6 @@ import { SearchPage } from './pages/SearchPage';
 import { TitlePage } from './pages/TitlePage';
 import { MyListPage } from './pages/MyListPage';
 import { AccountPage } from './pages/AccountPage';
-import { LoginPage } from './pages/LoginPage';
 import { api } from './lib/api';
 import { Spinner } from './components/ui/Spinner';
 import { ProfileGate } from './components/layout/ProfileGate';
@@ -35,18 +34,18 @@ export function App() {
       <BrowserRouter>
         <SpatialNavigation />
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
           <Route element={<AuthenticatedRoutes />}>
-          <Route path="/" element={<Navigate to="/profiles" replace />} />
-          <Route path="/profiles" element={<ProfilesPage />} />
-          <Route path="/browse" element={<Shell><BrowsePage /></Shell>} />
-          <Route path="/search" element={<Shell><SearchPage /></Shell>} />
-          <Route path="/title/:id" element={<Shell><TitlePage /></Shell>} />
-          <Route path="/watch/:kind/:id" element={<ProfileGate><Suspense fallback={<Spinner fullScreen />}><WatchPage /></Suspense></ProfileGate>} />
-          <Route path="/my-list" element={<Shell><MyListPage /></Shell>} />
-          <Route path="/account" element={<Shell><AccountPage /></Shell>} />
-          <Route path="/admin" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminPage /></Suspense></AdminShell></AdminRoute>} />
+            <Route path="/" element={<Navigate to="/profiles" replace />} />
+            <Route path="/profiles" element={<ProfilesPage />} />
+            <Route path="/browse" element={<Shell><BrowsePage /></Shell>} />
+            <Route path="/search" element={<Shell><SearchPage /></Shell>} />
+            <Route path="/title/:id" element={<Shell><TitlePage /></Shell>} />
+            <Route path="/watch/:kind/:id" element={<ProfileGate><Suspense fallback={<Spinner fullScreen />}><WatchPage /></Suspense></ProfileGate>} />
+            <Route path="/my-list" element={<Shell><MyListPage /></Shell>} />
+            <Route path="/account" element={<Shell><AccountPage /></Shell>} />
+            <Route path="/admin" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminPage /></Suspense></AdminShell></AdminRoute>} />
           </Route>
+          <Route path="/login" element={<Navigate to="/profiles" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
@@ -57,7 +56,9 @@ export function App() {
 function AuthenticatedRoutes() {
   const session = useQuery({ queryKey: ['auth', 'session'], queryFn: api.getSession, retry: false });
   if (session.isLoading) return <Spinner fullScreen />;
-  if (session.isError || !session.data?.authenticated) return <Navigate to="/login" replace />;
+  // A sessão é criada implicitamente pelo backend (conta do sistema), então
+  // não há mais tela de login obrigatória.
+  if (session.isError || !session.data?.authenticated) return <Navigate to="/profiles" replace />;
   return <Outlet />;
 }
 

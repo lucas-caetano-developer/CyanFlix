@@ -10,7 +10,7 @@ import {
   type SpatialDirection,
 } from '../../lib/spatialNavigation';
 
-const ROOT_ROUTES = new Set(['/browse', '/profiles', '/login', '/admin']);
+const ROOT_ROUTES = new Set(['/browse', '/profiles', '/admin']);
 const DIRECTION_BY_KEY: Record<string, SpatialDirection> = {
   ArrowUp: 'up',
   ArrowDown: 'down',

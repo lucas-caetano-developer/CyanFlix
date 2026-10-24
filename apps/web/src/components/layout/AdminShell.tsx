@@ -54,7 +54,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             await api.logout();
             queryClient.clear();
             clearProfile();
-            navigate('/login', { replace: true });
+            navigate('/profiles', { replace: true });
           }}>Sair</button>
         </div>
       </aside>

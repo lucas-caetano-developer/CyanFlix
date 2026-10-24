@@ -69,7 +69,6 @@ test('opens the account menu with functional destinations and restores focus wit
 
   const account = screen.getByRole('group', { name: 'Conta e perfil' });
   expect(within(account).getByText('Ana')).toBeInTheDocument();
-  expect(within(account).getByText('Conta: conta-teste')).toBeInTheDocument();
   expect(within(account).getByRole('link', { name: 'Conta e preferências' })).toHaveAttribute('href', '/account');
   expect(within(account).getByRole('link', { name: 'Trocar perfil' })).toHaveAttribute('href', '/profiles');
   expect(within(account).getByRole('button', { name: 'Sair da conta' })).toBeInTheDocument();

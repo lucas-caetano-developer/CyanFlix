@@ -1787,6 +1787,12 @@ img, video {
   font-size: 0.85rem;
 }
 
+.profile-dialog__subtitle {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin: -0.5rem 0 0.5rem;
+}
+
 /* ==========================================================================
    Account and preferences page
    ========================================================================== */
