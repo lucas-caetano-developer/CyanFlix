@@ -4,6 +4,30 @@ import { markerLabel, markerTone } from '../../lib/player';
 import type { Marker } from '../../lib/types';
 import { Icon } from '../ui/Icon';
 
+export interface QualityTierOption {
+  id: number | string;
+  label: string;
+  description: string;
+}
+
+export const QUALITY_TIER_OPTIONS: QualityTierOption[] = [
+  {
+    id: 0,
+    label: 'Maior disponível',
+    description: 'Transmite na maior qualidade disponível',
+  },
+  {
+    id: 1,
+    label: 'Moderada',
+    description: 'Use menos dados transmitindo em qualidade padrão',
+  },
+  {
+    id: 2,
+    label: 'Economia de dados',
+    description: 'Usa a menor quantidade de dados. Ideal para conexões lentas e limites de dados',
+  },
+];
+
 interface PlayerControlsProps {
   playing: boolean;
   currentTime: number;
@@ -120,7 +144,12 @@ export const PlayerControls = memo(function PlayerControls({
   onAutoSkipOpeningChange,
 }: PlayerControlsProps & { menuOpen?: boolean }) {
   const progressRef = useRef<HTMLDivElement>(null);
-  const settingsWrapperRef = useRef<HTMLDivElement>(null);
+  const audioModalWrapperRef = useRef<HTMLDivElement>(null);
+  const audioModalButtonRef = useRef<HTMLButtonElement>(null);
+  const audioModalPanelRef = useRef<HTMLDivElement>(null);
+  const [audioMenuOpen, setAudioMenuOpen] = useState(false);
+  const audioModalId = useId();
+  const audioModalTitleId = useId();
   const settingsPanelRef = useRef<HTMLDivElement>(null);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -140,9 +169,9 @@ export const PlayerControls = memo(function PlayerControls({
   const settingsTitleId = useId();
 
   useEffect(() => {
-    onInteractionChange?.(menuOpen || isDragging);
-    onMenuOpenChange?.(menuOpen);
-  }, [isDragging, menuOpen, onInteractionChange, onMenuOpenChange]);
+    onInteractionChange?.(menuOpen || audioMenuOpen || isDragging);
+    onMenuOpenChange?.(menuOpen || audioMenuOpen);
+  }, [audioMenuOpen, isDragging, menuOpen, onInteractionChange, onMenuOpenChange]);
 
   useEffect(() => () => onInteractionChange?.(false), [onInteractionChange]);
 
@@ -154,6 +183,32 @@ export const PlayerControls = memo(function PlayerControls({
     const firstControl = settingsPanelRef.current?.querySelector<HTMLElement>('[role="menuitem"], [role="menuitemradio"], button');
     firstControl?.focus();
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (!audioMenuOpen) return;
+    const firstControl = audioModalPanelRef.current?.querySelector<HTMLElement>('[role="menuitemradio"], button');
+    firstControl?.focus();
+  }, [audioMenuOpen]);
+
+  useEffect(() => {
+    if (!audioMenuOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!audioModalWrapperRef.current?.contains(event.target as Node)) setAudioMenuOpen(false);
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      setAudioMenuOpen(false);
+      audioModalButtonRef.current?.focus();
+    };
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [audioMenuOpen]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -269,46 +324,15 @@ export const PlayerControls = memo(function PlayerControls({
     ? 'Desligadas'
     : subtitleTracks.find((t) => t.id === selectedSubtitleTrack)?.label ?? '—';
   const currentSubtitleSizeLabel = SUBTITLE_SIZE_LABELS[subtitleStyle] ?? subtitleStyle;
-  const currentQualityLabel = selectedQuality < 0 ? 'Automática' : qualityLevels.find((l) => l.id === selectedQuality)?.label ?? '—';
+  const currentQualityLabel = QUALITY_TIER_OPTIONS.find((t) => t.id === selectedQuality)?.label
+    ?? qualityLevels.find((l) => l.id === selectedQuality)?.label
+    ?? 'Maior disponível';
   const currentSpeedLabel = playbackRate === 1 ? 'Normal' : `${playbackRate}×`;
   const currentNextEpLabel = autoPlayNextEpisode ? 'Automático' : 'Manual';
   const currentSkipLabel = autoSkipOpening ? 'Automático' : 'Manual';
 
   const renderSettingsRoot = () => (
     <div role="menu" aria-labelledby={settingsTitleId}>
-      {audioTracks.length > 1 && (
-        <button
-          className="player__settings-row"
-          role="menuitem"
-          onClick={() => setSettingsPage('audio')}
-        >
-          <span className="player__settings-row-label">Áudio</span>
-          <span className="player__settings-row-value">{currentAudioLabel}</span>
-          <Icon name="chevron-right" />
-        </button>
-      )}
-      {subtitleTracks.length > 0 && (
-        <button
-          className="player__settings-row"
-          role="menuitem"
-          onClick={() => setSettingsPage('subtitles')}
-        >
-          <span className="player__settings-row-label">Legendas</span>
-          <span className="player__settings-row-value">{currentSubtitleLabel}</span>
-          <Icon name="chevron-right" />
-        </button>
-      )}
-      {subtitleTracks.length > 0 && (
-        <button
-          className="player__settings-row"
-          role="menuitem"
-          onClick={() => setSettingsPage('subtitleSize')}
-        >
-          <span className="player__settings-row-label">Tamanho da legenda</span>
-          <span className="player__settings-row-value">{currentSubtitleSizeLabel}</span>
-          <Icon name="chevron-right" />
-        </button>
-      )}
       {qualityLevels.length > 0 && (
         <button
           className="player__settings-row"
@@ -329,6 +353,17 @@ export const PlayerControls = memo(function PlayerControls({
         <span className="player__settings-row-value">{currentSpeedLabel}</span>
         <Icon name="chevron-right" />
       </button>
+      {subtitleTracks.length > 0 && (
+        <button
+          className="player__settings-row"
+          role="menuitem"
+          onClick={() => setSettingsPage('subtitleSize')}
+        >
+          <span className="player__settings-row-label">Tamanho da legenda</span>
+          <span className="player__settings-row-value">{currentSubtitleSizeLabel}</span>
+          <Icon name="chevron-right" />
+        </button>
+      )}
       {episodes.length > 1 && (
         <button
           className="player__settings-row"
@@ -351,30 +386,15 @@ export const PlayerControls = memo(function PlayerControls({
           <Icon name="chevron-right" />
         </button>
       )}
-      {episodes.length > 1 && currentEpisodeId && (
-        <button
-          className="player__settings-row"
-          role="menuitem"
-          onClick={() => setSettingsPage('episodes')}
-        >
-          <span className="player__settings-row-label">Episódio</span>
-          <span className="player__settings-row-value">
-            {episodes.find((e) => e.id === currentEpisodeId)
-              ? `E${episodes.find((e) => e.id === currentEpisodeId)!.number}`
-              : '—'}
-          </span>
-          <Icon name="chevron-right" />
-        </button>
-      )}
     </div>
   );
 
   const renderSubPage = (
     pageTitle: string,
-    options: Array<{ id: number | string; label: string }>,
+    options: Array<{ id: number | string; label: string; description?: string }>,
     selectedId: number | string,
     onSelect: (id: number | string) => void,
-    extraOption?: { id: number | string; label: string },
+    extraOption?: { id: number | string; label: string; description?: string },
   ) => (
     <div role="menu" aria-label={pageTitle}>
       <button
@@ -396,7 +416,12 @@ export const PlayerControls = memo(function PlayerControls({
             <span className="player__settings-option-check">
               {extraOption.id === selectedId && <Icon name="check" />}
             </span>
-            {extraOption.label}
+            <span className="player__settings-option-text">
+              <span>{extraOption.label}</span>
+              {extraOption.description && (
+                <span className="player__settings-option-desc">{extraOption.description}</span>
+              )}
+            </span>
           </button>
         )}
         {options.map((opt) => (
@@ -410,9 +435,152 @@ export const PlayerControls = memo(function PlayerControls({
             <span className="player__settings-option-check">
               {opt.id === selectedId && <Icon name="check" />}
             </span>
-            {opt.label}
+            <span className="player__settings-option-text">
+              <span>{opt.label}</span>
+              {opt.description && (
+                <span className="player__settings-option-desc">{opt.description}</span>
+              )}
+            </span>
           </button>
         ))}
+      </div>
+    </div>
+  );
+
+  const renderQualityPage = () => (
+    <div role="menu" aria-label="Qualidade">
+      <button
+        className="player__settings-back"
+        onClick={() => setSettingsPage(null)}
+        aria-label="Voltar para configurações"
+      >
+        <Icon name="chevron-left" />
+        <span>Qualidade</span>
+      </button>
+      <div className="player__settings-options">
+        {QUALITY_TIER_OPTIONS.map((tier) => {
+          const isSelected = selectedQuality === tier.id || (selectedQuality < 0 && tier.id === 0);
+          return (
+            <button
+              key={String(tier.id)}
+              className="player__settings-option"
+              role="menuitemradio"
+              aria-checked={isSelected}
+              onClick={() => { onQualityChange(Number(tier.id)); setSettingsPage(null); }}
+            >
+              <span className="player__settings-option-check">
+                {isSelected && <Icon name="check" />}
+              </span>
+              <span className="player__settings-option-text">
+                <span>{tier.label}</span>
+                <span className="player__settings-option-desc">{tier.description}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const renderAudioSubtitlesModal = () => (
+    <div
+      ref={audioModalPanelRef}
+      id={audioModalId}
+      className="player__settings"
+      role="dialog"
+      aria-modal="false"
+      aria-labelledby={audioModalTitleId}
+    >
+      <div className="player__settings-heading">
+        <p id={audioModalTitleId}>Áudio e legendas</p>
+        <span>Selecione a faixa de áudio e as legendas</span>
+      </div>
+
+      <div className="player__settings-section-title">Áudio</div>
+      <div className="player__settings-options" role="menu" aria-label="Opções de áudio">
+        {audioTracks.length === 0 ? (
+          <button
+            className="player__settings-option"
+            role="menuitemradio"
+            aria-checked={true}
+            disabled
+          >
+            <span className="player__settings-option-check"><Icon name="check" /></span>
+            <span className="player__settings-option-text">
+              <span>Padrão</span>
+            </span>
+          </button>
+        ) : (
+          audioTracks.map((track) => {
+            const isSelected = track.id === selectedAudioTrack || (selectedAudioTrack === -1 && track.id === 0);
+            return (
+              <button
+                key={track.id}
+                className="player__settings-option"
+                role="menuitemradio"
+                aria-checked={isSelected}
+                onClick={() => {
+                  onAudioTrackChange(track.id);
+                  setAudioMenuOpen(false);
+                }}
+              >
+                <span className="player__settings-option-check">
+                  {isSelected && <Icon name="check" />}
+                </span>
+                <span className="player__settings-option-text">
+                  <span>{track.label}</span>
+                </span>
+              </button>
+            );
+          })
+        )}
+      </div>
+
+      <div className="player__settings-section-title">Legendas</div>
+      <div className="player__settings-options" role="menu" aria-label="Opções de legenda">
+        <button
+          className="player__settings-option"
+          role="menuitemradio"
+          aria-checked={selectedSubtitleTrack < 0}
+          onClick={() => {
+            onSubtitleTrackChange(-1);
+            setAudioMenuOpen(false);
+          }}
+        >
+          <span className="player__settings-option-check">
+            {selectedSubtitleTrack < 0 && <Icon name="check" />}
+          </span>
+          <span className="player__settings-option-text">
+            <span>Desligadas</span>
+          </span>
+        </button>
+
+        {subtitleTracks.length === 0 ? (
+          <div className="player__settings-empty">Sem legendas disponíveis</div>
+        ) : (
+          subtitleTracks.map((track) => {
+            const isSelected = track.id === selectedSubtitleTrack;
+            return (
+              <button
+                key={track.id}
+                className="player__settings-option"
+                role="menuitemradio"
+                aria-checked={isSelected}
+                onClick={() => {
+                  onSubtitleTrackChange(track.id);
+                  setAudioMenuOpen(false);
+                }}
+              >
+                <span className="player__settings-option-check">
+                  {isSelected && <Icon name="check" />}
+                </span>
+                <span className="player__settings-option-text">
+                  <span>{track.label}</span>
+                </span>
+              </button>
+            );
+          })
+        )}
       </div>
     </div>
   );
@@ -442,13 +610,7 @@ export const PlayerControls = memo(function PlayerControls({
           (id) => onSubtitleStyleChange(id as 'small' | 'medium' | 'large'),
         );
       case 'quality':
-        return renderSubPage(
-          'Qualidade',
-          qualityLevels,
-          selectedQuality,
-          (id) => onQualityChange(Number(id)),
-          { id: -1, label: 'Automática' },
-        );
+        return renderQualityPage();
       case 'speed':
         return renderSubPage(
           'Velocidade',
@@ -469,13 +631,6 @@ export const PlayerControls = memo(function PlayerControls({
           [{ id: 'auto', label: 'Automático' }, { id: 'manual', label: 'Manual' }],
           autoSkipOpening ? 'auto' : 'manual',
           (id) => onAutoSkipOpeningChange?.(id === 'auto'),
-        );
-      case 'episodes':
-        return renderSubPage(
-          'Episódios',
-          episodes.map((ep) => ({ id: ep.id, label: `E${ep.number} · ${ep.title || `Episódio ${ep.number}`}` })),
-          currentEpisodeId ?? '',
-          (id) => { onEpisodeChange(String(id)); closeMenu(); },
         );
       default:
         return renderSettingsRoot();
@@ -504,18 +659,6 @@ export const PlayerControls = memo(function PlayerControls({
       >
         <div className="player__progress-buffered" style={dynamicStyle({ width: `${bufferedPercentage}%` })} />
         <div className="player__progress-current" style={dynamicStyle({ width: `${progressPercentage}%` })} />
-        {duration > 0 && markers.map((marker, index) => {
-          if (!Number.isFinite(marker.start_ms) || !Number.isFinite(marker.end_ms) || marker.end_ms <= marker.start_ms) return null;
-          const start = Math.max(0, Math.min(100, marker.start_ms / 1000 / duration * 100));
-          const end = Math.max(start, Math.min(100, marker.end_ms / 1000 / duration * 100));
-          return <span
-            key={`${marker.type}-${marker.start_ms}-${index}`}
-            className={`player__timeline-marker player__timeline-marker--${markerTone(marker.type)}`}
-            title={markerLabel(marker.type)}
-            style={dynamicStyle({ left: `${start}%`, width: `${Math.max(0.2, end - start)}%` })}
-            aria-hidden="true"
-          />;
-        })}
         <div className={`player__progress-thumb ${isDragging ? 'player__progress-thumb--visible' : ''}`} style={dynamicStyle({ left: `${progressPercentage}%` })} />
         {preview && (
           <div className="player__progress-preview" style={dynamicStyle({ left: `${preview.left}%` })} aria-hidden="true">
