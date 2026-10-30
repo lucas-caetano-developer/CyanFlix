@@ -171,3 +171,7 @@ PostgreSQL precisam ser preservados juntos.
 - o painel não armazena tokens em `localStorage`;
 - upload usa token temporário e limites por arquivo, pacote e quantidade;
 - nunca registre senhas, `PUBLISHER_TOKEN` ou tokens temporários.
+
+## Atalhos do Reprodutor
+
+Atalhos de teclado: `Espaço`/`K` alternar reprodução; `←`/`→` e `J`/`L` buscar ∓/±10s (segurar acelera para 30s/60s); `↑`/`↓` volume ±10% (ou D-pad TV); `M` mudo; `F` tela cheia; `C` legendas; `0`–`9` posição 0%–90%; `Esc`/Voltar fecha camadas (painel → controles → tela cheia → voltar); teclas de mídia de controle remoto suportadas.

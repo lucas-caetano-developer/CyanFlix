@@ -8,11 +8,16 @@ import {
   markerTone,
   playbackAudioOffsetSeconds,
   shouldIgnorePlayerShortcut,
+  shouldIgnorePlayerShortcutForInput,
+  shouldUseTvLikeInput,
+  resolveContentRating,
+  SEEK_STEP_SECONDS,
   skipLabel,
   splitPlaybackTitle,
   subtitleTrackLabel,
   trackLabel,
 } from './player';
+import { getContentDescriptors } from './workDetails';
 import { vi } from 'vitest';
 import type { Marker, PlaybackTrack } from './types';
 
@@ -123,3 +128,93 @@ test('ignores player shortcuts while the user operates interactive controls', ()
   expect(shouldIgnorePlayerShortcut(plain)).toBe(false);
   expect(shouldIgnorePlayerShortcut(null)).toBe(false);
 });
+
+test('shouldIgnorePlayerShortcutForInput distinguishes pointer vs keyboard mode', () => {
+  const button = document.createElement('button');
+  const input = document.createElement('input');
+  const slider = document.createElement('div');
+  slider.setAttribute('role', 'slider');
+  const plain = document.createElement('div');
+
+  // Text inputs & sliders always ignore shortcuts
+  expect(shouldIgnorePlayerShortcutForInput(input, 'pointer')).toBe(true);
+  expect(shouldIgnorePlayerShortcutForInput(input, 'keyboard')).toBe(true);
+  expect(shouldIgnorePlayerShortcutForInput(slider, 'pointer')).toBe(true);
+
+  // In pointer / touch mode, a focused button does NOT capture player shortcuts (P2 fix)
+  expect(shouldIgnorePlayerShortcutForInput(button, 'pointer')).toBe(false);
+  expect(shouldIgnorePlayerShortcutForInput(button, 'touch')).toBe(false);
+
+  // In keyboard mode, a focused button captures its shortcuts
+  expect(shouldIgnorePlayerShortcutForInput(button, 'keyboard')).toBe(true);
+
+  // Plain elements never capture
+  expect(shouldIgnorePlayerShortcutForInput(plain, 'keyboard')).toBe(false);
+  expect(shouldIgnorePlayerShortcutForInput(plain, 'pointer')).toBe(false);
+});
+
+test('resolveContentRating normalizes age certifications and preserves descriptors', () => {
+  expect(resolveContentRating(null, [])).toBeNull();
+  expect(resolveContentRating('', [])).toBeNull();
+
+  // Livre equivalents
+  expect(resolveContentRating('L', ['Violência leve'])).toEqual({
+    ageLabel: 'L',
+    tone: 'l',
+    descriptors: ['Violência leve'],
+  });
+  expect(resolveContentRating('Livre', [])).toEqual({ ageLabel: 'L', tone: 'l', descriptors: [] });
+  expect(resolveContentRating('G', [])).toEqual({ ageLabel: 'L', tone: 'l', descriptors: [] });
+  expect(resolveContentRating('TV-G', [])).toEqual({ ageLabel: 'L', tone: 'l', descriptors: [] });
+  expect(resolveContentRating('TV-Y', [])).toEqual({ ageLabel: 'L', tone: 'l', descriptors: [] });
+  expect(resolveContentRating('TV-Y7', [])).toEqual({ ageLabel: 'L', tone: 'l', descriptors: [] });
+
+  // 10 / PG
+  expect(resolveContentRating('10', [])).toEqual({ ageLabel: 'A10', tone: '10', descriptors: [] });
+  expect(resolveContentRating('PG', [])).toEqual({ ageLabel: 'A10', tone: '10', descriptors: [] });
+
+  // 12
+  expect(resolveContentRating('12', [])).toEqual({ ageLabel: 'A12', tone: '12', descriptors: [] });
+
+  // 14 / PG-13 / TV-14
+  expect(resolveContentRating('14', ['Violência'])).toEqual({
+    ageLabel: 'A14',
+    tone: '14',
+    descriptors: ['Violência'],
+  });
+  expect(resolveContentRating('PG-13', [])).toEqual({ ageLabel: 'A14', tone: '14', descriptors: [] });
+  expect(resolveContentRating('TV-14', [])).toEqual({ ageLabel: 'A14', tone: '14', descriptors: [] });
+
+  // 16
+  expect(resolveContentRating('16', [])).toEqual({ ageLabel: 'A16', tone: '16', descriptors: [] });
+
+  // 18 / NC-17 / TV-MA
+  expect(resolveContentRating('18', ['Drogas'])).toEqual({
+    ageLabel: 'A18',
+    tone: '18',
+    descriptors: ['Drogas'],
+  });
+  expect(resolveContentRating('NC-17', [])).toEqual({ ageLabel: 'A18', tone: '18', descriptors: [] });
+  expect(resolveContentRating('TV-MA', [])).toEqual({ ageLabel: 'A18', tone: '18', descriptors: [] });
+
+  // Unknown / free text rating -> neutral tone, original text
+  expect(resolveContentRating('R', ['Violência extrema'])).toEqual({
+    ageLabel: 'R',
+    tone: 'neutral',
+    descriptors: ['Violência extrema'],
+  });
+  expect(resolveContentRating('Classificação Especial', [])).toEqual({
+    ageLabel: 'Classificação Especial',
+    tone: 'neutral',
+    descriptors: [],
+  });
+});
+
+test('getContentDescriptors handles arrays and comma/semicolon delimited strings', () => {
+  const fromArray = getContentDescriptors({ content_descriptors: ['Violência', 'Drogas'] });
+  expect(fromArray).toEqual(['Violência', 'Drogas']);
+
+  const fromString = getContentDescriptors({ content_descriptors: 'Violência, Drogas Lícitas; Linguagem Imprópria' });
+  expect(fromString).toEqual(['Violência', 'Drogas Lícitas', 'Linguagem Imprópria']);
+});
+

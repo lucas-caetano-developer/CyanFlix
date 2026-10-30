@@ -161,3 +161,61 @@ export function shouldIgnorePlayerShortcut(target: EventTarget | null): boolean 
   if (['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON', 'A'].includes(target.tagName)) return true;
   return Boolean(target.closest('[role="slider"], [role="dialog"], [role="button"], [role="tab"]'));
 }
+
+export const SEEK_STEP_SECONDS = 10;
+
+export function resolveContentRating(
+  certification: string | null,
+  descriptors: string[],
+): { ageLabel: string; tone: string; descriptors: string[] } | null {
+  if (!certification) return null;
+  const raw = certification.trim();
+  if (!raw) return null;
+  const up = raw.toUpperCase();
+
+  let ageLabel: string;
+  let tone: string;
+
+  if (['L', 'LIVRE', 'G', 'TV-G', 'TV-Y', 'TV-Y7'].includes(up)) {
+    ageLabel = 'L'; tone = 'l';
+  } else if (['10', 'PG'].includes(up)) {
+    ageLabel = 'A10'; tone = '10';
+  } else if (up === '12') {
+    ageLabel = 'A12'; tone = '12';
+  } else if (['14', 'PG-13', 'TV-14'].includes(up)) {
+    ageLabel = 'A14'; tone = '14';
+  } else if (up === '16') {
+    ageLabel = 'A16'; tone = '16';
+  } else if (['18', 'NC-17', 'TV-MA'].includes(up)) {
+    ageLabel = 'A18'; tone = '18';
+  } else {
+    ageLabel = raw; tone = 'neutral';
+  }
+
+  return { ageLabel, tone, descriptors };
+}
+
+export function shouldUseTvLikeInput(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    if (new URLSearchParams(window.location.search).get('tv') === '1') return true;
+  } catch {
+    // ignore
+  }
+  return window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(hover: none)').matches;
+}
+
+export function shouldIgnorePlayerShortcutForInput(
+  target: EventTarget | null,
+  inputMode: string | undefined,
+): boolean {
+  if (typeof HTMLElement === 'undefined' || !(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  if (['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)) return true;
+  if (target.closest('[role="slider"], [role="dialog"]')) return true;
+  if (inputMode === 'keyboard') {
+    if (['BUTTON', 'A'].includes(target.tagName)) return true;
+    if (target.closest('[role="button"], [role="tab"]')) return true;
+  }
+  return false;
+}

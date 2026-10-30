@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from 'react';
+import React, { memo, useCallback, useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 import { formatMs } from '../../lib/utils';
 import { markerLabel, markerTone } from '../../lib/player';
 import type { Marker } from '../../lib/types';
@@ -8,13 +8,14 @@ interface PlayerControlsProps {
   playing: boolean;
   currentTime: number;
   duration: number;
-  buffered: number; // percentage 0-1
+  buffered: number;
   volume: number;
   muted: boolean;
   fullscreen: boolean;
   onPlay: () => void;
   onPause: () => void;
   onSeek: (time: number) => void;
+  onSeekBy?: (delta: number) => void;
   onVolumeChange: (vol: number) => void;
   onMuteToggle: () => void;
   onFullscreenToggle: () => void;
@@ -32,8 +33,8 @@ interface PlayerControlsProps {
   selectedQuality: number;
   onQualityChange: (levelId: number) => void;
   markers: Marker[];
-  subtitleStyle: "small" | "medium" | "large";
-  onSubtitleStyleChange: (style: "small" | "medium" | "large") => void;
+  subtitleStyle: 'small' | 'medium' | 'large';
+  onSubtitleStyleChange: (style: 'small' | 'medium' | 'large') => void;
   autoPlayNextEpisode: boolean;
   onAutoPlayNextEpisodeChange: (enabled: boolean) => void;
   episodes: Array<{ id: string; number: number; title?: string | null }>;
@@ -44,9 +45,33 @@ interface PlayerControlsProps {
   fullscreenAvailable?: boolean;
   onInteractionChange?: (active: boolean) => void;
   onMenuOpenChange?: (open: boolean) => void;
+  // New props
+  nextEpisode?: { id: string; title?: string | null; number: number } | null;
+  onNextEpisode?: () => void;
+  hasOpeningMarker?: boolean;
+  autoSkipOpening?: boolean;
+  onAutoSkipOpeningChange?: (enabled: boolean) => void;
 }
 
-export function PlayerControls({
+type SettingsPage =
+  | null
+  | 'audio'
+  | 'subtitles'
+  | 'subtitleSize'
+  | 'quality'
+  | 'speed'
+  | 'nextEpisode'
+  | 'skipOpening'
+  | 'episodes';
+
+const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const SUBTITLE_SIZE_LABELS: Record<string, string> = { small: 'Pequena', medium: 'Média', large: 'Grande' };
+
+function dynamicStyle(values: Record<string, string | number>): CSSProperties {
+  return values as CSSProperties;
+}
+
+export const PlayerControls = memo(function PlayerControls({
   playing,
   currentTime,
   duration,
@@ -57,6 +82,7 @@ export function PlayerControls({
   onPlay,
   onPause,
   onSeek,
+  onSeekBy,
   onVolumeChange,
   onMuteToggle,
   onFullscreenToggle,
@@ -86,13 +112,29 @@ export function PlayerControls({
   fullscreenAvailable = true,
   onInteractionChange,
   onMenuOpenChange,
-}: PlayerControlsProps) {
+  menuOpen: menuOpenProp,
+  nextEpisode,
+  onNextEpisode,
+  hasOpeningMarker = false,
+  autoSkipOpening = false,
+  onAutoSkipOpeningChange,
+}: PlayerControlsProps & { menuOpen?: boolean }) {
   const progressRef = useRef<HTMLDivElement>(null);
   const settingsWrapperRef = useRef<HTMLDivElement>(null);
   const settingsPanelRef = useRef<HTMLDivElement>(null);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [dragPreviewTime, setDragPreviewTime] = useState<number | null>(null);
+  const [internalMenuOpen, setInternalMenuOpen] = useState(false);
+  const menuOpen = menuOpenProp !== undefined ? menuOpenProp : internalMenuOpen;
+  const setMenuOpen = useCallback((val: boolean | ((prev: boolean) => boolean)) => {
+    setInternalMenuOpen((prev) => {
+      const next = typeof val === 'function' ? val(prev) : val;
+      onMenuOpenChange?.(next);
+      return next;
+    });
+  }, [onMenuOpenChange]);
+  const [settingsPage, setSettingsPage] = useState<SettingsPage>(null);
   const [preview, setPreview] = useState<{ left: number; time: number } | null>(null);
   const settingsPanelId = useId();
   const settingsTitleId = useId();
@@ -105,8 +147,11 @@ export function PlayerControls({
   useEffect(() => () => onInteractionChange?.(false), [onInteractionChange]);
 
   useEffect(() => {
-    if (!menuOpen) return;
-    const firstControl = settingsPanelRef.current?.querySelector<HTMLElement>('select, button, input');
+    if (!menuOpen) {
+      setSettingsPage(null);
+      return;
+    }
+    const firstControl = settingsPanelRef.current?.querySelector<HTMLElement>('[role="menuitem"], [role="menuitemradio"], button');
     firstControl?.focus();
   }, [menuOpen]);
 
@@ -119,8 +164,12 @@ export function PlayerControls({
       if (event.key !== 'Escape') return;
       event.preventDefault();
       event.stopPropagation();
-      setMenuOpen(false);
-      settingsButtonRef.current?.focus();
+      if (settingsPage !== null) {
+        setSettingsPage(null);
+      } else {
+        setMenuOpen(false);
+        settingsButtonRef.current?.focus();
+      }
     };
     document.addEventListener('pointerdown', handlePointerDown, true);
     document.addEventListener('keydown', handleEscape);
@@ -128,58 +177,68 @@ export function PlayerControls({
       document.removeEventListener('pointerdown', handlePointerDown, true);
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [menuOpen]);
+  }, [menuOpen, settingsPage]);
 
-  const seekFromClientX = useCallback((clientX: number) => {
-    if (!progressRef.current || duration <= 0) return;
+  // Progress bar: calculate position from clientX
+  const posFromClientX = useCallback((clientX: number): { percentage: number; time: number; left: number } | null => {
+    if (!progressRef.current || duration <= 0) return null;
     const rect = progressRef.current.getBoundingClientRect();
-    if (rect.width <= 0) return;
+    if (rect.width <= 0) return null;
     const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
     const percentage = x / rect.width;
-    const time = percentage * duration;
-    setPreview({
+    return {
+      percentage,
+      time: percentage * duration,
       left: Math.min(96, Math.max(4, percentage * 100)),
-      time,
-    });
-    onSeek(time);
-  }, [duration, onSeek]);
+    };
+  }, [duration]);
 
+  // P5 fix: during drag, only update local preview state, NOT call onSeek
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (duration <= 0) return;
     event.preventDefault();
+    (event.currentTarget as HTMLDivElement).setPointerCapture?.(event.pointerId);
     setIsDragging(true);
-    seekFromClientX(event.clientX);
+    const pos = posFromClientX(event.clientX);
+    if (pos) {
+      setDragPreviewTime(pos.time);
+      setPreview({ left: pos.left, time: pos.time });
+    }
   };
 
-  const handleHover = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!progressRef.current || duration <= 0) return;
-    const rect = progressRef.current.getBoundingClientRect();
-    if (rect.width <= 0) return;
-    const x = Math.max(0, Math.min(event.clientX - rect.left, rect.width));
-    const percentage = x / rect.width;
-    setPreview({
-      left: Math.min(96, Math.max(4, percentage * 100)),
-      time: percentage * duration,
-    });
-  };
+  const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (isDragging) {
+      const pos = posFromClientX(event.clientX);
+      if (pos) {
+        setDragPreviewTime(pos.time);
+        setPreview({ left: pos.left, time: pos.time });
+      }
+    } else {
+      // Hover preview (no seek)
+      const pos = posFromClientX(event.clientX);
+      if (pos) setPreview({ left: pos.left, time: pos.time });
+    }
+  }, [isDragging, posFromClientX]);
 
-  useEffect(() => {
+  const handlePointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (!isDragging) return;
-    const handlePointerMove = (event: PointerEvent) => seekFromClientX(event.clientX);
-    const stopDragging = () => setIsDragging(false);
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', stopDragging);
-    window.addEventListener('pointercancel', stopDragging);
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', stopDragging);
-      window.removeEventListener('pointercancel', stopDragging);
-    };
-  }, [isDragging, seekFromClientX]);
+    (event.currentTarget as HTMLDivElement).releasePointerCapture?.(event.pointerId);
+    setIsDragging(false);
+    // P5: onSeek called ONCE on pointerup
+    const pos = posFromClientX(event.clientX);
+    if (pos) onSeek(pos.time);
+    setDragPreviewTime(null);
+  }, [isDragging, onSeek, posFromClientX]);
 
-  const progressPercentage = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
+  const handlePointerCancel = () => {
+    setIsDragging(false);
+    setDragPreviewTime(null);
+  };
+
+  const progressPercentage = duration > 0
+    ? Math.min(100, Math.max(0, ((dragPreviewTime ?? currentTime) / duration) * 100))
+    : 0;
   const bufferedPercentage = Math.min(100, Math.max(0, buffered * 100));
-  const dynamicStyle = (values: Record<string, string | number>) => values as CSSProperties;
 
   const handleProgressKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (duration <= 0) return;
@@ -191,12 +250,236 @@ export function PlayerControls({
       event.preventDefault();
       event.stopPropagation();
       onSeek(event.key === 'End' ? duration : 0);
+    } else if (event.key === ' ' || event.key === 'Enter') {
+      event.preventDefault();
+      event.stopPropagation();
+      if (playing) onPause(); else onPlay();
     }
   };
 
   const closeMenu = (restoreFocus = false) => {
     setMenuOpen(false);
+    setSettingsPage(null);
     if (restoreFocus) settingsButtonRef.current?.focus();
+  };
+
+  // Helper: current label for each setting
+  const currentAudioLabel = audioTracks.find((t) => t.id === selectedAudioTrack)?.label ?? '—';
+  const currentSubtitleLabel = selectedSubtitleTrack < 0
+    ? 'Desligadas'
+    : subtitleTracks.find((t) => t.id === selectedSubtitleTrack)?.label ?? '—';
+  const currentSubtitleSizeLabel = SUBTITLE_SIZE_LABELS[subtitleStyle] ?? subtitleStyle;
+  const currentQualityLabel = selectedQuality < 0 ? 'Automática' : qualityLevels.find((l) => l.id === selectedQuality)?.label ?? '—';
+  const currentSpeedLabel = playbackRate === 1 ? 'Normal' : `${playbackRate}×`;
+  const currentNextEpLabel = autoPlayNextEpisode ? 'Automático' : 'Manual';
+  const currentSkipLabel = autoSkipOpening ? 'Automático' : 'Manual';
+
+  const renderSettingsRoot = () => (
+    <div role="menu" aria-labelledby={settingsTitleId}>
+      {audioTracks.length > 1 && (
+        <button
+          className="player__settings-row"
+          role="menuitem"
+          onClick={() => setSettingsPage('audio')}
+        >
+          <span className="player__settings-row-label">Áudio</span>
+          <span className="player__settings-row-value">{currentAudioLabel}</span>
+          <Icon name="chevron-right" />
+        </button>
+      )}
+      {subtitleTracks.length > 0 && (
+        <button
+          className="player__settings-row"
+          role="menuitem"
+          onClick={() => setSettingsPage('subtitles')}
+        >
+          <span className="player__settings-row-label">Legendas</span>
+          <span className="player__settings-row-value">{currentSubtitleLabel}</span>
+          <Icon name="chevron-right" />
+        </button>
+      )}
+      {subtitleTracks.length > 0 && (
+        <button
+          className="player__settings-row"
+          role="menuitem"
+          onClick={() => setSettingsPage('subtitleSize')}
+        >
+          <span className="player__settings-row-label">Tamanho da legenda</span>
+          <span className="player__settings-row-value">{currentSubtitleSizeLabel}</span>
+          <Icon name="chevron-right" />
+        </button>
+      )}
+      {qualityLevels.length > 0 && (
+        <button
+          className="player__settings-row"
+          role="menuitem"
+          onClick={() => setSettingsPage('quality')}
+        >
+          <span className="player__settings-row-label">Qualidade</span>
+          <span className="player__settings-row-value">{currentQualityLabel}</span>
+          <Icon name="chevron-right" />
+        </button>
+      )}
+      <button
+        className="player__settings-row"
+        role="menuitem"
+        onClick={() => setSettingsPage('speed')}
+      >
+        <span className="player__settings-row-label">Velocidade</span>
+        <span className="player__settings-row-value">{currentSpeedLabel}</span>
+        <Icon name="chevron-right" />
+      </button>
+      {episodes.length > 1 && (
+        <button
+          className="player__settings-row"
+          role="menuitem"
+          onClick={() => setSettingsPage('nextEpisode')}
+        >
+          <span className="player__settings-row-label">Próximo episódio</span>
+          <span className="player__settings-row-value">{currentNextEpLabel}</span>
+          <Icon name="chevron-right" />
+        </button>
+      )}
+      {hasOpeningMarker && (
+        <button
+          className="player__settings-row"
+          role="menuitem"
+          onClick={() => setSettingsPage('skipOpening')}
+        >
+          <span className="player__settings-row-label">Pular abertura</span>
+          <span className="player__settings-row-value">{currentSkipLabel}</span>
+          <Icon name="chevron-right" />
+        </button>
+      )}
+      {episodes.length > 1 && currentEpisodeId && (
+        <button
+          className="player__settings-row"
+          role="menuitem"
+          onClick={() => setSettingsPage('episodes')}
+        >
+          <span className="player__settings-row-label">Episódio</span>
+          <span className="player__settings-row-value">
+            {episodes.find((e) => e.id === currentEpisodeId)
+              ? `E${episodes.find((e) => e.id === currentEpisodeId)!.number}`
+              : '—'}
+          </span>
+          <Icon name="chevron-right" />
+        </button>
+      )}
+    </div>
+  );
+
+  const renderSubPage = (
+    pageTitle: string,
+    options: Array<{ id: number | string; label: string }>,
+    selectedId: number | string,
+    onSelect: (id: number | string) => void,
+    extraOption?: { id: number | string; label: string },
+  ) => (
+    <div role="menu" aria-label={pageTitle}>
+      <button
+        className="player__settings-back"
+        onClick={() => setSettingsPage(null)}
+        aria-label="Voltar para configurações"
+      >
+        <Icon name="chevron-left" />
+        <span>{pageTitle}</span>
+      </button>
+      <div className="player__settings-options">
+        {extraOption && (
+          <button
+            className="player__settings-option"
+            role="menuitemradio"
+            aria-checked={extraOption.id === selectedId}
+            onClick={() => { onSelect(extraOption.id); setSettingsPage(null); }}
+          >
+            <span className="player__settings-option-check">
+              {extraOption.id === selectedId && <Icon name="check" />}
+            </span>
+            {extraOption.label}
+          </button>
+        )}
+        {options.map((opt) => (
+          <button
+            key={String(opt.id)}
+            className="player__settings-option"
+            role="menuitemradio"
+            aria-checked={opt.id === selectedId}
+            onClick={() => { onSelect(opt.id); setSettingsPage(null); }}
+          >
+            <span className="player__settings-option-check">
+              {opt.id === selectedId && <Icon name="check" />}
+            </span>
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderSettingsContent = () => {
+    switch (settingsPage) {
+      case 'audio':
+        return renderSubPage(
+          'Áudio',
+          audioTracks,
+          selectedAudioTrack,
+          (id) => onAudioTrackChange(Number(id)),
+        );
+      case 'subtitles':
+        return renderSubPage(
+          'Legendas',
+          subtitleTracks,
+          selectedSubtitleTrack,
+          (id) => onSubtitleTrackChange(Number(id)),
+          { id: -1, label: 'Desligadas' },
+        );
+      case 'subtitleSize':
+        return renderSubPage(
+          'Tamanho da legenda',
+          [{ id: 'small', label: 'Pequena' }, { id: 'medium', label: 'Média' }, { id: 'large', label: 'Grande' }],
+          subtitleStyle,
+          (id) => onSubtitleStyleChange(id as 'small' | 'medium' | 'large'),
+        );
+      case 'quality':
+        return renderSubPage(
+          'Qualidade',
+          qualityLevels,
+          selectedQuality,
+          (id) => onQualityChange(Number(id)),
+          { id: -1, label: 'Automática' },
+        );
+      case 'speed':
+        return renderSubPage(
+          'Velocidade',
+          SPEED_OPTIONS.map((rate) => ({ id: rate, label: rate === 1 ? 'Normal' : `${rate}×` })),
+          playbackRate,
+          (id) => onPlaybackRateChange(Number(id)),
+        );
+      case 'nextEpisode':
+        return renderSubPage(
+          'Próximo episódio',
+          [{ id: 'on', label: 'Automático' }, { id: 'off', label: 'Manual' }],
+          autoPlayNextEpisode ? 'on' : 'off',
+          (id) => onAutoPlayNextEpisodeChange(id === 'on'),
+        );
+      case 'skipOpening':
+        return renderSubPage(
+          'Pular abertura',
+          [{ id: 'auto', label: 'Automático' }, { id: 'manual', label: 'Manual' }],
+          autoSkipOpening ? 'auto' : 'manual',
+          (id) => onAutoSkipOpeningChange?.(id === 'auto'),
+        );
+      case 'episodes':
+        return renderSubPage(
+          'Episódios',
+          episodes.map((ep) => ({ id: ep.id, label: `E${ep.number} · ${ep.title || `Episódio ${ep.number}`}` })),
+          currentEpisodeId ?? '',
+          (id) => { onEpisodeChange(String(id)); closeMenu(); },
+        );
+      default:
+        return renderSettingsRoot();
+    }
   };
 
   return (
@@ -205,7 +488,9 @@ export function PlayerControls({
         className={`player__progress${isDragging ? ' player__progress--dragging' : ''}`}
         ref={progressRef}
         onPointerDown={handlePointerDown}
-        onPointerMove={handleHover}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
         onPointerLeave={() => { if (!isDragging) setPreview(null); }}
         onKeyDown={handleProgressKeyDown}
         role="slider"
@@ -241,8 +526,32 @@ export function PlayerControls({
 
       <div className="player__controls-bar">
         <div className="player__controls-left">
-          <button className="player__btn" onClick={playing ? onPause : onPlay} aria-label={playing ? 'Pausar' : 'Reproduzir'}>
+          {/* Seek back 10s */}
+          <button
+            className="player__btn"
+            aria-label="Voltar 10 segundos"
+            onClick={() => onSeekBy ? onSeekBy(-10) : onSeek(Math.max(0, currentTime - 10))}
+          >
+            <Icon name="replay-10" />
+          </button>
+
+          {/* Play/Pause */}
+          <button
+            className="player__btn player__btn--play"
+            onClick={playing ? onPause : onPlay}
+            aria-label={playing ? 'Pausar' : 'Reproduzir'}
+            data-spatial-initial
+          >
             <Icon name={playing ? 'pause' : 'play'} />
+          </button>
+
+          {/* Seek forward 10s */}
+          <button
+            className="player__btn"
+            aria-label="Avançar 10 segundos"
+            onClick={() => onSeekBy ? onSeekBy(10) : onSeek(Math.min(duration, currentTime + 10))}
+          >
+            <Icon name="forward-10" />
           </button>
 
           <div className="player__volume-wrapper">
@@ -253,7 +562,7 @@ export function PlayerControls({
               className="player__volume-slider"
               type="range" min={0} max={1} step={0.01}
               value={muted ? 0 : volume}
-              onChange={event => onVolumeChange(parseFloat(event.target.value))}
+              onChange={(event) => onVolumeChange(parseFloat(event.target.value))}
               aria-label="Volume"
             />
           </div>
@@ -264,6 +573,13 @@ export function PlayerControls({
         </div>
 
         <div className="player__controls-right">
+          {/* Next episode button */}
+          {nextEpisode && onNextEpisode && (
+            <button className="player__btn" onClick={onNextEpisode} aria-label={`Próximo episódio: ${nextEpisode.title || `Episódio ${nextEpisode.number}`}`}>
+              <Icon name="next-episode" />
+            </button>
+          )}
+
           <div
             className="player__settings-anchor"
             ref={settingsWrapperRef}
@@ -295,83 +611,9 @@ export function PlayerControls({
               >
                 <div className="player__settings-heading">
                   <p id={settingsTitleId}>Configurações</p>
-                  <span>Áudio, legendas e reprodução</span>
+                  <span>{settingsPage === null ? 'Áudio, legendas e reprodução' : ''}</span>
                 </div>
-
-                {episodes.length > 1 && currentEpisodeId && (
-                  <fieldset className="player__settings-group">
-                    <legend>Temporada atual</legend>
-                    <label className="player__track-control">
-                      <span>Episódio</span>
-                      <select aria-label="Selecionar episódio" value={currentEpisodeId} onChange={(event) => onEpisodeChange(event.target.value)}>
-                        {episodes.map((episode) => <option key={episode.id} value={episode.id}>E{episode.number} · {episode.title || `Episódio ${episode.number}`}</option>)}
-                      </select>
-                    </label>
-                  </fieldset>
-                )}
-
-                {(audioTracks.length > 1 || subtitleTracks.length > 0) && (
-                  <fieldset className="player__settings-group">
-                    <legend>Áudio e legendas</legend>
-                    {audioTracks.length > 1 && (
-                      <label className="player__track-control">
-                        <span>Áudio</span>
-                        <select aria-label="Faixa de áudio" value={selectedAudioTrack >= 0 ? selectedAudioTrack : audioTracks[0]?.id ?? -1} onChange={(event) => onAudioTrackChange(Number(event.target.value))}>
-                          {audioTracks.map((track) => <option key={track.id} value={track.id}>{track.label}</option>)}
-                        </select>
-                      </label>
-                    )}
-                    {subtitleTracks.length > 0 && (
-                      <>
-                        <label className="player__track-control">
-                          <span>Legendas</span>
-                          <select aria-label="Faixa de legenda" value={selectedSubtitleTrack} onChange={(event) => onSubtitleTrackChange(Number(event.target.value))}>
-                            <option value={-1}>Desligadas</option>
-                            {subtitleTracks.map((track) => <option key={track.id} value={track.id}>{track.label}</option>)}
-                          </select>
-                        </label>
-                        <label className="player__track-control">
-                          <span>Tamanho</span>
-                          <select aria-label="Tamanho da legenda" value={subtitleStyle} onChange={(event) => onSubtitleStyleChange(event.target.value as "small" | "medium" | "large")}>
-                            <option value="small">Pequena</option>
-                            <option value="medium">Média</option>
-                            <option value="large">Grande</option>
-                          </select>
-                        </label>
-                      </>
-                    )}
-                  </fieldset>
-                )}
-
-                <fieldset className="player__settings-group">
-                  <legend>Reprodução</legend>
-                  <label className="player__track-control">
-                    <span>Velocidade</span>
-                    <select aria-label="Velocidade de reprodução" value={playbackRate} onChange={(event) => onPlaybackRateChange(Number(event.target.value))}>
-                      {[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => (
-                        <option key={rate} value={rate}>{rate === 1 ? 'Normal' : `${rate}×`}</option>
-                      ))}
-                    </select>
-                  </label>
-                  {qualityLevels.length > 0 && (
-                    <label className="player__track-control">
-                      <span>Qualidade</span>
-                      <select aria-label="Qualidade de vídeo" value={selectedQuality} onChange={(event) => onQualityChange(Number(event.target.value))}>
-                        <option value={-1}>Automática</option>
-                        {qualityLevels.map((level) => <option key={level.id} value={level.id}>{level.label}</option>)}
-                      </select>
-                    </label>
-                  )}
-                  {episodes.length > 1 && (
-                    <label className="player__track-control">
-                      <span>Próximo episódio</span>
-                      <select aria-label="Reprodução automática do próximo episódio" value={autoPlayNextEpisode ? "on" : "off"} onChange={(event) => onAutoPlayNextEpisodeChange(event.target.value === "on")}>
-                        <option value="on">Automático</option>
-                        <option value="off">Manual</option>
-                      </select>
-                    </label>
-                  )}
-                </fieldset>
+                {renderSettingsContent()}
               </div>
             )}
           </div>
@@ -390,4 +632,4 @@ export function PlayerControls({
       </div>
     </div>
   );
-}
+});

@@ -3,7 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import Hls from 'hls.js';
 import { api } from '../lib/api';
-import { isSafariBrowser, playbackAudioOffsetSeconds } from '../lib/player';
+import { getCertification } from '../lib/utils';
+import { getContentDescriptors } from '../lib/workDetails';
+import { isSafariBrowser, playbackAudioOffsetSeconds, resolveContentRating } from '../lib/player';
 import { VideoPlayer } from '../components/player/VideoPlayer';
 import { WatchDetails } from '../components/watch/WatchDetails';
 import { Footer } from '../components/layout/Footer';
@@ -189,6 +191,17 @@ export function WatchPage() {
     );
   }
 
+  const cert = getCertification(data.details?.metadata)
+    ?? getCertification(data.details?.season?.metadata)
+    ?? getCertification(data.details?.episode?.metadata);
+  const rawDescriptors = [
+    ...getContentDescriptors(data.details?.metadata),
+    ...getContentDescriptors(data.details?.season?.metadata),
+    ...getContentDescriptors(data.details?.episode?.metadata),
+  ];
+  const descriptors = Array.from(new Set(rawDescriptors.map((d) => d.trim()))).filter(Boolean);
+  const contentRating = resolveContentRating(cert, descriptors);
+
   return (
     <div className="watch-page">
       <div className="watch-page__stage">
@@ -208,6 +221,7 @@ export function WatchPage() {
           onNextEpisode={handleNextEpisode}
           startTime={progress.data?.completed ? 0 : progress.data?.positionSeconds}
           audioOffsetSeconds={playbackAudioOffsetSeconds(data.delivery)}
+          contentRating={contentRating}
           onTimeUpdate={(positionSeconds, durationSeconds) => {
             hasPlaybackSnapshotRef.current = true;
             latestProgressRef.current = { positionSeconds, durationSeconds };

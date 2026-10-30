@@ -1,4 +1,4 @@
-export type IconName = 'back' | 'play' | 'pause' | 'volume' | 'muted' | 'pip' | 'fullscreen' | 'exit-fullscreen' | 'settings' | 'info' | 'chevron-left' | 'chevron-right' | 'rotate' | 'search' | 'menu' | 'close' | 'logout' | 'filter' | 'check' | 'user' | 'trash' | 'plus' | 'thumbs-up' | 'thumbs-down' | 'share' | 'link';
+export type IconName = 'back' | 'play' | 'pause' | 'volume' | 'muted' | 'pip' | 'fullscreen' | 'exit-fullscreen' | 'settings' | 'info' | 'chevron-left' | 'chevron-right' | 'rotate' | 'search' | 'menu' | 'close' | 'logout' | 'filter' | 'check' | 'user' | 'trash' | 'plus' | 'thumbs-up' | 'thumbs-down' | 'share' | 'link' | 'replay-10' | 'forward-10' | 'next-episode' | 'captions';
 
 export function Icon({ name }: { name: IconName }) {
   return <svg className="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -33,5 +33,9 @@ export function Icon({ name }: { name: IconName }) {
     {name === 'thumbs-down' && <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M17 13.5 13 20c-1.6 0-2.4-1.1-2.2-2.5l.4-3.5H5a1.8 1.8 0 0 1-1.7-2.2l1.2-5.4A2.4 2.4 0 0 1 6.9 5H17z" /><path d="M17 13.5h3V5h-3z" /></g>}
     {name === 'share' && <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="19" r="2.5" /><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5" /></g>}
     {name === 'link' && <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10.5 13.5a4 4 0 0 0 5.6 0l2.2-2.2a4 4 0 0 0-5.6-5.6l-1.2 1.2" /><path d="M13.5 10.5a4 4 0 0 0-5.6 0l-2.2 2.2a4 4 0 0 0 5.6 5.6l1.2-1.2" /></g>}
+    {name === 'replay-10' && <><path d="M12 5V2L8 6l4 4V7c3.3 0 6 2.7 6 6s-2.7 6-6 6-6-2.7-6-6H4c0 4.4 3.6 8 8 8s8-3.6 8-8-3.6-8-8-8z" /><text x="12" y="15.5" textAnchor="middle" fontSize="5.5" fontWeight="800" fill="currentColor">10</text></>}
+    {name === 'forward-10' && <><path d="M12 5V2l4 4-4 4V7C8.7 7 6 9.7 6 13s2.7 6 6 6 6-2.7 6-6h2c0 4.4-3.6 8-8 8s-8-3.6-8-8 3.6-8 8-8z" /><text x="12" y="15.5" textAnchor="middle" fontSize="5.5" fontWeight="800" fill="currentColor">10</text></>}
+    {name === 'next-episode' && <path d="M6 6v12l8.5-6zm9 0h2v12h-2z" />}
+    {name === 'captions' && <><rect x="3" y="6" width="18" height="12" rx="2" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M7 12h4m-4 3h8M15 12h2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></>}
   </svg>;
 }

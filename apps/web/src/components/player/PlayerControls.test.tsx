@@ -30,6 +30,8 @@ test('exposes named playback controls without relying on symbols', () => {
   expect(screen.getByRole('button', { name: 'Configurações de reprodução' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Picture in Picture' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Entrar em tela cheia' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Voltar 10 segundos' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Avançar 10 segundos' })).toBeInTheDocument();
 });
 
 test('supports keyboard seeking on the timeline', () => {
@@ -55,7 +57,36 @@ test('stops timeline keyboard events from reaching the player shortcuts', () => 
   expect(parentKeyDown).not.toHaveBeenCalled();
 });
 
-test('opens an organised playback settings panel with the available tracks', () => {
+test('drag does not call onSeek during pointermove and calls onSeek once on pointerup', () => {
+  const onSeek = vi.fn();
+  renderControls({ onSeek, duration: 100 });
+  const timeline = screen.getByRole('slider', { name: 'Posição da reprodução' });
+  
+  // Mock bounding rect
+  timeline.getBoundingClientRect = () => ({
+    left: 0,
+    top: 0,
+    right: 200,
+    bottom: 10,
+    width: 200,
+    height: 10,
+    x: 0,
+    y: 0,
+    toJSON: () => {},
+  });
+
+  fireEvent.pointerDown(timeline, { clientX: 50, pointerId: 1 });
+  expect(onSeek).not.toHaveBeenCalled();
+
+  fireEvent.pointerMove(timeline, { clientX: 100, pointerId: 1 });
+  expect(onSeek).not.toHaveBeenCalled();
+
+  fireEvent.pointerUp(timeline, { clientX: 150, pointerId: 1 });
+  expect(onSeek).toHaveBeenCalledTimes(1);
+  expect(onSeek).toHaveBeenCalledWith(75);
+});
+
+test('opens an organised playback settings panel with two levels and no select elements', () => {
   const onAudioTrackChange = vi.fn();
   const onSubtitleTrackChange = vi.fn();
   const onSubtitleStyleChange = vi.fn();
@@ -67,6 +98,7 @@ test('opens an organised playback settings panel with the available tracks', () 
     subtitleTracks: [{ id: 0, label: 'Português' }],
     selectedSubtitleTrack: -1,
     onSubtitleTrackChange,
+    subtitleStyle: 'medium',
     onSubtitleStyleChange,
     episodes: [{ id: 'ep-1', number: 1, title: 'Piloto' }, { id: 'ep-2', number: 2, title: 'O retorno' }],
     currentEpisodeId: 'ep-1',
@@ -76,20 +108,41 @@ test('opens an organised playback settings panel with the available tracks', () 
   fireEvent.click(screen.getByRole('button', { name: 'Configurações de reprodução' }));
   const panel = screen.getByRole('dialog', { name: /Configurações/ });
   expect(panel).toBeInTheDocument();
-  expect(screen.getByRole('combobox', { name: 'Selecionar episódio' })).toBeInTheDocument();
-  expect(screen.getByRole('combobox', { name: 'Faixa de áudio' })).toBeInTheDocument();
-  expect(screen.getByRole('combobox', { name: 'Faixa de legenda' })).toBeInTheDocument();
+  // Ensure no native selects
+  expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
 
-  fireEvent.change(screen.getByRole('combobox', { name: 'Faixa de áudio' }), { target: { value: '1' } });
+  // Level 1: menu items
+  expect(screen.getByRole('menuitem', { name: /Áudio/ })).toBeInTheDocument();
+  expect(screen.getByRole('menuitem', { name: /Legendas/ })).toBeInTheDocument();
+  expect(screen.getByRole('menuitem', { name: /Tamanho da legenda/ })).toBeInTheDocument();
+  expect(screen.getByRole('menuitem', { name: /Episódio/ })).toBeInTheDocument();
+
+  // Navigate to Level 2: Audio
+  fireEvent.click(screen.getByRole('menuitem', { name: /Áudio/ }));
+  const audioOption = screen.getByRole('menuitemradio', { name: /Inglês/ });
+  expect(audioOption).toBeInTheDocument();
+  fireEvent.click(audioOption);
   expect(onAudioTrackChange).toHaveBeenCalledWith(1);
 
-  fireEvent.change(screen.getByRole('combobox', { name: 'Faixa de legenda' }), { target: { value: '0' } });
+  // Navigate to Level 2: Subtitles
+  fireEvent.click(screen.getByRole('menuitem', { name: /Legendas/ }));
+  const subOption = screen.getByRole('menuitemradio', { name: /Português/ });
+  expect(subOption).toBeInTheDocument();
+  fireEvent.click(subOption);
   expect(onSubtitleTrackChange).toHaveBeenCalledWith(0);
 
-  fireEvent.change(screen.getByRole('combobox', { name: 'Tamanho da legenda' }), { target: { value: 'large' } });
+  // Navigate to Level 2: Subtitle Size
+  fireEvent.click(screen.getByRole('menuitem', { name: /Tamanho da legenda/ }));
+  const sizeOption = screen.getByRole('menuitemradio', { name: /Grande/ });
+  expect(sizeOption).toBeInTheDocument();
+  fireEvent.click(sizeOption);
   expect(onSubtitleStyleChange).toHaveBeenCalledWith('large');
 
-  fireEvent.change(screen.getByRole('combobox', { name: 'Selecionar episódio' }), { target: { value: 'ep-2' } });
+  // Navigate to Level 2: Episodes
+  fireEvent.click(screen.getByRole('menuitem', { name: /Episódio/ }));
+  const epOption = screen.getByRole('menuitemradio', { name: /E2 · O retorno/ });
+  expect(epOption).toBeInTheDocument();
+  fireEvent.click(epOption);
   expect(onEpisodeChange).toHaveBeenCalledWith('ep-2');
 });
 
@@ -115,7 +168,7 @@ test('closes playback settings with Escape and restores focus to its trigger', (
   fireEvent.click(trigger);
   const panel = screen.getByRole('dialog', { name: /Configurações/ });
   expect(panel).toBeInTheDocument();
-  expect(screen.getByRole('combobox', { name: 'Faixa de áudio' })).toHaveFocus();
+  expect(screen.getByRole('menuitem', { name: /Áudio/ })).toHaveFocus();
 
   fireEvent.keyDown(document, { key: 'Escape' });
   expect(screen.queryByRole('dialog', { name: /Configurações/ })).not.toBeInTheDocument();
