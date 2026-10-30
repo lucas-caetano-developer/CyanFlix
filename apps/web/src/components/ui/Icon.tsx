@@ -1,4 +1,4 @@
-export type IconName = 'back' | 'play' | 'pause' | 'volume' | 'muted' | 'pip' | 'fullscreen' | 'exit-fullscreen' | 'settings' | 'info' | 'chevron-left' | 'chevron-right' | 'rotate' | 'search' | 'menu' | 'close' | 'logout' | 'filter' | 'check' | 'user' | 'trash';
+export type IconName = 'back' | 'play' | 'pause' | 'volume' | 'muted' | 'pip' | 'fullscreen' | 'exit-fullscreen' | 'settings' | 'info' | 'chevron-left' | 'chevron-right' | 'rotate' | 'search' | 'menu' | 'close' | 'logout' | 'filter' | 'check' | 'user' | 'trash' | 'plus' | 'thumbs-up' | 'thumbs-down' | 'share' | 'link';
 
 export function Icon({ name }: { name: IconName }) {
   return <svg className="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -28,5 +28,10 @@ export function Icon({ name }: { name: IconName }) {
     {name === 'check' && <path d="m5 12.5 4.2 4.2L19 7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />}
     {name === 'user' && <><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M4.5 20a7.5 7.5 0 0 1 15 0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></>}
     {name === 'trash' && <><path d="M5 7h14M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></>}
+    {name === 'plus' && <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />}
+    {name === 'thumbs-up' && <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M7 10.5 11 4c1.6 0 2.4 1.1 2.2 2.5L12.8 10H19a1.8 1.8 0 0 1 1.7 2.2l-1.2 5.4A2.4 2.4 0 0 1 17.1 19H7z" /><path d="M7 10.5H4v8.5h3z" /></g>}
+    {name === 'thumbs-down' && <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M17 13.5 13 20c-1.6 0-2.4-1.1-2.2-2.5l.4-3.5H5a1.8 1.8 0 0 1-1.7-2.2l1.2-5.4A2.4 2.4 0 0 1 6.9 5H17z" /><path d="M17 13.5h3V5h-3z" /></g>}
+    {name === 'share' && <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="19" r="2.5" /><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5" /></g>}
+    {name === 'link' && <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10.5 13.5a4 4 0 0 0 5.6 0l2.2-2.2a4 4 0 0 0-5.6-5.6l-1.2 1.2" /><path d="M13.5 10.5a4 4 0 0 0-5.6 0l-2.2 2.2a4 4 0 0 0 5.6 5.6l1.2-1.2" /></g>}
   </svg>;
 }

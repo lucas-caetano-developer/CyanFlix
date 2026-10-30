@@ -357,6 +357,28 @@ app.get("/api/profiles/:profileId/favorites", async (request, reply) => {
   const rows = await prisma.favorite.findMany({ where: { profileId }, orderBy: { createdAt: "desc" }, include: { work: { include: workCardInclude } } });
   return toJson(rows.map((row) => row.work).filter((work) => !work.hidden && work.editorialOverride?.hidden !== true && profileAllowsWork(profile.maxAgeRating, work)).map(toWorkCardDto));
 });
+app.get("/api/profiles/:profileId/ratings/:workId", async (request, reply) => {
+  const { profileId, workId } = request.params as { profileId: string; workId: string };
+  const profile = await requireActiveOwnedProfile(request, profileId, reply);
+  if (!profile) return;
+  if (!await profileAllowsItem(profile.maxAgeRating, workId)) return reply.code(404).send({ error: "Obra não encontrada" });
+  return workRatingSummary(profileId, workId);
+});
+app.put("/api/profiles/:profileId/ratings/:workId", async (request, reply) => {
+  const { profileId, workId } = request.params as { profileId: string; workId: string };
+  const profile = await requireActiveOwnedProfile(request, profileId, reply);
+  if (!profile) return;
+  if (!await profileAllowsItem(profile.maxAgeRating, workId)) return reply.code(404).send({ error: "Obra não encontrada" });
+  const value = (request.body as { value?: unknown } | null)?.value;
+  if (value !== 1 && value !== -1 && value !== 0) return reply.code(400).send({ error: "Avaliação inválida" });
+  if (value === 0) await prisma.workRating.deleteMany({ where: { profileId, workId } });
+  else await prisma.workRating.upsert({
+    where: { profileId_workId: { profileId, workId } },
+    create: { profileId, workId, value },
+    update: { value },
+  });
+  return workRatingSummary(profileId, workId);
+});
 app.put("/api/profiles/:profileId/progress/:itemId", async (request, reply) => {
   const { profileId, itemId } = request.params as { profileId: string; itemId: string };
   const profile = await requireActiveOwnedProfile(request, profileId, reply);
@@ -463,7 +485,29 @@ app.get("/api/playback/items/:itemId", async (request, reply) => {
     const media = work.mediaObjects[0];
     if (!media?.publicPath) return reply.code(404).send({ error: "Mídia do filme não encontrada" });
     const tracks = await playbackTracks(media.publicationId);
-    return { itemType: "movie", title: work.editorialOverride?.title ?? work.title, originalUrl: media.publicPath, delivery: readNestedObject(media.codecs, "delivery") ?? readObject(media.codecs), markers: readNestedArray(media.codecs, "markers"), ...tracks, nextEpisode: null, fallback: { available: true, status: "not_requested" } };
+    const title = work.editorialOverride?.title ?? work.title;
+    return {
+      itemType: "movie",
+      title,
+      originalUrl: media.publicPath,
+      delivery: readNestedObject(media.codecs, "delivery") ?? readObject(media.codecs),
+      markers: readNestedArray(media.codecs, "markers"),
+      ...tracks,
+      nextEpisode: null,
+      fallback: { available: true, status: "not_requested" },
+      details: {
+        workId: work.id,
+        contentKind: work.contentKind,
+        title,
+        originalTitle: work.originalTitle,
+        synopsis: work.editorialOverride?.synopsis ?? work.synopsis,
+        year: work.year,
+        metadata: { ...readObject(work.metadata), ...readObject(work.editorialOverride?.metadata) },
+        season: null,
+        episode: null,
+        nextEpisode: null,
+      },
+    };
   }
   const episode = await prisma.episode.findUnique({ where: { id: itemId }, include: { work: { include: { editorialOverride: true } }, season: true } });
   if (!episode) return reply.code(404).send({ error: "Item não encontrado" });
@@ -475,7 +519,50 @@ app.get("/api/playback/items/:itemId", async (request, reply) => {
     findNextPlayableEpisode(episode.workId, episode.seasonId, episode.season.number, episode.number),
     findPlayableSeasonEpisodes(episode.seasonId),
   ]);
-  return { itemType: "episode", itemId: episode.id, seasonNumber: episode.season.number, title: `${episode.work.editorialOverride?.title ?? episode.work.title} — ${episode.title ?? `Episódio ${episode.number}`}`, originalUrl: media.publicPath, delivery: readObject(media.codecs), markers: episode.markers, ...tracks, episodes: episodeNavigation, nextEpisode: next ? { id: next.id, number: next.number, title: next.title } : null, fallback: { available: true, status: "not_requested" } };
+  const nextProgress = next ? await prisma.viewingProgress.findUnique({ where: { profileId_episodeId: { profileId: profile.id, episodeId: next.id } } }) : null;
+  const nextDuration = nextProgress?.durationSeconds ?? 0;
+  const workTitle = episode.work.editorialOverride?.title ?? episode.work.title;
+  return {
+    itemType: "episode",
+    itemId: episode.id,
+    seasonNumber: episode.season.number,
+    title: `${workTitle} — ${episode.title ?? `Episódio ${episode.number}`}`,
+    originalUrl: media.publicPath,
+    delivery: readObject(media.codecs),
+    markers: episode.markers,
+    ...tracks,
+    episodes: episodeNavigation,
+    nextEpisode: next ? { id: next.id, number: next.number, title: next.title } : null,
+    fallback: { available: true, status: "not_requested" },
+    details: {
+      workId: episode.workId,
+      contentKind: episode.work.contentKind,
+      title: workTitle,
+      originalTitle: episode.work.originalTitle,
+      synopsis: episode.work.editorialOverride?.synopsis ?? episode.work.synopsis,
+      year: episode.work.year,
+      metadata: { ...readObject(episode.work.metadata), ...readObject(episode.work.editorialOverride?.metadata) },
+      season: { id: episode.season.id, number: episode.season.number, title: episode.season.title, metadata: episode.season.metadata },
+      episode: { id: episode.id, number: episode.number, title: episode.title, synopsis: episode.synopsis, metadata: episode.metadata },
+      nextEpisode: next ? {
+        id: next.id,
+        number: next.number,
+        title: next.title,
+        synopsis: next.synopsis,
+        metadata: next.metadata,
+        seasonNumber: next.season.number,
+        seasonTitle: next.season.title,
+        seasonMetadata: next.season.metadata,
+        thumbnail: next.assets.find((asset) => asset.publicationId === next.publicationId && asset.publicPath)?.publicPath ?? null,
+        progress: nextProgress ? {
+          positionSeconds: nextProgress.positionSeconds,
+          durationSeconds: nextProgress.durationSeconds,
+          completed: nextProgress.completed,
+          progressPercent: nextDuration > 0 ? Math.min(100, Math.round((nextProgress.positionSeconds / nextDuration) * 100)) : 0,
+        } : null,
+      } : null,
+    },
+  };
 });
 
 app.post("/api/playback/items/:itemId/fallback", async (request, reply) => {
@@ -1802,6 +1889,14 @@ async function profileAllowsItem(maxAgeRating: number | null, itemId: string): P
   const episode = await prisma.episode.findUnique({ where: { id: itemId }, select: { work: { select: { metadata: true } }, season: { select: { metadata: true } } } });
   return episode ? profileAllowsWork(maxAgeRating, { metadata: episode.work.metadata, seasons: [episode.season] }) : false;
 }
+async function workRatingSummary(profileId: string, workId: string) {
+  const [grouped, mine] = await Promise.all([
+    prisma.workRating.groupBy({ by: ["value"], where: { workId }, _count: { _all: true } }),
+    prisma.workRating.findUnique({ where: { profileId_workId: { profileId, workId } }, select: { value: true } }),
+  ]);
+  const count = (value: number) => grouped.find((entry) => entry.value === value)?._count._all ?? 0;
+  return { value: mine?.value ?? null, likes: count(1), dislikes: count(-1) };
+}
 type PresentationAssetDtoInput = { id: string; type: string; publicPath: string | null; metadata: unknown };
 type WorkCardDtoInput = {
   id: string;
@@ -1998,7 +2093,14 @@ async function findNextPlayableEpisode(workId: string, seasonId: string, seasonN
       { seasonId, number: { gt: episodeNumber } },
       { season: { number: { gt: seasonNumber } } }
     ] },
-    include: { season: { select: { number: true } } },
+    include: {
+      season: { select: { id: true, number: true, title: true, metadata: true } },
+      assets: {
+        where: { type: { in: episodePresentationAssetTypes }, publication: { state: "confirmed" } },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, type: true, publicPath: true, metadata: true, publicationId: true },
+      },
+    },
     orderBy: [{ season: { number: "asc" } }, { number: "asc" }]
   });
   if (!candidates.length) return null;
@@ -2010,10 +2112,15 @@ async function findNextPlayableEpisode(workId: string, seasonId: string, seasonN
     select: { episodeId: true, publicationId: true }
   });
   const available = new Set(media.map((item) => `${item.episodeId}:${item.publicationId}`));
-  return candidates.find((candidate) => {
+  const selected = candidates.find((candidate) => {
     const publicationId = candidate.activeRevisionId ? publicationByRevision.get(candidate.activeRevisionId) : undefined;
     return Boolean(publicationId && available.has(`${candidate.id}:${publicationId}`));
   }) ?? null;
+  if (!selected) return null;
+  return {
+    ...selected,
+    publicationId: selected.activeRevisionId ? publicationByRevision.get(selected.activeRevisionId) ?? null : null,
+  };
 }
 async function findPlayableSeasonEpisodes(seasonId: string) {
   const candidates = await prisma.episode.findMany({

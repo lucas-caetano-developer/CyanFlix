@@ -1,4 +1,4 @@
-import type { Profile, ProfilePreferences, HomeData, SearchResult, Work, PlaybackData, FallbackJob, AdminDashboard, Publication, PublicationDetail, Revision, RevisionCleanup, Session, Account, IntegrityCheck, AdminCatalogWork, AdminWorkDetail, AuditEntry, EditorialCollection, EditorialCollectionPreview, StorageMetrics, WorkDeletionPreview } from './types';
+import type { Profile, ProfilePreferences, HomeData, SearchResult, Work, PlaybackData, FallbackJob, AdminDashboard, Publication, PublicationDetail, Revision, RevisionCleanup, Session, Account, IntegrityCheck, AdminCatalogWork, AdminWorkDetail, AuditEntry, EditorialCollection, EditorialCollectionPreview, StorageMetrics, WorkDeletionPreview, WorkRating } from './types';
 
 export async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { credentials: 'same-origin', ...init });
@@ -63,6 +63,8 @@ export const api = {
   addFavorite: (profileId: string, workId: string) => fetchApi<void>(`/api/profiles/${profileId}/favorites/${workId}`, { method: 'POST' }),
   removeFavorite: (profileId: string, workId: string) => fetchApi<void>(`/api/profiles/${profileId}/favorites/${workId}`, { method: 'DELETE' }),
   getFavorites: (profileId: string) => fetchApi<Work[]>(`/api/profiles/${profileId}/favorites`),
+  getWorkRating: (profileId: string, workId: string) => fetchApi<WorkRating>(`/api/profiles/${profileId}/ratings/${workId}`),
+  setWorkRating: (profileId: string, workId: string, value: 1 | -1 | 0) => fetchApi<WorkRating>(`/api/profiles/${profileId}/ratings/${workId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value }) }),
   updateProgress: (profileId: string, itemId: string, data: { positionSeconds: number; durationSeconds?: number }, keepalive = false) =>
     fetchApi<void>(`/api/profiles/${profileId}/progress/${itemId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), keepalive }),
   getProgress: (profileId: string, itemId: string) =>

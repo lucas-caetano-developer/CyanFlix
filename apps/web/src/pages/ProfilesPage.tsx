@@ -8,6 +8,7 @@ import { clearScrollRestoration } from "../hooks/useScrollRestoration";
 import { CatalogMessage } from "../components/catalog/CatalogMessage";
 import { ProfileAvatar } from "../components/profile/ProfileAvatar";
 import { AvatarPicker } from "../components/profile/AvatarPicker";
+import { Footer } from "../components/layout/Footer";
 import { Icon } from "../components/ui/Icon";
 import { Spinner } from "../components/ui/Spinner";
 import type { Profile } from "../lib/types";
@@ -328,6 +329,8 @@ export function ProfilesPage() {
         </>
       )}
 
+      <Footer className="site-footer--profiles" />
+
       {lockedProfile && (
         <div
           className="premium__overlay"
@@ -335,7 +338,7 @@ export function ProfilesPage() {
           data-spatial-overlay="true"
         >
           <div className="premium__dialog" role="dialog" aria-modal="true" aria-labelledby="profile-pin-title">
-            <form className="premium__dialog-card" onSubmit={(event) => { event.preventDefault(); void enterProfile(lockedProfile, pin); }}>
+            <form ref={pinDialogRef} className="premium__dialog-card" onSubmit={(event) => { event.preventDefault(); void enterProfile(lockedProfile, pin); }}>
               <h2 id="profile-pin-title">Desbloquear {lockedProfile.name}</h2>
               <label className="premium__field">
                 <span>PIN</span>
@@ -358,7 +361,7 @@ export function ProfilesPage() {
           data-spatial-overlay="true"
         >
           <div className="premium__dialog" role="dialog" aria-modal="true" aria-labelledby="profile-admin-pin-title">
-            <form className="premium__dialog-card" onSubmit={(event) => { event.preventDefault(); void defineAdminPin(); }}>
+            <form ref={adminPinDialogRef} className="premium__dialog-card" onSubmit={(event) => { event.preventDefault(); void defineAdminPin(); }}>
               <h2 id="profile-admin-pin-title">Definir senha de administração</h2>
               <p className="premium__subtitle">O perfil de administrador <strong>{adminPinProfile.name}</strong> precisa de uma senha para acessar a administração.</p>
               <label className="premium__field">
@@ -382,7 +385,7 @@ export function ProfilesPage() {
           data-spatial-overlay="true"
         >
           <div className="premium__dialog" role="dialog" aria-modal="true" aria-labelledby="profile-settings-title">
-            <form className="premium__dialog-card" onSubmit={(event) => { event.preventDefault(); void saveSettings(); }}>
+            <form ref={settingsDialogRef} className="premium__dialog-card" onSubmit={(event) => { event.preventDefault(); void saveSettings(); }}>
               <h2 id="profile-settings-title">Ajustar perfil de {editingProfile.name}</h2>
               <label className="premium__field">
                 <span>Nome do perfil</span>

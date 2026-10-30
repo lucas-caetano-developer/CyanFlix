@@ -73,6 +73,7 @@ model Work {
   progress      ViewingProgress[]
   editorialOverride EditorialOverride?
   collectionItems EditorialCollectionItem[]
+  ratings       WorkRating[]
 }
 
 model EditorialCollection {
@@ -340,6 +341,7 @@ model Profile {
   account   Account? @relation(fields: [accountId], references: [id], onDelete: Cascade)
   favorites Favorite[]
   progress  ViewingProgress[]
+  ratings   WorkRating[]
 
   @@index([accountId, createdAt])
 }
@@ -354,6 +356,21 @@ model Favorite {
   work      Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
 
   @@unique([profileId, workId])
+}
+
+model WorkRating {
+  id        String   @id @default(uuid())
+  profileId String
+  workId    String
+  value     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  work      Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, workId])
+  @@index([workId, value])
 }
 
 model ViewingProgress {

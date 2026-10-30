@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navbar } from './Navbar';
 import { ProfileGate } from './ProfileGate';
+import { Footer } from './Footer';
 
 export function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -10,6 +11,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <main className="shell__content">
           {children}
         </main>
+        <Footer />
       </div>
     </ProfileGate>
   );

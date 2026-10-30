@@ -5,6 +5,8 @@ import Hls from 'hls.js';
 import { api } from '../lib/api';
 import { isSafariBrowser, playbackAudioOffsetSeconds } from '../lib/player';
 import { VideoPlayer } from '../components/player/VideoPlayer';
+import { WatchDetails } from '../components/watch/WatchDetails';
+import { Footer } from '../components/layout/Footer';
 import { useProfileStore } from '../stores/useProfileStore';
 
 export function WatchPage() {
@@ -46,6 +48,7 @@ export function WatchPage() {
     setForceOriginal(false);
     fallbackRequestRef.current = false;
     hasPlaybackSnapshotRef.current = false;
+    window.scrollTo({ top: 0, behavior: 'auto' });
   }, [id]);
 
   const persistProgress = useCallback((force = false) => {
@@ -188,55 +191,59 @@ export function WatchPage() {
 
   return (
     <div className="watch-page">
-      <VideoPlayer
-        key={id}
-        src={src}
-        title={data.title}
-        itemType={data.itemType}
-        seasonNumber={data.seasonNumber}
-        markers={data.markers}
-        subtitles={data.subtitles}
-        nextEpisode={data.nextEpisode}
-        episodes={data.episodes}
-        currentEpisodeId={data.itemId}
-        onEpisodeChange={(episodeId) => navigate(`/watch/episode/${episodeId}`)}
-        onBack={() => navigate(-1)}
-        onNextEpisode={handleNextEpisode}
-        startTime={progress.data?.completed ? 0 : progress.data?.positionSeconds}
-        audioOffsetSeconds={playbackAudioOffsetSeconds(data.delivery)}
-        onTimeUpdate={(positionSeconds, durationSeconds) => {
-          hasPlaybackSnapshotRef.current = true;
-          latestProgressRef.current = { positionSeconds, durationSeconds };
-          persistProgress();
-        }}
-        onProgressCommit={(positionSeconds, durationSeconds) => {
-          hasPlaybackSnapshotRef.current = true;
-          latestProgressRef.current = { positionSeconds, durationSeconds };
-          persistProgress(true);
-        }}
-        onPlaybackError={fallbackUrl || pollingJobId ? undefined : requestFallback}
-        autoPlayNextEpisode={autoPlayNextEpisode}
-        subtitleStyle={subtitleStyle}
-        onSubtitleStyleChange={(style) => {
-          setSubtitleStyle(style);
-          if (profileId) void api.updateProfilePreferences(profileId, { subtitleStyle: style, autoplayNextEpisode: autoPlayNextEpisode });
-        }}
-        onAutoPlayNextEpisodeChange={(enabled) => {
-          setAutoPlayNextEpisode(enabled);
-          if (profileId) void api.updateProfilePreferences(profileId, { autoplayNextEpisode: enabled, subtitleStyle });
-        }}
-      />
-      {/* Optionally render fallback request button here if src fails or data.fallback.available */}
-      {!fallbackUrl && !data.fallback?.url && data.fallback?.available && !pollingJobId && fallbackStatus !== "requesting" && (
-        <button className="watch-page__fallback-action" onClick={requestFallback}>
-          Usar modo adaptativo H.264
-        </button>
-      )}
-      {(pollingJobId || fallbackStatus === "requesting") && (
-        <div className="watch-page__fallback-status" role="status">
-          {fallbackStatus === "requesting" ? "Solicitando fallback…" : "Preparando H.264 adaptativo…"}
-        </div>
-      )}
+      <div className="watch-page__stage">
+        <VideoPlayer
+          key={id}
+          src={src}
+          title={data.title}
+          itemType={data.itemType}
+          seasonNumber={data.seasonNumber}
+          markers={data.markers}
+          subtitles={data.subtitles}
+          nextEpisode={data.nextEpisode}
+          episodes={data.episodes}
+          currentEpisodeId={data.itemId}
+          onEpisodeChange={(episodeId) => navigate(`/watch/episode/${episodeId}`)}
+          onBack={() => navigate(-1)}
+          onNextEpisode={handleNextEpisode}
+          startTime={progress.data?.completed ? 0 : progress.data?.positionSeconds}
+          audioOffsetSeconds={playbackAudioOffsetSeconds(data.delivery)}
+          onTimeUpdate={(positionSeconds, durationSeconds) => {
+            hasPlaybackSnapshotRef.current = true;
+            latestProgressRef.current = { positionSeconds, durationSeconds };
+            persistProgress();
+          }}
+          onProgressCommit={(positionSeconds, durationSeconds) => {
+            hasPlaybackSnapshotRef.current = true;
+            latestProgressRef.current = { positionSeconds, durationSeconds };
+            persistProgress(true);
+          }}
+          onPlaybackError={fallbackUrl || pollingJobId ? undefined : requestFallback}
+          autoPlayNextEpisode={autoPlayNextEpisode}
+          subtitleStyle={subtitleStyle}
+          onSubtitleStyleChange={(style) => {
+            setSubtitleStyle(style);
+            if (profileId) void api.updateProfilePreferences(profileId, { subtitleStyle: style, autoplayNextEpisode: autoPlayNextEpisode });
+          }}
+          onAutoPlayNextEpisodeChange={(enabled) => {
+            setAutoPlayNextEpisode(enabled);
+            if (profileId) void api.updateProfilePreferences(profileId, { autoplayNextEpisode: enabled, subtitleStyle });
+          }}
+        />
+        {!fallbackUrl && !data.fallback?.url && data.fallback?.available && !pollingJobId && fallbackStatus !== "requesting" && (
+          <button className="watch-page__fallback-action" onClick={requestFallback}>
+            Usar modo adaptativo H.264
+          </button>
+        )}
+        {(pollingJobId || fallbackStatus === "requesting") && (
+          <div className="watch-page__fallback-status" role="status">
+            {fallbackStatus === "requesting" ? "Solicitando fallback…" : "Preparando H.264 adaptativo…"}
+          </div>
+        )}
+      </div>
+
+      <WatchDetails details={data.details} />
+      <Footer />
     </div>
   );
 }

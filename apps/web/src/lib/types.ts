@@ -25,7 +25,33 @@ export type Work = { id: string; title: string; originalTitle?: string | null; c
 export type HomeData = { hero: Work | null; rows: Array<{ id: string; title: string; items: Work[] }> };
 export type SearchResult = { items: Work[]; nextCursor?: string | null };
 
-export type PlaybackData = { itemType: "movie" | "episode"; itemId?: string; seasonNumber?: number; title: string; originalUrl: string; delivery?: Record<string, unknown>; markers: Marker[]; subtitles: PlaybackTrack[]; audioTracks: PlaybackTrack[]; episodes?: Array<{ id: string; title?: string | null; number: number }>; nextEpisode?: { id: string; title?: string | null; number: number } | null; fallback: { available: boolean; status: string; url?: string } };
+export type PlaybackData = { itemType: "movie" | "episode"; itemId?: string; seasonNumber?: number; title: string; originalUrl: string; delivery?: Record<string, unknown>; markers: Marker[]; subtitles: PlaybackTrack[]; audioTracks: PlaybackTrack[]; episodes?: Array<{ id: string; title?: string | null; number: number }>; nextEpisode?: { id: string; title?: string | null; number: number } | null; fallback: { available: boolean; status: string; url?: string }; details: PlaybackDetails };
+
+export type PlaybackDetails = {
+  workId: string;
+  contentKind: Work["contentKind"];
+  title: string;
+  originalTitle?: string | null;
+  synopsis?: string | null;
+  year?: number | null;
+  metadata?: Record<string, unknown>;
+  season?: { id: string; number: number; title?: string | null; metadata?: Record<string, unknown> } | null;
+  episode?: { id: string; number: number; title?: string | null; synopsis?: string | null; metadata?: Record<string, unknown> } | null;
+  nextEpisode?: {
+    id: string;
+    number: number;
+    title?: string | null;
+    synopsis?: string | null;
+    metadata?: Record<string, unknown>;
+    seasonNumber: number;
+    seasonTitle?: string | null;
+    seasonMetadata?: Record<string, unknown>;
+    thumbnail?: string | null;
+    progress?: { positionSeconds: number; durationSeconds?: number | null; completed: boolean; progressPercent: number } | null;
+  } | null;
+};
+
+export type WorkRating = { value: 1 | -1 | null; likes: number; dislikes: number };
 
 export type FallbackJob = { jobId?: string; status?: string; url?: string; error?: string; adaptive?: boolean };
 
