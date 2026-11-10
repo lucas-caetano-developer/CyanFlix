@@ -1353,6 +1353,208 @@ app.put("/v1/publications/:uploadId/files/*", { bodyLimit: env.maxUploadSizeByte
   }
 });
 
+// Single-archive stream upload endpoint (tar format).
+// Extracts all package files in a single continuous stream directly to staging,
+// avoiding thousands of individual HTTP round-trips and DB updates.
+app.put("/v1/publications/:uploadId/archive", { bodyLimit: env.maxPackageSizeBytes }, async (request, reply) => {
+  const { uploadId } = request.params as { uploadId: string };
+  const publication = await prisma.publication.findUnique({
+    where: { uploadId }, include: { files: true }
+  });
+  if (!publication) return reply.code(404).send({ error: "Publicação não encontrada" });
+  if (["validating", "promoting", "confirmed"].includes(publication.state)) {
+    return reply.code(409).send({ error: "Publicação não aceita novos arquivos neste estado" });
+  }
+
+  const uploadKey = `${publication.id}:archive_stream`;
+  if (activeUploads.has(uploadKey)) {
+    return reply.header("Retry-After", "5").code(425).send({ error: "Envio de arquivo em lote já está em andamento" });
+  }
+  activeUploads.add(uploadKey);
+
+  const stagingRoot = safeDataPath("staging", uploadId, "files");
+  await ensureUploadDirectory(stagingRoot);
+
+  const fileMap = new Map<string, { id: string; expectedSha256: string | null; expectedBytes: bigint | null }>();
+  for (const f of publication.files) {
+    fileMap.set(f.relativePath, {
+      id: f.id,
+      expectedSha256: f.expectedSha256,
+      expectedBytes: f.expectedBytes
+    });
+  }
+
+  const updatedFiles: Array<{ id: string; receivedSha256: string; receivedBytes: bigint }> = [];
+  let buffer = Buffer.alloc(0);
+  let state: "HEADER" | "CONTENT" | "PADDING" | "DONE" = "HEADER";
+  let currentPath: string | null = null;
+  let currentSize = 0;
+  let bytesWritten = 0;
+  let paddingRemaining = 0;
+  let currentFileStream: fs.WriteStream | null = null;
+  let currentHash: crypto.Hash | null = null;
+  let currentExpectedHash: string | null = null;
+  let paxNextPath: string | null = null;
+  let streamError: Error | null = null;
+
+  const closeCurrentFile = async () => {
+    if (currentFileStream) {
+      const fsStream = currentFileStream;
+      currentFileStream = null;
+      await new Promise<void>((resolve, reject) => {
+        fsStream.end((err: Error | null) => (err ? reject(err) : resolve()));
+      });
+      if (currentPath && currentHash) {
+        const receivedSha256 = currentHash.digest("hex");
+        const fileInfo = fileMap.get(currentPath);
+        if (fileInfo) {
+          if (fileInfo.expectedSha256 && receivedSha256 !== fileInfo.expectedSha256) {
+            throw new Error(`SHA-256 do arquivo ${currentPath} não confere com o manifesto`);
+          }
+          updatedFiles.push({
+            id: fileInfo.id,
+            receivedSha256,
+            receivedBytes: BigInt(bytesWritten)
+          });
+        }
+      }
+    }
+  };
+
+  const processChunk = async (chunk: Buffer) => {
+    buffer = Buffer.concat([buffer, chunk]);
+    while (buffer.length > 0 && state !== "DONE") {
+      if (state === "HEADER") {
+        if (buffer.length < 512) return;
+        const headerBuf = buffer.subarray(0, 512);
+        buffer = buffer.subarray(512);
+
+        let allZero = true;
+        for (let i = 0; i < 512; i++) {
+          if (headerBuf[i] !== 0) { allZero = false; break; }
+        }
+        if (allZero) {
+          state = "DONE";
+          return;
+        }
+
+        let name = headerBuf.toString("utf8", 0, 100).replace(/\0.*$/, "").trim();
+        const prefix = headerBuf.toString("utf8", 345, 500).replace(/\0.*$/, "").trim();
+        if (prefix) name = `${prefix}/${name}`;
+        if (paxNextPath) {
+          name = paxNextPath;
+          paxNextPath = null;
+        }
+
+        const sizeStr = headerBuf.toString("utf8", 124, 136).replace(/\0.*$/, "").trim();
+        currentSize = parseInt(sizeStr, 8) || 0;
+        const typeflag = String.fromCharCode(headerBuf[156]);
+
+        if (typeflag === "x" || typeflag === "g") {
+          // PAX extended header
+          const paxData = buffer.subarray(0, currentSize).toString("utf8");
+          const match = paxData.match(/\d+ path=(.+)\n/);
+          if (match) paxNextPath = match[1].trim();
+          paddingRemaining = (512 - (currentSize % 512)) % 512;
+          buffer = buffer.subarray(currentSize);
+          state = "PADDING";
+          continue;
+        }
+
+        if (typeflag === "5" || (!name && currentSize === 0)) {
+          // Directory entry
+          paddingRemaining = 0;
+          state = "HEADER";
+          continue;
+        }
+
+        const normalized = name.replaceAll("\\", "/").replace(/^\/+/, "");
+        if (!isSafeRelativePath(normalized)) {
+          throw new Error(`Caminho inseguro no arquivo do pacote: ${normalized}`);
+        }
+
+        currentPath = normalized;
+        const destination = safeDataPath("staging", uploadId, "files", currentPath);
+        await ensureUploadDirectory(path.dirname(destination));
+        currentFileStream = fs.createWriteStream(destination);
+        currentHash = crypto.createHash("sha256");
+        bytesWritten = 0;
+        paddingRemaining = (512 - (currentSize % 512)) % 512;
+
+        if (currentSize === 0) {
+          await closeCurrentFile();
+          state = paddingRemaining > 0 ? "PADDING" : "HEADER";
+        } else {
+          state = "CONTENT";
+        }
+      } else if (state === "CONTENT") {
+        const needed = currentSize - bytesWritten;
+        const toTake = Math.min(buffer.length, needed);
+        const dataSlice = buffer.subarray(0, toTake);
+        buffer = buffer.subarray(toTake);
+
+        if (currentFileStream) {
+          const canWrite = currentFileStream.write(dataSlice);
+          if (!canWrite) {
+            await new Promise<void>((resolve) => currentFileStream!.once("drain", resolve));
+          }
+        }
+        if (currentHash) currentHash.update(dataSlice);
+        bytesWritten += toTake;
+
+        if (bytesWritten >= currentSize) {
+          await closeCurrentFile();
+          state = paddingRemaining > 0 ? "PADDING" : "HEADER";
+        }
+      } else if (state === "PADDING") {
+        if (buffer.length < paddingRemaining) {
+          paddingRemaining -= buffer.length;
+          buffer = Buffer.alloc(0);
+          return;
+        }
+        buffer = buffer.subarray(paddingRemaining);
+        paddingRemaining = 0;
+        state = "HEADER";
+      }
+    }
+  };
+
+  try {
+    const rawStream = request.body instanceof Readable ? request.body : request.raw;
+    for await (const chunk of rawStream) {
+      await processChunk(chunk as Buffer);
+    }
+    await closeCurrentFile();
+
+    // Batch update all received files in a single transaction
+    const now = new Date();
+    await prisma.$transaction(
+      updatedFiles.map((item) =>
+        prisma.publicationFile.update({
+          where: { id: item.id },
+          data: {
+            receivedSha256: item.receivedSha256,
+            receivedBytes: item.receivedBytes,
+            receivedAt: now
+          }
+        })
+      )
+    );
+
+    return {
+      upload_id: publication.uploadId,
+      state: "uploading",
+      extracted_files: updatedFiles.length
+    };
+  } catch (error) {
+    await closeCurrentFile();
+    const msg = error instanceof Error ? error.message : String(error);
+    return reply.code(400).send({ error: `Falha na extração do pacote: ${msg}` });
+  } finally {
+    activeUploads.delete(uploadKey);
+  }
+});
+
 app.post("/v1/publications/:uploadId/complete", async (request, reply) => {
   const { uploadId } = request.params as { uploadId: string };
   const publication = await prisma.publication.findUnique({ where: { uploadId }, include: { files: true, receipt: true } });
