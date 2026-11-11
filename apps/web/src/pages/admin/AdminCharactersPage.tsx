@@ -21,6 +21,7 @@ export function AdminCharactersPage() {
   const [newPhotoUrl, setNewPhotoUrl] = useState("");
   const [newRole, setNewRole] = useState("Protagonista");
   const [newArchetypes, setNewArchetypes] = useState<string[]>([]);
+  const [newProfileSentiments, setNewProfileSentiments] = useState("");
   const [newVoiceActorId, setNewVoiceActorId] = useState("");
   const [newVoiceAudioUrl, setNewVoiceAudioUrl] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -59,6 +60,7 @@ export function AdminCharactersPage() {
       photoUrl?: string | null;
       role?: string | null;
       archetype?: string | null;
+      profileSentiments?: string | null;
       voiceAudioUrl?: string | null;
       voiceActorId?: string | null;
     }) => api.createAdminCharacter(data),
@@ -79,6 +81,7 @@ export function AdminCharactersPage() {
     setNewPhotoUrl("");
     setNewRole("Protagonista");
     setNewArchetypes([]);
+    setNewProfileSentiments("");
     setNewVoiceActorId("");
     setNewVoiceAudioUrl(null);
     setFormError(null);
@@ -117,6 +120,7 @@ export function AdminCharactersPage() {
       photoUrl: newPhotoUrl.trim() || null,
       role: newRole.trim() || null,
       archetype: newArchetypes.join(", ") || null,
+      profileSentiments: newProfileSentiments.trim() || null,
       voiceAudioUrl: newVoiceAudioUrl,
       voiceActorId: newVoiceActorId.trim() || null,
     });
@@ -402,6 +406,24 @@ export function AdminCharactersPage() {
                   selected={newArchetypes}
                   onChange={setNewArchetypes}
                 />
+              </div>
+
+              {/* Profile & Sentiments */}
+              <div className="admin-form-group">
+                <label htmlFor="char-new-profile-sentiments" className="admin-label">
+                  Perfil e Sentimentos
+                </label>
+                <textarea
+                  id="char-new-profile-sentiments"
+                  className="admin-input"
+                  rows={4}
+                  placeholder="Descreva a psicologia, conflitos internos, medos e sentimentos do personagem..."
+                  value={newProfileSentiments}
+                  onChange={(e) => setNewProfileSentiments(e.target.value)}
+                />
+                <span className="admin-form-hint">
+                  Descrição detalhada das motivações, dilemas internos e personalidade do personagem.
+                </span>
               </div>
 
               {/* Voice Sample Clipper with Mini Player */}

@@ -20,6 +20,7 @@ export function AdminWorkCharactersPage() {
   const [formPhotoUrl, setFormPhotoUrl] = useState("");
   const [formRole, setFormRole] = useState("Protagonista");
   const [formArchetypes, setFormArchetypes] = useState<string[]>([]);
+  const [formProfileSentiments, setFormProfileSentiments] = useState("");
   const [formVoiceActorId, setFormVoiceActorId] = useState("");
   const [formVoiceAudioUrl, setFormVoiceAudioUrl] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -57,6 +58,7 @@ export function AdminWorkCharactersPage() {
       photoUrl?: string | null;
       role?: string | null;
       archetype?: string | null;
+      profileSentiments?: string | null;
       voiceAudioUrl?: string | null;
       voiceActorId?: string | null;
     }) => api.createAdminCharacter(data),
@@ -100,6 +102,7 @@ export function AdminWorkCharactersPage() {
     setFormPhotoUrl("");
     setFormRole("Protagonista");
     setFormArchetypes([]);
+    setFormProfileSentiments("");
     setFormVoiceActorId("");
     setFormVoiceAudioUrl(null);
     setFormError(null);
@@ -116,6 +119,7 @@ export function AdminWorkCharactersPage() {
     setFormPhotoUrl(char.photoUrl || "");
     setFormRole(char.role || "Protagonista");
     setFormArchetypes(parseArchetypes(char.archetype));
+    setFormProfileSentiments(char.profileSentiments || "");
     setFormVoiceActorId(char.voiceActorId || "");
     setFormVoiceAudioUrl(char.voiceAudioUrl || null);
     setFormError(null);
@@ -155,6 +159,7 @@ export function AdminWorkCharactersPage() {
           photoUrl: formPhotoUrl.trim() || null,
           role: formRole.trim() || null,
           archetype: formArchetypes.join(", ") || null,
+          profileSentiments: formProfileSentiments.trim() || null,
           voiceAudioUrl: formVoiceAudioUrl,
           voiceActorId: formVoiceActorId.trim() || null,
         },
@@ -166,6 +171,7 @@ export function AdminWorkCharactersPage() {
         photoUrl: formPhotoUrl.trim() || null,
         role: formRole.trim() || null,
         archetype: formArchetypes.join(", ") || null,
+        profileSentiments: formProfileSentiments.trim() || null,
         voiceAudioUrl: formVoiceAudioUrl,
         voiceActorId: formVoiceActorId.trim() || null,
       });
@@ -512,6 +518,24 @@ export function AdminWorkCharactersPage() {
                   selected={formArchetypes}
                   onChange={setFormArchetypes}
                 />
+              </div>
+
+              {/* Profile & Sentiments */}
+              <div className="admin-form-group">
+                <label htmlFor="char-modal-profile-sentiments" className="admin-label">
+                  Perfil e Sentimentos
+                </label>
+                <textarea
+                  id="char-modal-profile-sentiments"
+                  className="admin-input"
+                  rows={4}
+                  placeholder="Descreva a psicologia, conflitos internos, medos e sentimentos do personagem..."
+                  value={formProfileSentiments}
+                  onChange={(e) => setFormProfileSentiments(e.target.value)}
+                />
+                <span className="admin-form-hint">
+                  Descrição detalhada das motivações, dilemas internos e personalidade do personagem.
+                </span>
               </div>
 
               {/* Voice Sample with Mini Player */}

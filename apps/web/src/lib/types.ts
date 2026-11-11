@@ -139,6 +139,7 @@ export type Character = {
   photoUrl?: string | null;
   role?: string | null;
   archetype?: string | null;
+  profileSentiments?: string | null;
   voiceAudioUrl?: string | null;
   voiceActorId?: string | null;
   voiceActor?: {
@@ -165,6 +166,7 @@ export type CharacterSummary = {
   photoUrl?: string | null;
   role?: string | null;
   archetype?: string | null;
+  profileSentiments?: string | null;
   voiceAudioUrl?: string | null;
   workId: string;
   work?: {

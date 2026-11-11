@@ -439,18 +439,19 @@ model VoiceActor {
 }
 
 model Character {
-  id            String      @id @default(uuid())
-  name          String
-  photoUrl      String?
-  role          String?
-  archetype     String?
-  voiceAudioUrl String?
-  voiceActorId  String?
-  voiceActor    VoiceActor? @relation(fields: [voiceActorId], references: [id], onDelete: SetNull)
-  workId        String
-  work          Work        @relation(fields: [workId], references: [id], onDelete: Cascade)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id                String      @id @default(uuid())
+  name              String
+  photoUrl          String?
+  role              String?
+  archetype         String?
+  profileSentiments String?
+  voiceAudioUrl     String?
+  voiceActorId      String?
+  voiceActor        VoiceActor? @relation(fields: [voiceActorId], references: [id], onDelete: SetNull)
+  workId            String
+  work              Work        @relation(fields: [workId], references: [id], onDelete: Cascade)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
   @@index([workId])
   @@index([voiceActorId])

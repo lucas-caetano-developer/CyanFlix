@@ -1611,6 +1611,7 @@ app.post("/api/admin/characters", async (request, reply) => {
     photoUrl?: string | null;
     role?: string | null;
     archetype?: string | null;
+    profileSentiments?: string | null;
     voiceAudioUrl?: string | null;
     voiceActorId?: string | null;
   };
@@ -1638,6 +1639,7 @@ app.post("/api/admin/characters", async (request, reply) => {
       photoUrl: typeof body.photoUrl === "string" && body.photoUrl.trim() ? body.photoUrl.trim() : null,
       role: typeof body.role === "string" && body.role.trim() ? body.role.trim() : null,
       archetype: typeof body.archetype === "string" && body.archetype.trim() ? body.archetype.trim() : null,
+      profileSentiments: typeof body.profileSentiments === "string" && body.profileSentiments.trim() ? body.profileSentiments.trim() : null,
       voiceAudioUrl: typeof body.voiceAudioUrl === "string" && body.voiceAudioUrl.trim() ? body.voiceAudioUrl.trim() : null,
       voiceActorId,
     },
@@ -1658,6 +1660,7 @@ app.patch("/api/admin/characters/:id", async (request, reply) => {
     photoUrl?: string | null;
     role?: string | null;
     archetype?: string | null;
+    profileSentiments?: string | null;
     voiceAudioUrl?: string | null;
     voiceActorId?: string | null;
   };
@@ -1686,6 +1689,9 @@ app.patch("/api/admin/characters/:id", async (request, reply) => {
   }
   if (body.archetype !== undefined) {
     data.archetype = typeof body.archetype === "string" && body.archetype.trim() ? body.archetype.trim() : null;
+  }
+  if (body.profileSentiments !== undefined) {
+    data.profileSentiments = typeof body.profileSentiments === "string" && body.profileSentiments.trim() ? body.profileSentiments.trim() : null;
   }
   if (body.voiceAudioUrl !== undefined) {
     data.voiceAudioUrl = typeof body.voiceAudioUrl === "string" && body.voiceAudioUrl.trim() ? body.voiceAudioUrl.trim() : null;

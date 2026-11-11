@@ -17,6 +17,7 @@ export function AdminCharacterDetailPage() {
   const [formPhotoUrl, setFormPhotoUrl] = useState("");
   const [formRole, setFormRole] = useState("Protagonista");
   const [formArchetypes, setFormArchetypes] = useState<string[]>([]);
+  const [formProfileSentiments, setFormProfileSentiments] = useState("");
   const [formVoiceActorId, setFormVoiceActorId] = useState("");
   const [formVoiceAudioUrl, setFormVoiceAudioUrl] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -69,6 +70,7 @@ export function AdminCharacterDetailPage() {
     setFormPhotoUrl(character.photoUrl || "");
     setFormRole(character.role || "Protagonista");
     setFormArchetypes(parseArchetypes(character.archetype));
+    setFormProfileSentiments(character.profileSentiments || "");
     setFormVoiceActorId(character.voiceActorId || "");
     setFormVoiceAudioUrl(character.voiceAudioUrl || null);
     setFormError(null);
@@ -103,6 +105,7 @@ export function AdminCharacterDetailPage() {
       photoUrl: formPhotoUrl.trim() || null,
       role: formRole.trim() || null,
       archetype: formArchetypes.join(", ") || null,
+      profileSentiments: formProfileSentiments.trim() || null,
       voiceAudioUrl: formVoiceAudioUrl,
       voiceActorId: formVoiceActorId.trim() || null,
     });
@@ -211,6 +214,39 @@ export function AdminCharacterDetailPage() {
       <div className="admin-voice-actor-detail-layout">
         {/* Main Content */}
         <div className="admin-voice-actor-detail-main">
+          {/* Perfil & Sentimentos Showcase */}
+          {character.profileSentiments ? (
+            <div className="admin-card">
+              <h2 className="admin-card__title">Perfil & Sentimentos</h2>
+              <div
+                style={{
+                  background: "rgba(15, 23, 42, 0.5)",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  padding: "1.25rem 1.5rem",
+                  borderRadius: "0.75rem",
+                  color: "#cbd5e1",
+                  fontSize: "0.95rem",
+                  lineHeight: 1.7,
+                  whiteSpace: "pre-line",
+                }}
+              >
+                {character.profileSentiments}
+              </div>
+            </div>
+          ) : (
+            <div className="admin-card">
+              <h2 className="admin-card__title">Perfil & Sentimentos</h2>
+              <div style={{ background: "rgba(15, 23, 42, 0.4)", border: "1px dashed rgba(255,255,255,0.1)", padding: "1.25rem", borderRadius: "0.75rem", textAlign: "center" }}>
+                <p style={{ color: "#94a3b8", fontSize: "0.9rem", margin: "0 0 0.75rem 0" }}>
+                  Nenhuma descrição de perfil e sentimentos cadastrada.
+                </p>
+                <button type="button" className="btn btn--secondary btn--xs" onClick={openEditModal}>
+                  Adicionar Descrição
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Voice Actor Showcase */}
           <div className="admin-card">
             <h2 className="admin-card__title">Dublador Oficial</h2>
@@ -480,6 +516,24 @@ export function AdminCharacterDetailPage() {
                   selected={formArchetypes}
                   onChange={setFormArchetypes}
                 />
+              </div>
+
+              {/* Profile & Sentiments */}
+              <div className="admin-form-group">
+                <label htmlFor="char-edit-profile-sentiments" className="admin-label">
+                  Perfil e Sentimentos
+                </label>
+                <textarea
+                  id="char-edit-profile-sentiments"
+                  className="admin-input"
+                  rows={4}
+                  placeholder="Descreva o perfil psicológico, conflitos, sentimentos e essência do personagem..."
+                  value={formProfileSentiments}
+                  onChange={(e) => setFormProfileSentiments(e.target.value)}
+                />
+                <span className="admin-form-hint">
+                  Descrição detalhada das motivações, dilemas internos e personalidade do personagem.
+                </span>
               </div>
 
               {/* Voice Sample with Mini Player */}
