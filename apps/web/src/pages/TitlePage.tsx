@@ -6,7 +6,6 @@ import { useFavoriteMutation } from "../hooks/useFavoriteMutation";
 import {
   formatDuration,
   getBackdropUrl,
-  getCast,
   getCertification,
   getGenres,
   getLogoUrl,
@@ -19,12 +18,10 @@ import {
   labelKind,
 } from "../lib/utils";
 import {
-  DetailCredit,
   getAlternateTitles,
   getAwards,
   getClassificationAgency,
   getContentDescriptors,
-  getCrew,
   getDistributor,
   getOriginalLanguage,
   getOriginCountries,
@@ -252,11 +249,6 @@ export function TitlePage() {
   const studios = seasonStudios.length > 0 ? seasonStudios : workStudios;
   const completeness = recordValue(currentSeason?.completeness);
   const missingEpisodes = numberArray(completeness.missing_episode_numbers);
-  const workCast = getCast(work.metadata);
-  const cast = workCast.length > 0 ? workCast : getCast(seasonMetadata);
-  const workCrew = getCrew(work.metadata);
-  const crew = workCrew.length > 0 ? workCrew : getCrew(seasonMetadata);
-  const crewGroups = groupCrew(crew);
   const workAwards = getAwards(work.metadata);
   const awards = workAwards.length > 0 ? workAwards : getAwards(seasonMetadata);
   const descriptors = uniqueStrings([...getContentDescriptors(work.metadata), ...getContentDescriptors(seasonMetadata)]);
@@ -278,7 +270,6 @@ export function TitlePage() {
     ? `${currentEpisodes.length} ${currentEpisodes.length === 1 ? "episódio" : "episódios"} nesta temporada`
     : "Nenhum episódio disponível";
   const hasEpisodes = work.contentKind !== "movie" && seasons.length > 0;
-  const hasCredits = cast.length > 0 || crew.length > 0;
   const infoRows: Array<{ label: string; value: string }> = [
     {
       label: "Título original",
@@ -311,7 +302,6 @@ export function TitlePage() {
   const sections = [
     ...(hasEpisodes ? [{ id: "episodios", label: "Episódios" }] : []),
     ...(showExtras ? [{ id: "trailer", label: "Trailer e extras" }] : []),
-    ...(hasCredits ? [{ id: "creditos", label: "Elenco e equipe" }] : []),
     ...(awards.length > 0 ? [{ id: "premios", label: "Prêmios" }] : []),
     ...(showInfo ? [{ id: "detalhes", label: "Informações" }] : []),
   ];
@@ -597,42 +587,6 @@ export function TitlePage() {
           </section>
         )}
 
-        {hasCredits && (
-          <section id="creditos" className="title-page__section" aria-labelledby="creditos-title">
-            <div className="title-page__section-heading">
-              <div>
-                <h2 id="creditos-title" className="title-page__section-title">Elenco e equipe</h2>
-                <p className="title-page__section-kicker">Créditos editoriais disponíveis</p>
-              </div>
-            </div>
-
-            {cast.length > 0 && (
-              <div className="title-page__credits-group">
-                <h3 className="title-page__credits-subtitle">Elenco</h3>
-                <div className="title-page__cast">
-                  {cast.map((member, index) => (
-                    <CastMember key={`${member.name}-${index}`} member={member} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {crewGroups.length > 0 && (
-              <div className="title-page__credits-group">
-                <h3 className="title-page__credits-subtitle">Equipe</h3>
-                <div className="title-page__crew">
-                  {crewGroups.map((group) => (
-                    <div key={group.role} className="title-page__crew-group">
-                      <h4>{group.role}</h4>
-                      <p>{group.names.join(", ")}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </section>
-        )}
-
         {awards.length > 0 && (
           <section id="premios" className="title-page__section" aria-labelledby="premios-title">
             <div className="title-page__section-heading">
@@ -793,49 +747,6 @@ function PosterArtwork({ src, title }: { src: string; title: string }) {
       )}
     </div>
   );
-}
-
-function CastMember({ member }: { member: { name: string; profile_url?: string; role?: string } }) {
-  const [failed, setFailed] = useState(false);
-  const initial = member.name.trim().charAt(0).toLocaleUpperCase() || "?";
-
-  useEffect(() => {
-    setFailed(false);
-  }, [member.profile_url]);
-
-  return (
-    <div className="title-page__cast-item">
-      {member.profile_url && !failed ? (
-        <img
-          src={member.profile_url}
-          alt=""
-          className="title-page__cast-photo"
-          loading="lazy"
-          decoding="async"
-          onError={() => setFailed(true)}
-        />
-      ) : (
-        <div className="title-page__cast-photo title-page__cast-placeholder" aria-hidden="true">
-          <span>{initial}</span>
-        </div>
-      )}
-      <div className="title-page__cast-name">{member.name}</div>
-      {member.role && <div className="title-page__cast-role">{member.role}</div>}
-    </div>
-  );
-}
-
-function groupCrew(crew: DetailCredit[]): Array<{ role: string; names: string[] }> {
-  const groups = new Map<string, string[]>();
-  for (const person of crew) {
-    const role = person.role || "Equipe";
-    const names = groups.get(role) ?? [];
-    if (!names.some((name) => name.toLocaleLowerCase() === person.name.toLocaleLowerCase())) {
-      names.push(person.name);
-    }
-    groups.set(role, names);
-  }
-  return Array.from(groups, ([role, names]) => ({ role, names }));
 }
 
 function uniqueStrings(values: string[]): string[] {

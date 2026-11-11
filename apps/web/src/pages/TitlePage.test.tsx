@@ -29,7 +29,6 @@ const series: Work = {
     genres: ['Drama', 'Mistério'],
     certification: '14',
     production_studios: ['Estúdio Azul'],
-    cast: [{ name: 'Ana Lima', role: 'Mara' }],
     original_language: 'pt',
     origin_country: ['BR'],
     status: 'Returning Series',
@@ -72,8 +71,6 @@ const movie: Work = {
     release_date: '2023-05-18',
     original_language: 'en',
     origin_country: ['US'],
-    cast: [{ name: 'Bruno Costa', role: 'Elias' }],
-    crew: [{ name: 'Clara Nunes', job: 'Director' }],
     awards: [{ award: 'Festival Aurora', category: 'Melhor Filme', year: 2024, won: true }],
   },
   assets: [
@@ -181,7 +178,6 @@ test('omits sections that have no real data', async () => {
   expect(screen.getByRole('link', { name: 'Assistir' })).toHaveAttribute('href', '/watch/movie/movie-2');
   expect(screen.queryByRole('heading', { name: 'Episódios' })).not.toBeInTheDocument();
   expect(screen.queryByRole('heading', { name: 'Informações' })).not.toBeInTheDocument();
-  expect(screen.queryByRole('heading', { name: 'Elenco e equipe' })).not.toBeInTheDocument();
   expect(screen.queryByRole('navigation', { name: 'Seções do título' })).not.toBeInTheDocument();
 });
 

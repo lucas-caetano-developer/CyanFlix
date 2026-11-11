@@ -103,7 +103,7 @@ export function SearchPage() {
           id="catalog-search-input"
           type="search"
           className="search-page__input"
-          placeholder="Buscar por título, gênero, elenco..."
+          placeholder="Buscar por título, gênero..."
           value={q}
           maxLength={200}
           onChange={(event) => updateParam('q', event.target.value, true)}

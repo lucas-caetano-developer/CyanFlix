@@ -1,18 +1,4 @@
-import { formatDuration, formatMs, getCast, getGenres, getStudios, labelKind } from './utils';
-
-test('ignores malformed credits and keeps only usable names', () => {
-  expect(getCast({
-    cast: [
-      { name: '  Ana Souza ', role: ' Protagonista ', profile_url: ' /media/ana.jpg ' },
-      { name: '   ' },
-      { role: 'Sem nome' },
-      null,
-      'Nome solto',
-    ],
-  })).toEqual([
-    { name: 'Ana Souza', profile_url: '/media/ana.jpg', role: 'Protagonista' },
-  ]);
-});
+import { formatDuration, formatMs, getGenres, getStudios, labelKind } from './utils';
 
 test('sanitizes genres and studios without inventing values', () => {
   expect(getGenres({ genres: ['Drama', '', 42, '  Mistério  '] })).toEqual(['Drama', 'Mistério']);

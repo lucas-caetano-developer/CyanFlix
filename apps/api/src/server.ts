@@ -9,7 +9,7 @@ import crypto from "node:crypto";
 import { Prisma, PublicationState } from "@prisma/client";
 import { prisma, ensureDefaultProfile, findRevisionCleanupCandidates } from "@cyanflix/database";
 import { readEnv } from "@cyanflix/shared";
-import { isSafeRelativePath, manifestHash, manifestSchema, type PackageManifest } from "@cyanflix/contracts";
+import { isSafeRelativePath, manifestHash, manifestSchema, stripCreditsMetadata, type PackageManifest } from "@cyanflix/contracts";
 import { createAuth, hashPassword, verifyPassword } from "./auth.js";
 
 const env = readEnv();
@@ -1146,7 +1146,7 @@ app.patch("/api/admin/works/:id/metadata", async (request, reply) => {
       workUpdates.contentKind = body.contentKind as any;
     }
 
-    const updatedMeta = { ...existingMeta };
+    const updatedMeta = stripCreditsMetadata({ ...existingMeta });
     if (Array.isArray(body.genres)) {
       updatedMeta.genres = body.genres.filter((g) => typeof g === "string" && g.trim()).map((g) => g.trim());
     }
@@ -1167,7 +1167,7 @@ app.patch("/api/admin/works/:id/metadata", async (request, reply) => {
     const cleanHidden = typeof body.hidden === "boolean" ? body.hidden : undefined;
     const cleanFeatured = typeof body.featured === "boolean" ? body.featured : undefined;
 
-    const updatedOverrideMeta = { ...existingOverrideMeta, ...updatedMeta };
+    const updatedOverrideMeta = stripCreditsMetadata({ ...existingOverrideMeta, ...updatedMeta });
 
     await tx.editorialOverride.upsert({
       where: { workId },

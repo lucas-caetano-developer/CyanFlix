@@ -8,6 +8,7 @@ import {
   isSafeRelativePath,
   manifestHash,
   manifestSchema,
+  stripCreditsMetadata,
   type PackageManifest,
 } from "@cyanflix/contracts";
 
@@ -82,8 +83,8 @@ async function promoteManifest(
           if (!work) throw new Error("A obra da substituição ainda não existe no catálogo");
         } else {
           const existingWork = await tx.work.findUnique({ where: { stableId: manifest.work.id } });
-          const existingMeta = readObject(existingWork?.metadata);
-          const manifestMeta = readObject(manifest.work.metadata);
+          const existingMeta = stripCreditsMetadata(readObject(existingWork?.metadata));
+          const manifestMeta = stripCreditsMetadata(readObject(manifest.work.metadata));
           const mergedMeta = { ...existingMeta, ...manifestMeta };
 
           if (!existingWork) {
@@ -94,10 +95,10 @@ async function promoteManifest(
                 title: manifest.work.title,
                 originalTitle: manifest.work.original_title,
                 year: manifest.work.year,
-                synopsis: readNestedString(manifest.work.metadata, "overview"),
-                searchText: buildSearchText(manifest.work.title, manifest.work.original_title, manifest.work.metadata),
+                synopsis: readNestedString(manifestMeta, "overview"),
+                searchText: buildSearchText(manifest.work.title, manifest.work.original_title, manifestMeta),
                 providerIds: jsonValue(manifest.work.provider_ids),
-                metadata: jsonValue(manifest.work.metadata),
+                metadata: jsonValue(manifestMeta),
               },
             });
           } else {
@@ -108,7 +109,7 @@ async function promoteManifest(
                 title: existingWork.title || manifest.work.title,
                 originalTitle: existingWork.originalTitle ?? manifest.work.original_title,
                 year: existingWork.year ?? manifest.work.year,
-                synopsis: existingWork.synopsis ?? readNestedString(manifest.work.metadata, "overview"),
+                synopsis: existingWork.synopsis ?? readNestedString(manifestMeta, "overview"),
                 searchText: buildSearchText(existingWork.title || manifest.work.title, existingWork.originalTitle ?? manifest.work.original_title, mergedMeta),
                 providerIds: jsonValue({ ...readObject(existingWork.providerIds), ...readObject(manifest.work.provider_ids) }),
                 metadata: jsonValue(mergedMeta),
@@ -128,8 +129,8 @@ async function promoteManifest(
             if (!existingSeason) throw new Error("A temporada da substituição ainda não existe no catálogo");
             season = { id: existingSeason.id, stableId: existingSeason.stableId };
           } else {
-            const existingSeasonMeta = readObject(existingSeason?.metadata);
-            const manifestSeasonMeta = readObject(manifest.season.metadata);
+            const existingSeasonMeta = stripCreditsMetadata(readObject(existingSeason?.metadata));
+            const manifestSeasonMeta = stripCreditsMetadata(readObject(manifest.season.metadata));
             const mergedSeasonMeta = { ...existingSeasonMeta, ...manifestSeasonMeta };
 
             if (!existingSeason) {
@@ -139,7 +140,7 @@ async function promoteManifest(
                   workId: work.id,
                   number: manifest.season.number,
                   title: manifest.season.title,
-                  metadata: jsonValue(manifest.season.metadata),
+                  metadata: jsonValue(manifestSeasonMeta),
                   completeness: jsonValue(manifest.season.publication_completeness),
                 },
               });
@@ -156,6 +157,7 @@ async function promoteManifest(
             }
           }
           for (const item of manifest.episodes) {
+            const cleanEpisodeMeta = stripCreditsMetadata(readObject(item.metadata));
             const existing = await tx.episode.findUnique({ where: { stableId: item.id } });
             if (existing && (existing.workId !== work.id || existing.seasonId !== season.id)) {
               throw new Error(`ID estável do episódio ${item.id} pertence a outro escopo`);
@@ -169,8 +171,8 @@ async function promoteManifest(
                   number: item.number,
                   absoluteNumber: item.absolute_number,
                   title: item.title,
-                  synopsis: readNestedString(item.metadata, "synopsis") ?? readNestedString(item.metadata, "overview"),
-                  metadata: jsonValue({ ...item.metadata, delivery: item.delivery }),
+                  synopsis: readNestedString(cleanEpisodeMeta, "synopsis") ?? readNestedString(cleanEpisodeMeta, "overview"),
+                  metadata: jsonValue({ ...cleanEpisodeMeta, delivery: item.delivery }),
                   markers: jsonValue(item.markers),
                   sourceSha256: item.source_sha256,
                   mediaManifest: item.media_manifest,
@@ -178,14 +180,15 @@ async function promoteManifest(
               });
               episodeMap[item.id] = episode.id;
             } else {
+              const existingEpMeta = stripCreditsMetadata(readObject(existing.metadata));
               const episode = await tx.episode.update({
                 where: { id: existing.id },
                 data: {
                   number: item.number,
                   absoluteNumber: item.absolute_number,
                   title: existing.title || item.title,
-                  synopsis: existing.synopsis ?? (readNestedString(item.metadata, "synopsis") ?? readNestedString(item.metadata, "overview")),
-                  metadata: jsonValue({ ...readObject(existing.metadata), ...readObject(item.metadata), delivery: item.delivery }),
+                  synopsis: existing.synopsis ?? (readNestedString(cleanEpisodeMeta, "synopsis") ?? readNestedString(cleanEpisodeMeta, "overview")),
+                  metadata: jsonValue({ ...existingEpMeta, ...cleanEpisodeMeta, delivery: item.delivery }),
                   markers: jsonValue(item.markers),
                   sourceSha256: item.source_sha256,
                   mediaManifest: item.media_manifest,

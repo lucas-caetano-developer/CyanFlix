@@ -121,21 +121,6 @@ export function getCertification(metadata: Record<string, unknown> | undefined):
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-export function getCast(metadata: Record<string, unknown> | undefined): Array<{ name: string; profile_url?: string; role?: string }> {
-  const cast = getMetaField<unknown>(metadata, 'cast');
-  if (!Array.isArray(cast)) return [];
-
-  return cast.flatMap((item) => {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
-    const record = item as Record<string, unknown>;
-    const name = typeof record.name === 'string' ? record.name.trim() : '';
-    if (!name) return [];
-    const profileUrl = typeof record.profile_url === 'string' && record.profile_url.trim() ? record.profile_url.trim() : undefined;
-    const role = typeof record.role === 'string' && record.role.trim() ? record.role.trim() : undefined;
-    return [{ name, ...(profileUrl ? { profile_url: profileUrl } : {}), ...(role ? { role } : {}) }];
-  });
-}
-
 export function getStudios(metadata: Record<string, unknown> | undefined): string[] {
   const productionStudios = getMetaField<unknown>(metadata, 'production_studios');
   const normalize = (value: unknown) => Array.isArray(value)

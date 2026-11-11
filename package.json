@@ -12,6 +12,7 @@
     "test:e2e": "playwright test",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
+    "db:clean-credits": "node packages/database/dist/clean-credits-cli.js",
     "db:push": "prisma db push",
     "db:studio": "prisma studio"
   },

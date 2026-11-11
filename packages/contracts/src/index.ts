@@ -128,6 +128,41 @@ export const manifestSchema = z.object({
 
 export type PackageManifest = z.infer<typeof manifestSchema>;
 
+const FORBIDDEN_CREDIT_KEYS = new Set([
+  "cast",
+  "crew",
+  "credits",
+  "directors",
+  "director",
+  "creators",
+  "creator",
+  "writers",
+  "writer",
+  "screenwriters",
+  "screenwriter",
+  "producers",
+  "producer",
+  "actors",
+  "people",
+  "staff",
+  "characters",
+]);
+
+export function stripCreditsMetadata<T>(value: T): T {
+  if (!value || typeof value !== "object") return value;
+  if (Array.isArray(value)) {
+    return value.map((item) => stripCreditsMetadata(item)) as T;
+  }
+  const result: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+    if (FORBIDDEN_CREDIT_KEYS.has(key.toLowerCase())) {
+      continue;
+    }
+    result[key] = stripCreditsMetadata(val);
+  }
+  return result as T;
+}
+
 export function isSafeRelativePath(value: string): boolean {
   if (!value || value.startsWith("/") || value.startsWith("\\")) return false;
   if (value.includes("\\")) return false;

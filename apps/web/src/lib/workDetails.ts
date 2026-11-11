@@ -3,44 +3,11 @@ import { getMetaField } from './utils';
 type Metadata = Record<string, unknown> | undefined;
 type JsonRecord = Record<string, unknown>;
 
-export type DetailCredit = {
-  name: string;
-  role?: string;
-  profileUrl?: string;
-};
-
 export type DetailAward = {
   title: string;
   category?: string;
   year?: string;
   won: boolean | null;
-};
-
-const CREW_ROLE_LABELS: Record<string, string> = {
-  'director': 'Direção',
-  'directing': 'Direção',
-  'creator': 'Criação',
-  'created by': 'Criação',
-  'writer': 'Roteiro',
-  'writers': 'Roteiro',
-  'screenplay': 'Roteiro',
-  'screenwriter': 'Roteiro',
-  'story': 'História',
-  'producer': 'Produção',
-  'production': 'Produção',
-  'executive producer': 'Produção executiva',
-  'director of photography': 'Fotografia',
-  'cinematography': 'Fotografia',
-  'original music composer': 'Música',
-  'music': 'Música',
-  'editor': 'Edição',
-  'editing': 'Edição',
-  'production design': 'Direção de arte',
-  'art': 'Direção de arte',
-  'costume design': 'Figurino',
-  'visual effects': 'Efeitos visuais',
-  'animation': 'Animação',
-  'sound': 'Som',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -202,42 +169,6 @@ export function getContentDescriptors(metadata: Metadata): string[] {
     metadata.rating_descriptors,
   ].flatMap((value) => collectDescriptors(value));
   return unique(values);
-}
-
-export function getCrew(metadata: Metadata): DetailCredit[] {
-  if (!metadata) return [];
-  const tmdb = asRecord(metadata.tmdb);
-  const credits = asRecord(tmdb.credits);
-  const sources: Array<{ value: unknown; role: string }> = [
-    { value: metadata.crew, role: 'Equipe' },
-    { value: credits.crew, role: 'Equipe' },
-    { value: metadata.directors, role: 'Direção' },
-    { value: metadata.director, role: 'Direção' },
-    { value: metadata.creators, role: 'Criação' },
-    { value: metadata.creator, role: 'Criação' },
-    { value: metadata.writers, role: 'Roteiro' },
-    { value: metadata.writer, role: 'Roteiro' },
-    { value: metadata.screenwriters, role: 'Roteiro' },
-    { value: metadata.screenwriter, role: 'Roteiro' },
-    { value: metadata.producers, role: 'Produção' },
-    { value: metadata.producer, role: 'Produção' },
-  ];
-
-  const people: DetailCredit[] = [];
-  for (const source of sources) {
-    for (const item of asArray(source.value)) {
-      const credit = normalizeCredit(item, source.role);
-      if (credit) people.push(credit);
-    }
-  }
-
-  const seen = new Set<string>();
-  return people.filter((person) => {
-    const key = `${person.name.toLowerCase()}::${(person.role ?? '').toLowerCase()}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
 }
 
 export function getAwards(metadata: Metadata): DetailAward[] {
@@ -423,33 +354,6 @@ function collectDescriptors(value: unknown): string[] {
   });
 }
 
-function normalizeCredit(value: unknown, fallbackRole: string): DetailCredit | null {
-  if (typeof value === 'string') {
-    const name = value.trim();
-    return name ? { name, role: labelCrewRole(fallbackRole) } : null;
-  }
-  if (!isRecord(value)) return null;
-
-  const name = asText(value.name) ?? asText(value.original_name) ?? asText(value.person);
-  if (!name) return null;
-  const rawRole = asText(value.job)
-    ?? asText(value.role)
-    ?? asText(value.department)
-    ?? fallbackRole;
-  const profileUrl = publicImageUrl(
-    asText(value.profile_url)
-    ?? asText(value.profileUrl)
-    ?? asText(value.image)
-    ?? asText(value.photo_url)
-  );
-
-  return {
-    name,
-    role: labelCrewRole(rawRole),
-    ...(profileUrl ? { profileUrl } : {}),
-  };
-}
-
 function normalizeAward(value: unknown, sourceResult: boolean | null): DetailAward | null {
   if (typeof value === 'string') {
     const title = value.trim();
@@ -482,16 +386,6 @@ function normalizeAward(value: unknown, sourceResult: boolean | null): DetailAwa
     ...(year ? { year: String(Math.round(year)) } : {}),
     won: explicitWon ?? inferredWon ?? sourceResult,
   };
-}
-
-function labelCrewRole(role: string): string {
-  const normalized = role.toLowerCase().replace(/[_-]+/g, ' ').trim();
-  return CREW_ROLE_LABELS[normalized] ?? role.trim();
-}
-
-function publicImageUrl(value: string | null): string | undefined {
-  if (!value) return undefined;
-  return value.startsWith('/media/') || /^https?:\/\//i.test(value) ? value : undefined;
 }
 
 function formatLanguage(value: string): string {
