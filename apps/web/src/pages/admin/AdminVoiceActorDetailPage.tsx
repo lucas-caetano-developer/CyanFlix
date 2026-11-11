@@ -13,6 +13,7 @@ export function AdminVoiceActorDetailPage() {
   const [photoUrl, setPhotoUrl] = useState("");
   const [bio, setBio] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -33,11 +34,11 @@ export function AdminVoiceActorDetailPage() {
   const updateMutation = useMutation({
     mutationFn: (data: { name: string; photoUrl?: string | null; bio?: string | null }) =>
       id ? api.updateAdminVoiceActor(id, data) : Promise.reject(new Error("ID ausente")),
-    onSuccess: (updated) => {
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "voice-actors"] });
       void queryClient.invalidateQueries({ queryKey: ["admin", "voice-actor", id] });
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
+      setTimeout(() => setSaveSuccess(false), 3500);
     },
     onError: (err: Error) => {
       setErrorMessage(err.message || "Erro ao salvar alterações");
@@ -55,8 +56,7 @@ export function AdminVoiceActorDetailPage() {
     },
   });
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const uploadFile = async (file: File) => {
     if (!file) return;
     setIsUploading(true);
     setErrorMessage(null);
@@ -70,6 +70,11 @@ export function AdminVoiceActorDetailPage() {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) await uploadFile(file);
   };
 
   const handleSave = (e: React.FormEvent) => {
@@ -131,7 +136,7 @@ export function AdminVoiceActorDetailPage() {
           <span className="admin-page__eyebrow">Perfil do Dublador</span>
           <h1 className="admin-page__title">{actor.name}</h1>
           <p className="admin-page__subtitle">
-            Edite as informações biográficas e prepare a relação de personagens dublados por este profissional.
+            Edite as informações cadastrais e prepare a relação de personagens dublados por este profissional.
           </p>
         </div>
         <div className="admin-page__header-actions">
@@ -183,8 +188,21 @@ export function AdminVoiceActorDetailPage() {
             </div>
 
             <div className="admin-form-group">
-              <label className="admin-label">Foto de Perfil</label>
-              <div className="admin-photo-upload-container">
+              <label className="admin-label">Foto de Perfil (Arquivo Local do PC)</label>
+              <div
+                className={`admin-photo-upload-box ${isDragOver ? "admin-photo-upload-box--dragover" : ""}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragOver(true);
+                }}
+                onDragLeave={() => setIsDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragOver(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) void uploadFile(file);
+                }}
+              >
                 <div className="admin-photo-preview admin-photo-preview--lg">
                   {photoUrl ? (
                     <img src={photoUrl} alt={name} className="admin-photo-preview__img" />
@@ -194,23 +212,23 @@ export function AdminVoiceActorDetailPage() {
                     </div>
                   )}
                 </div>
-                <div className="admin-photo-controls">
+                <div className="admin-photo-upload-info">
                   <input
                     type="file"
                     ref={fileInputRef}
                     onChange={handleFileUpload}
-                    accept="image/png, image/jpeg, image/webp"
+                    accept="image/png, image/jpeg, image/webp, image/avif"
                     style={{ display: "none" }}
                     id="detail-actor-photo"
                   />
-                  <div className="admin-photo-btn-row">
+                  <div className="admin-photo-upload-actions">
                     <button
                       type="button"
                       className="btn btn--secondary btn--sm"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isUploading}
                     >
-                      {isUploading ? "Enviando arquivo…" : "📁 Enviar Nova Foto"}
+                      {isUploading ? "Salvando foto…" : photoUrl ? "📁 Trocar Foto do PC" : "📁 Selecionar Foto do PC"}
                     </button>
                     {photoUrl && (
                       <button
@@ -222,14 +240,19 @@ export function AdminVoiceActorDetailPage() {
                       </button>
                     )}
                   </div>
-                  <span className="admin-photo-hint">ou cole a URL direta da imagem:</span>
-                  <input
-                    type="url"
-                    className="admin-input"
-                    value={photoUrl}
-                    onChange={(e) => setPhotoUrl(e.target.value)}
-                    placeholder="https://... ou /media/..."
-                  />
+                  {isUploading ? (
+                    <span className="admin-photo-upload-status admin-photo-upload-status--uploading">
+                      ⏳ Enviando e armazenando foto no servidor…
+                    </span>
+                  ) : photoUrl ? (
+                    <span className="admin-photo-upload-status admin-photo-upload-status--success">
+                      ✓ Foto salva localmente no disco do servidor
+                    </span>
+                  ) : (
+                    <p className="admin-photo-local-note">
+                      Arraste uma foto aqui ou selecione um arquivo do computador (PNG, JPG, WEBP). O arquivo é armazenado localmente no servidor para funcionamento 100% offline.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

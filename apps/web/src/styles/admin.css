@@ -1521,14 +1521,35 @@
 .admin-form-group {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
 }
 
-.admin-form-group label,
-.admin-form-group span {
-  font-size: 0.82rem;
+.admin-form-group:last-child {
+  margin-bottom: 0;
+}
+
+.admin-form-group > label,
+.admin-form-group > span:first-child,
+.admin-label {
+  font-size: 0.88rem;
   font-weight: 600;
-  color: #cbd5e1;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.admin-required {
+  color: #f43f5e;
+  font-weight: 700;
+}
+
+.admin-form-hint {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: #94a3b8;
+  line-height: 1.45;
 }
 
 .admin-form-vertical {
@@ -2598,7 +2619,161 @@
   gap: 0.5rem;
 }
 
-/* Photo upload controls */
+/* Card Container */
+.admin-card {
+  background: rgba(22, 27, 34, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1rem;
+  padding: 1.75rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.admin-card__title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 1.5rem 0;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.admin-voice-actor-form {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Modal Dialog */
+.admin-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(4, 7, 12, 0.82);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.admin-modal {
+  width: 100%;
+  max-width: 560px;
+  background: #0e141f;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1rem;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(0, 212, 255, 0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin: auto;
+}
+
+.admin-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.4);
+}
+
+.admin-modal__header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.admin-modal__close {
+  background: transparent;
+  border: 0;
+  color: #94a3b8;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.4rem;
+  transition: all 0.15s ease;
+}
+
+.admin-modal__close:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.admin-modal__form {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-top: 1.25rem;
+  margin-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Local PC Photo Upload Box */
+.admin-photo-upload-box {
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px dashed rgba(0, 212, 255, 0.35);
+  border-radius: 0.85rem;
+  padding: 1.25rem;
+  transition: all 0.2s ease;
+}
+
+.admin-photo-upload-box:hover,
+.admin-photo-upload-box--dragover {
+  border-color: #00d4ff;
+  background: rgba(0, 212, 255, 0.06);
+}
+
+.admin-photo-upload-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.admin-photo-upload-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.admin-photo-upload-status {
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.admin-photo-upload-status--success {
+  color: #10b981;
+  font-weight: 500;
+}
+
+.admin-photo-upload-status--uploading {
+  color: #38bdf8;
+  font-weight: 500;
+}
+
+.admin-photo-local-note {
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* Photo upload preview */
 .admin-photo-upload-container {
   display: flex;
   gap: 1.25rem;

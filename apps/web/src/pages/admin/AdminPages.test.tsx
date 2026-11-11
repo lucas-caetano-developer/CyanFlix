@@ -228,6 +228,16 @@ describe('Admin Overhaul Pages', () => {
     fireEvent.click(screen.getByText('+ Adicionar Dublador'));
     expect(screen.getByText('Novo Dublador')).toBeInTheDocument();
     expect(screen.getByLabelText(/Nome Completo/i)).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/https:\/\//i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Selecionar Foto do PC/i)).toBeInTheDocument();
+
+    // Close create modal
+    fireEvent.click(screen.getByText('Cancelar'));
+
+    // Open quick edit modal
+    fireEvent.click(screen.getByText('✏️ Editar'));
+    expect(screen.getByText('Editar Dublador: Wendel Bezerra')).toBeInTheDocument();
+    expect(screen.getByText(/Trocar Foto do PC/i)).toBeInTheDocument();
   });
 
   it('renders AdminVoiceActorDetailPage with details and future characters section', async () => {
@@ -245,6 +255,8 @@ describe('Admin Overhaul Pages', () => {
     expect(await screen.findByText('Guilherme Briggs')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Guilherme Briggs')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Dublador de Buzz Lightyear, Superman...')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/https:\/\//i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Trocar Foto do PC/i)).toBeInTheDocument();
     expect(screen.getByText('Personagens Dublados')).toBeInTheDocument();
     expect(screen.getByText('Em breve')).toBeInTheDocument();
     expect(screen.getByText(/Módulo de Personagens em Desenvolvimento/i)).toBeInTheDocument();

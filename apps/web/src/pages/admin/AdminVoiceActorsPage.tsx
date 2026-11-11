@@ -10,14 +10,29 @@ export function AdminVoiceActorsPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Create Modal state
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPhotoUrl, setNewPhotoUrl] = useState("");
   const [newBio, setNewBio] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [isUploadingNew, setIsUploadingNew] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const createFileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragOverCreate, setIsDragOverCreate] = useState(false);
+
+  // Quick Edit Modal state
+  const [editingActor, setEditingActor] = useState<VoiceActor | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPhotoUrl, setEditPhotoUrl] = useState("");
+  const [editBio, setEditBio] = useState("");
+  const [isUploadingEdit, setIsUploadingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragOverEdit, setIsDragOverEdit] = useState(false);
+
+  // Deletion state
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: actors = [], isLoading } = useQuery({
     queryKey: ["admin", "voice-actors", debouncedSearch],
@@ -29,12 +44,24 @@ export function AdminVoiceActorsPage() {
       api.createAdminVoiceActor(data),
     onSuccess: (newActor) => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "voice-actors"] });
-      setIsModalOpen(false);
-      resetForm();
+      setIsCreateOpen(false);
+      resetCreateForm();
       navigate(`/admin/voice-actors/${newActor.id}`);
     },
     onError: (err: Error) => {
-      setFormError(err.message || "Erro ao cadastrar dublador");
+      setCreateError(err.message || "Erro ao cadastrar dublador");
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { name?: string; photoUrl?: string | null; bio?: string | null } }) =>
+      api.updateAdminVoiceActor(id, data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "voice-actors"] });
+      setEditingActor(null);
+    },
+    onError: (err: Error) => {
+      setEditError(err.message || "Erro ao atualizar dublador");
     },
   });
 
@@ -50,41 +77,72 @@ export function AdminVoiceActorsPage() {
     },
   });
 
-  const resetForm = () => {
+  const resetCreateForm = () => {
     setNewName("");
     setNewPhotoUrl("");
     setNewBio("");
-    setFormError(null);
+    setCreateError(null);
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const openEditModal = (actor: VoiceActor) => {
+    setEditingActor(actor);
+    setEditName(actor.name || "");
+    setEditPhotoUrl(actor.photoUrl || "");
+    setEditBio(actor.bio || "");
+    setEditError(null);
+  };
+
+  const uploadFile = async (
+    file: File,
+    setPhotoUrl: (url: string) => void,
+    setUploading: (loading: boolean) => void,
+    setError: (err: string | null) => void,
+    fileInputRef: React.RefObject<HTMLInputElement | null>
+  ) => {
     if (!file) return;
-    setIsUploading(true);
-    setFormError(null);
+    setUploading(true);
+    setError(null);
     try {
       const res = await api.uploadVoiceActorPhoto(file);
-      setNewPhotoUrl(res.photoUrl);
+      setPhotoUrl(res.photoUrl);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      setFormError("Erro ao enviar foto: " + message);
+      setError("Erro ao enviar foto: " + message);
     } finally {
-      setIsUploading(false);
+      setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanName = newName.trim();
     if (!cleanName) {
-      setFormError("O nome do dublador é obrigatório.");
+      setCreateError("O nome do dublador é obrigatório.");
       return;
     }
     createMutation.mutate({
       name: cleanName,
       photoUrl: newPhotoUrl.trim() || null,
       bio: newBio.trim() || null,
+    });
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingActor) return;
+    const cleanName = editName.trim();
+    if (!cleanName) {
+      setEditError("O nome do dublador é obrigatório.");
+      return;
+    }
+    updateMutation.mutate({
+      id: editingActor.id,
+      data: {
+        name: cleanName,
+        photoUrl: editPhotoUrl.trim() || null,
+        bio: editBio.trim() || null,
+      },
     });
   };
 
@@ -95,7 +153,7 @@ export function AdminVoiceActorsPage() {
           <span className="admin-page__eyebrow">Gestão de Elenco & Voz</span>
           <h1 className="admin-page__title">Dubladores</h1>
           <p className="admin-page__subtitle">
-            Gerencie o cadastro de dubladores oficiais. No futuro, você poderá vincular os personagens e produções aos respectivos dubladores.
+            Gerencie o cadastro de dubladores oficiais. As fotos são salvas localmente para funcionamento 100% offline.
           </p>
         </div>
         <div className="admin-page__header-actions">
@@ -103,8 +161,8 @@ export function AdminVoiceActorsPage() {
             type="button"
             className="btn btn--primary"
             onClick={() => {
-              resetForm();
-              setIsModalOpen(true);
+              resetCreateForm();
+              setIsCreateOpen(true);
             }}
           >
             + Adicionar Dublador
@@ -159,8 +217,8 @@ export function AdminVoiceActorsPage() {
               type="button"
               className="btn btn--primary"
               onClick={() => {
-                resetForm();
-                setIsModalOpen(true);
+                resetCreateForm();
+                setIsCreateOpen(true);
               }}
             >
               Cadastrar Primeiro Dublador
@@ -197,10 +255,18 @@ export function AdminVoiceActorsPage() {
                 </div>
               </Link>
               <div className="admin-voice-actor-card__actions">
+                <button
+                  type="button"
+                  className="btn btn--secondary btn--xs"
+                  onClick={() => openEditModal(actor)}
+                  title="Editar dados do dublador"
+                >
+                  ✏️ Editar
+                </button>
                 <Link
                   to={`/admin/voice-actors/${actor.id}`}
                   className="btn btn--secondary btn--xs"
-                  title="Ver detalhes e editar"
+                  title="Ver perfil completo e personagens"
                 >
                   Ver Perfil
                 </Link>
@@ -225,23 +291,23 @@ export function AdminVoiceActorsPage() {
       )}
 
       {/* Modal de Criação de Dublador */}
-      {isModalOpen && (
-        <div className="admin-modal-overlay" onClick={() => setIsModalOpen(false)}>
+      {isCreateOpen && (
+        <div className="admin-modal-overlay" onClick={() => setIsCreateOpen(false)}>
           <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
             <div className="admin-modal__header">
               <h3>Novo Dublador</h3>
               <button
                 type="button"
                 className="admin-modal__close"
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => setIsCreateOpen(false)}
                 aria-label="Fechar"
               >
                 ✕
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="admin-modal__form">
-              {formError && (
-                <div className="admin-alert admin-alert--danger">{formError}</div>
+            <form onSubmit={handleCreateSubmit} className="admin-modal__form">
+              {createError && (
+                <div className="admin-alert admin-alert--danger">{createError}</div>
               )}
 
               <div className="admin-form-group">
@@ -261,8 +327,23 @@ export function AdminVoiceActorsPage() {
               </div>
 
               <div className="admin-form-group">
-                <label className="admin-label">Foto de Perfil</label>
-                <div className="admin-photo-upload-container">
+                <label className="admin-label">Foto de Perfil (Arquivo Local do PC)</label>
+                <div
+                  className={`admin-photo-upload-box ${isDragOverCreate ? "admin-photo-upload-box--dragover" : ""}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragOverCreate(true);
+                  }}
+                  onDragLeave={() => setIsDragOverCreate(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragOverCreate(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) {
+                      void uploadFile(file, setNewPhotoUrl, setIsUploadingNew, setCreateError, createFileInputRef);
+                    }
+                  }}
+                >
                   <div className="admin-photo-preview">
                     {newPhotoUrl ? (
                       <img src={newPhotoUrl} alt="Prévia" className="admin-photo-preview__img" />
@@ -272,31 +353,52 @@ export function AdminVoiceActorsPage() {
                       </div>
                     )}
                   </div>
-                  <div className="admin-photo-controls">
+                  <div className="admin-photo-upload-info">
                     <input
                       type="file"
-                      ref={fileInputRef}
-                      onChange={handleFileUpload}
-                      accept="image/png, image/jpeg, image/webp"
+                      ref={createFileInputRef}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          void uploadFile(file, setNewPhotoUrl, setIsUploadingNew, setCreateError, createFileInputRef);
+                        }
+                      }}
+                      accept="image/png, image/jpeg, image/webp, image/avif"
                       style={{ display: "none" }}
-                      id="actor-photo-file"
+                      id="actor-photo-file-create"
                     />
-                    <button
-                      type="button"
-                      className="btn btn--secondary btn--sm"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isUploading}
-                    >
-                      {isUploading ? "Enviando arquivo…" : "📁 Enviar do Computador"}
-                    </button>
-                    <span className="admin-photo-hint">ou cole a URL da imagem abaixo:</span>
-                    <input
-                      type="url"
-                      className="admin-input"
-                      value={newPhotoUrl}
-                      onChange={(e) => setNewPhotoUrl(e.target.value)}
-                      placeholder="https://exemplo.com/foto.jpg ou /media/..."
-                    />
+                    <div className="admin-photo-upload-actions">
+                      <button
+                        type="button"
+                        className="btn btn--secondary btn--sm"
+                        onClick={() => createFileInputRef.current?.click()}
+                        disabled={isUploadingNew}
+                      >
+                        {isUploadingNew ? "Salvando foto…" : newPhotoUrl ? "📁 Trocar Foto do PC" : "📁 Selecionar Foto do PC"}
+                      </button>
+                      {newPhotoUrl && (
+                        <button
+                          type="button"
+                          className="btn btn--danger btn--xs"
+                          onClick={() => setNewPhotoUrl("")}
+                        >
+                          Remover Foto
+                        </button>
+                      )}
+                    </div>
+                    {isUploadingNew ? (
+                      <span className="admin-photo-upload-status admin-photo-upload-status--uploading">
+                        ⏳ Enviando e armazenando foto no servidor…
+                      </span>
+                    ) : newPhotoUrl ? (
+                      <span className="admin-photo-upload-status admin-photo-upload-status--success">
+                        ✓ Foto salva localmente no disco do servidor
+                      </span>
+                    ) : (
+                      <p className="admin-photo-local-note">
+                        Arraste uma foto aqui ou selecione um arquivo do computador (PNG, JPG, WEBP). A foto será gravada localmente no servidor para uso 100% offline.
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -319,7 +421,7 @@ export function AdminVoiceActorsPage() {
                 <button
                   type="button"
                   className="btn btn--secondary"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => setIsCreateOpen(false)}
                   disabled={createMutation.isPending}
                 >
                   Cancelar
@@ -327,9 +429,157 @@ export function AdminVoiceActorsPage() {
                 <button
                   type="submit"
                   className="btn btn--primary"
-                  disabled={createMutation.isPending || isUploading}
+                  disabled={createMutation.isPending || isUploadingNew}
                 >
                   {createMutation.isPending ? "Cadastrando…" : "Salvar Dublador"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Edição Rápida de Dublador */}
+      {editingActor && (
+        <div className="admin-modal-overlay" onClick={() => setEditingActor(null)}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-modal__header">
+              <h3>Editar Dublador: {editingActor.name}</h3>
+              <button
+                type="button"
+                className="admin-modal__close"
+                onClick={() => setEditingActor(null)}
+                aria-label="Fechar"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="admin-modal__form">
+              {editError && (
+                <div className="admin-alert admin-alert--danger">{editError}</div>
+              )}
+
+              <div className="admin-form-group">
+                <label htmlFor="edit-actor-name" className="admin-label">
+                  Nome Completo <span className="admin-required">*</span>
+                </label>
+                <input
+                  id="edit-actor-name"
+                  type="text"
+                  className="admin-input"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div className="admin-form-group">
+                <label className="admin-label">Foto de Perfil (Arquivo Local do PC)</label>
+                <div
+                  className={`admin-photo-upload-box ${isDragOverEdit ? "admin-photo-upload-box--dragover" : ""}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragOverEdit(true);
+                  }}
+                  onDragLeave={() => setIsDragOverEdit(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragOverEdit(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) {
+                      void uploadFile(file, setEditPhotoUrl, setIsUploadingEdit, setEditError, editFileInputRef);
+                    }
+                  }}
+                >
+                  <div className="admin-photo-preview">
+                    {editPhotoUrl ? (
+                      <img src={editPhotoUrl} alt="Prévia" className="admin-photo-preview__img" />
+                    ) : (
+                      <div className="admin-photo-preview__placeholder">
+                        {editName.trim().charAt(0).toUpperCase() || "🎙️"}
+                      </div>
+                    )}
+                  </div>
+                  <div className="admin-photo-upload-info">
+                    <input
+                      type="file"
+                      ref={editFileInputRef}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          void uploadFile(file, setEditPhotoUrl, setIsUploadingEdit, setEditError, editFileInputRef);
+                        }
+                      }}
+                      accept="image/png, image/jpeg, image/webp, image/avif"
+                      style={{ display: "none" }}
+                      id="actor-photo-file-edit"
+                    />
+                    <div className="admin-photo-upload-actions">
+                      <button
+                        type="button"
+                        className="btn btn--secondary btn--sm"
+                        onClick={() => editFileInputRef.current?.click()}
+                        disabled={isUploadingEdit}
+                      >
+                        {isUploadingEdit ? "Salvando foto…" : editPhotoUrl ? "📁 Trocar Foto do PC" : "📁 Selecionar Foto do PC"}
+                      </button>
+                      {editPhotoUrl && (
+                        <button
+                          type="button"
+                          className="btn btn--danger btn--xs"
+                          onClick={() => setEditPhotoUrl("")}
+                        >
+                          Remover Foto
+                        </button>
+                      )}
+                    </div>
+                    {isUploadingEdit ? (
+                      <span className="admin-photo-upload-status admin-photo-upload-status--uploading">
+                        ⏳ Enviando e armazenando foto no servidor…
+                      </span>
+                    ) : editPhotoUrl ? (
+                      <span className="admin-photo-upload-status admin-photo-upload-status--success">
+                        ✓ Foto salva localmente no disco do servidor
+                      </span>
+                    ) : (
+                      <p className="admin-photo-local-note">
+                        Selecione ou arraste uma foto do computador. O arquivo é armazenado localmente no servidor para funcionamento offline.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="admin-form-group">
+                <label htmlFor="edit-actor-bio" className="admin-label">
+                  Biografia / Descrição
+                </label>
+                <textarea
+                  id="edit-actor-bio"
+                  className="admin-textarea"
+                  value={editBio}
+                  onChange={(e) => setEditBio(e.target.value)}
+                  placeholder="Breve histórico profissional, estúdios habituais, curiosidades..."
+                  rows={4}
+                />
+              </div>
+
+              <div className="admin-modal__footer">
+                <button
+                  type="button"
+                  className="btn btn--secondary"
+                  onClick={() => setEditingActor(null)}
+                  disabled={updateMutation.isPending}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn--primary"
+                  disabled={updateMutation.isPending || isUploadingEdit}
+                >
+                  {updateMutation.isPending ? "Salvando…" : "Salvar Alterações"}
                 </button>
               </div>
             </form>
