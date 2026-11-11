@@ -1,4 +1,4 @@
-import type { Profile, ProfilePreferences, HomeData, SearchResult, Work, PlaybackData, FallbackJob, AdminDashboard, Publication, PublicationDetail, Revision, RevisionCleanup, Session, Account, IntegrityCheck, AdminCatalogWork, AdminWorkDetail, AuditEntry, EditorialCollection, EditorialCollectionPreview, StorageMetrics, WorkDeletionPreview, WorkRating, HomeSectionConfig, Asset, Episode, VoiceActor } from './types';
+import type { Profile, ProfilePreferences, HomeData, SearchResult, Work, PlaybackData, FallbackJob, AdminDashboard, Publication, PublicationDetail, Revision, RevisionCleanup, Session, Account, IntegrityCheck, AdminCatalogWork, AdminWorkDetail, AuditEntry, EditorialCollection, EditorialCollectionPreview, StorageMetrics, WorkDeletionPreview, WorkRating, HomeSectionConfig, Asset, Episode, VoiceActor, Character, WorkPlayableSources } from './types';
 
 export async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { credentials: 'same-origin', ...init });
@@ -125,6 +125,53 @@ export const api = {
     }
     return res.json() as Promise<{ photoUrl: string }>;
   },
+  getAdminCharacters: (params?: { workId?: string; voiceActorId?: string; q?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.workId) qs.set('workId', params.workId);
+    if (params?.voiceActorId) qs.set('voiceActorId', params.voiceActorId);
+    if (params?.q) qs.set('q', params.q);
+    const query = qs.toString();
+    return fetchApi<Character[]>(`/api/admin/characters${query ? `?${query}` : ''}`);
+  },
+  getAdminCharacter: (id: string) => fetchApi<Character>(`/api/admin/characters/${encodeURIComponent(id)}`),
+  createAdminCharacter: (data: { name: string; workId: string; photoUrl?: string | null; role?: string | null; archetype?: string | null; voiceAudioUrl?: string | null; voiceActorId?: string | null }) =>
+    fetchApi<Character>('/api/admin/characters', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
+  updateAdminCharacter: (id: string, data: { name?: string; workId?: string; photoUrl?: string | null; role?: string | null; archetype?: string | null; voiceAudioUrl?: string | null; voiceActorId?: string | null }) =>
+    fetchApi<Character>(`/api/admin/characters/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
+  deleteAdminCharacter: (id: string) => fetchApi<void>(`/api/admin/characters/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  uploadCharacterPhoto: async (file: File) => {
+    const query = new URLSearchParams({ filename: file.name });
+    const res = await fetch(`/api/admin/characters/upload-photo?${query}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'x-original-name': encodeURIComponent(file.name),
+        'x-mime-type': file.type || 'image/jpeg',
+      },
+      body: file,
+    });
+    if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
+    return res.json() as Promise<{ photoUrl: string }>;
+  },
+  uploadCharacterAudio: async (file: File) => {
+    const query = new URLSearchParams({ filename: file.name });
+    const res = await fetch(`/api/admin/characters/upload-audio?${query}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'x-original-name': encodeURIComponent(file.name),
+        'x-mime-type': file.type || 'audio/mpeg',
+      },
+      body: file,
+    });
+    if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
+    return res.json() as Promise<{ voiceAudioUrl: string }>;
+  },
+  getWorkPlayableSources: (workId: string) => fetchApi<WorkPlayableSources>(`/api/admin/works/${encodeURIComponent(workId)}/playable-sources`),
+  extractCharacterVoice: (clips: Array<{ mediaUrl: string; startSeconds: number; durationSeconds: number }>) =>
+    fetchApi<{ voiceAudioUrl: string }>('/api/admin/characters/extract-voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clips }) }),
   getHomeSections: () => fetchApi<HomeSectionConfig[]>('/api/admin/home-sections'),
   updateHomeSections: (sections: HomeSectionConfig[]) => fetchApi<{ success: boolean; sections: HomeSectionConfig[] }>('/api/admin/home-sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sections }) }),
   addFavorite: (profileId: string, workId: string) => fetchApi<void>(`/api/profiles/${profileId}/favorites/${workId}`, { method: 'POST' }),

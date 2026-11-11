@@ -1440,6 +1440,9 @@ app.get("/api/admin/voice-actors", async (request) => {
   const q = String(query.q ?? "").trim().slice(0, 200);
   const actors = await prisma.voiceActor.findMany({
     where: q ? { name: { contains: q, mode: "insensitive" } } : undefined,
+    include: {
+      _count: { select: { characters: true } },
+    },
     orderBy: { name: "asc" },
   });
   return toJson(actors);
@@ -1460,13 +1463,28 @@ app.post("/api/admin/voice-actors", async (request, reply) => {
       photoUrl,
       bio,
     },
+    include: {
+      _count: { select: { characters: true } },
+    },
   });
   return reply.code(201).send(toJson(actor));
 });
 
 app.get("/api/admin/voice-actors/:id", async (request, reply) => {
   const { id } = request.params as { id: string };
-  const actor = await prisma.voiceActor.findUnique({ where: { id } });
+  const actor = await prisma.voiceActor.findUnique({
+    where: { id },
+    include: {
+      characters: {
+        include: {
+          work: {
+            select: { id: true, title: true, contentKind: true }
+          }
+        },
+        orderBy: { createdAt: "desc" }
+      }
+    }
+  });
   if (!actor) return reply.code(404).send({ error: "Dublador não encontrado" });
   return toJson(actor);
 });
@@ -1494,6 +1512,9 @@ app.patch("/api/admin/voice-actors/:id", async (request, reply) => {
   const updated = await prisma.voiceActor.update({
     where: { id },
     data,
+    include: {
+      _count: { select: { characters: true } },
+    }
   });
   return toJson(updated);
 });
@@ -1535,6 +1556,379 @@ app.post("/api/admin/voice-actors/upload-photo", { bodyLimit: 25 * 1024 * 1024 }
 
   const publicPath = `/media/custom/voice-actors/${finalFileName}`;
   return toJson({ photoUrl: publicPath });
+});
+
+/* ==========================================================================
+   Characters (Personagens) API Endpoints
+   ========================================================================== */
+
+app.get("/api/admin/characters", async (request) => {
+  const query = request.query as { workId?: string; voiceActorId?: string; q?: string };
+  const where: Prisma.CharacterWhereInput = {};
+  if (query.workId) where.workId = query.workId;
+  if (query.voiceActorId) where.voiceActorId = query.voiceActorId;
+  if (query.q) {
+    const q = query.q.trim().slice(0, 200);
+    where.name = { contains: q, mode: "insensitive" };
+  }
+
+  const characters = await prisma.character.findMany({
+    where,
+    include: {
+      work: { select: { id: true, title: true, contentKind: true, year: true } },
+      voiceActor: { select: { id: true, name: true, photoUrl: true } }
+    },
+    orderBy: [{ createdAt: "desc" }]
+  });
+  return toJson(characters);
+});
+
+app.get("/api/admin/characters/:id", async (request, reply) => {
+  const { id } = request.params as { id: string };
+  const character = await prisma.character.findUnique({
+    where: { id },
+    include: {
+      work: {
+        select: {
+          id: true,
+          title: true,
+          contentKind: true,
+          year: true,
+          synopsis: true,
+        }
+      },
+      voiceActor: true,
+    }
+  });
+  if (!character) return reply.code(404).send({ error: "Personagem não encontrado" });
+  return toJson(character);
+});
+
+app.post("/api/admin/characters", async (request, reply) => {
+  const body = request.body as {
+    name?: string;
+    workId?: string;
+    photoUrl?: string | null;
+    role?: string | null;
+    archetype?: string | null;
+    voiceAudioUrl?: string | null;
+    voiceActorId?: string | null;
+  };
+
+  const name = typeof body?.name === "string" ? body.name.trim() : "";
+  if (!name) return reply.code(400).send({ error: "Nome do personagem é obrigatório" });
+  if (name.length > 200) return reply.code(400).send({ error: "Nome excede 200 caracteres" });
+
+  const workId = typeof body?.workId === "string" ? body.workId.trim() : "";
+  if (!workId) return reply.code(400).send({ error: "A obra vinculada é obrigatória" });
+
+  const work = await prisma.work.findUnique({ where: { id: workId } });
+  if (!work) return reply.code(404).send({ error: "Obra vinculada não encontrada" });
+
+  let voiceActorId = typeof body.voiceActorId === "string" && body.voiceActorId.trim() ? body.voiceActorId.trim() : null;
+  if (voiceActorId) {
+    const actor = await prisma.voiceActor.findUnique({ where: { id: voiceActorId } });
+    if (!actor) voiceActorId = null;
+  }
+
+  const character = await prisma.character.create({
+    data: {
+      name,
+      workId,
+      photoUrl: typeof body.photoUrl === "string" && body.photoUrl.trim() ? body.photoUrl.trim() : null,
+      role: typeof body.role === "string" && body.role.trim() ? body.role.trim() : null,
+      archetype: typeof body.archetype === "string" && body.archetype.trim() ? body.archetype.trim() : null,
+      voiceAudioUrl: typeof body.voiceAudioUrl === "string" && body.voiceAudioUrl.trim() ? body.voiceAudioUrl.trim() : null,
+      voiceActorId,
+    },
+    include: {
+      work: { select: { id: true, title: true, contentKind: true, year: true } },
+      voiceActor: { select: { id: true, name: true, photoUrl: true } }
+    }
+  });
+
+  return reply.code(201).send(toJson(character));
+});
+
+app.patch("/api/admin/characters/:id", async (request, reply) => {
+  const { id } = request.params as { id: string };
+  const body = request.body as {
+    name?: string;
+    workId?: string;
+    photoUrl?: string | null;
+    role?: string | null;
+    archetype?: string | null;
+    voiceAudioUrl?: string | null;
+    voiceActorId?: string | null;
+  };
+
+  const character = await prisma.character.findUnique({ where: { id } });
+  if (!character) return reply.code(404).send({ error: "Personagem não encontrado" });
+
+  const data: Prisma.CharacterUpdateInput = {};
+  if (body.name !== undefined) {
+    const cleanName = typeof body.name === "string" ? body.name.trim() : "";
+    if (!cleanName) return reply.code(400).send({ error: "Nome do personagem não pode ser vazio" });
+    data.name = cleanName;
+  }
+  if (body.workId !== undefined) {
+    const cleanWorkId = typeof body.workId === "string" ? body.workId.trim() : "";
+    if (cleanWorkId) {
+      const work = await prisma.work.findUnique({ where: { id: cleanWorkId } });
+      if (work) data.work = { connect: { id: cleanWorkId } };
+    }
+  }
+  if (body.photoUrl !== undefined) {
+    data.photoUrl = typeof body.photoUrl === "string" && body.photoUrl.trim() ? body.photoUrl.trim() : null;
+  }
+  if (body.role !== undefined) {
+    data.role = typeof body.role === "string" && body.role.trim() ? body.role.trim() : null;
+  }
+  if (body.archetype !== undefined) {
+    data.archetype = typeof body.archetype === "string" && body.archetype.trim() ? body.archetype.trim() : null;
+  }
+  if (body.voiceAudioUrl !== undefined) {
+    data.voiceAudioUrl = typeof body.voiceAudioUrl === "string" && body.voiceAudioUrl.trim() ? body.voiceAudioUrl.trim() : null;
+  }
+  if (body.voiceActorId !== undefined) {
+    const actorId = typeof body.voiceActorId === "string" && body.voiceActorId.trim() ? body.voiceActorId.trim() : null;
+    if (actorId) {
+      data.voiceActor = { connect: { id: actorId } };
+    } else {
+      data.voiceActor = { disconnect: true };
+    }
+  }
+
+  const updated = await prisma.character.update({
+    where: { id },
+    data,
+    include: {
+      work: { select: { id: true, title: true, contentKind: true, year: true } },
+      voiceActor: { select: { id: true, name: true, photoUrl: true } }
+    }
+  });
+
+  return toJson(updated);
+});
+
+app.delete("/api/admin/characters/:id", async (request, reply) => {
+  const { id } = request.params as { id: string };
+  const character = await prisma.character.findUnique({ where: { id } });
+  if (!character) return reply.code(404).send({ error: "Personagem não encontrado" });
+
+  await prisma.character.delete({ where: { id } });
+  return reply.code(204).send();
+});
+
+app.post("/api/admin/characters/upload-photo", { bodyLimit: 25 * 1024 * 1024 }, async (request, reply) => {
+  const query = request.query as { filename?: string };
+  const origName = query.filename || (request.headers["x-original-name"] as string) || "character.webp";
+  const ext = path.extname(origName).toLowerCase() || ".webp";
+
+  const targetDir = safeDataPath("library", "custom", "characters");
+  await ensureUploadDirectory(targetDir);
+
+  const finalFileName = `char_${Date.now()}_${crypto.randomUUID()}${ext}`;
+  const finalPath = path.join(targetDir, finalFileName);
+
+  const fileOut = fs.createWriteStream(finalPath);
+  let sizeBytes = 0;
+  for await (const chunk of request.raw) {
+    sizeBytes += (chunk as Buffer).length;
+    fileOut.write(chunk);
+  }
+  await new Promise<void>((resolve, reject) => {
+    fileOut.end((err: Error | null) => (err ? reject(err) : resolve()));
+  });
+
+  if (sizeBytes === 0) {
+    try { await fs.promises.unlink(finalPath); } catch {}
+    return reply.code(400).send({ error: "Nenhum arquivo enviado" });
+  }
+
+  const publicPath = `/media/custom/characters/${finalFileName}`;
+  return toJson({ photoUrl: publicPath });
+});
+
+app.post("/api/admin/characters/upload-audio", { bodyLimit: 50 * 1024 * 1024 }, async (request, reply) => {
+  const query = request.query as { filename?: string };
+  const origName = query.filename || (request.headers["x-original-name"] as string) || "voice.m4a";
+  const ext = path.extname(origName).toLowerCase() || ".m4a";
+
+  const targetDir = safeDataPath("library", "custom", "characters");
+  await ensureUploadDirectory(targetDir);
+
+  const finalFileName = `voice_${Date.now()}_${crypto.randomUUID()}${ext}`;
+  const finalPath = path.join(targetDir, finalFileName);
+
+  const fileOut = fs.createWriteStream(finalPath);
+  let sizeBytes = 0;
+  for await (const chunk of request.raw) {
+    sizeBytes += (chunk as Buffer).length;
+    fileOut.write(chunk);
+  }
+  await new Promise<void>((resolve, reject) => {
+    fileOut.end((err: Error | null) => (err ? reject(err) : resolve()));
+  });
+
+  if (sizeBytes === 0) {
+    try { await fs.promises.unlink(finalPath); } catch {}
+    return reply.code(400).send({ error: "Nenhum arquivo enviado" });
+  }
+
+  const publicPath = `/media/custom/characters/${finalFileName}`;
+  return toJson({ voiceAudioUrl: publicPath });
+});
+
+app.get("/api/admin/works/:workId/playable-sources", async (request, reply) => {
+  const { workId } = request.params as { workId: string };
+  const work = await prisma.work.findUnique({
+    where: { id: workId },
+    include: {
+      mediaObjects: { where: { kind: "movie_hls", publication: { state: "confirmed" } }, orderBy: { createdAt: "desc" } },
+      seasons: {
+        orderBy: { number: "asc" },
+        include: {
+          episodes: {
+            orderBy: { number: "asc" },
+            include: {
+              mediaObjects: { where: { kind: "episode_hls", publication: { state: "confirmed" } }, orderBy: { createdAt: "desc" } }
+            }
+          }
+        }
+      }
+    }
+  });
+  if (!work) return reply.code(404).send({ error: "Obra não encontrada" });
+
+  const sources: Array<{ id: string; label: string; mediaUrl: string; seasonNumber?: number; episodeNumber?: number }> = [];
+
+  if (work.contentKind === "movie" && work.mediaObjects[0]?.publicPath) {
+    sources.push({
+      id: work.id,
+      label: "Filme Completo",
+      mediaUrl: work.mediaObjects[0].publicPath,
+    });
+  } else {
+    for (const season of work.seasons) {
+      for (const ep of season.episodes) {
+        const media = ep.mediaObjects[0];
+        if (media?.publicPath) {
+          sources.push({
+            id: ep.id,
+            label: `T${season.number} E${ep.number}${ep.title ? ` - ${ep.title}` : ""}`,
+            mediaUrl: media.publicPath,
+            seasonNumber: season.number,
+            episodeNumber: ep.number,
+          });
+        }
+      }
+    }
+  }
+  return toJson({ workId: work.id, title: work.title, contentKind: work.contentKind, sources });
+});
+
+function extractAudioSegment(inputPath: string, outputPath: string, startSeconds: number, durationSeconds: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("ffmpeg", [
+      "-y",
+      "-ss", String(Math.max(0, startSeconds)),
+      "-t", String(Math.max(0.5, durationSeconds)),
+      "-i", inputPath,
+      "-vn",
+      "-c:a", "aac",
+      "-b:a", "192k",
+      outputPath
+    ]);
+    let stderr = "";
+    child.stderr?.on("data", (chunk) => {
+      stderr += chunk.toString();
+      if (stderr.length > 5000) stderr = stderr.slice(-5000);
+    });
+    child.on("error", (err) => reject(err));
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`FFmpeg falhou ao extrair áudio (${code}): ${stderr}`));
+    });
+  });
+}
+
+function concatAudioSegments(inputPaths: string[], outputPath: string): Promise<void> {
+  if (inputPaths.length === 1) {
+    return fs.promises.copyFile(inputPaths[0], outputPath);
+  }
+  return new Promise((resolve, reject) => {
+    const args = ["-y"];
+    for (const p of inputPaths) {
+      args.push("-i", p);
+    }
+    const filterInputs = inputPaths.map((_, i) => `[${i}:a]`).join("");
+    const filterComplex = `${filterInputs}concat=n=${inputPaths.length}:v=0:a=1[out]`;
+    args.push("-filter_complex", filterComplex, "-map", "[out]", "-c:a", "aac", "-b:a", "192k", outputPath);
+
+    const child = spawn("ffmpeg", args);
+    let stderr = "";
+    child.stderr?.on("data", (chunk) => {
+      stderr += chunk.toString();
+      if (stderr.length > 5000) stderr = stderr.slice(-5000);
+    });
+    child.on("error", (err) => reject(err));
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`FFmpeg concat falhou (${code}): ${stderr}`));
+    });
+  });
+}
+
+app.post("/api/admin/characters/extract-voice", async (request, reply) => {
+  const body = request.body as {
+    clips?: Array<{
+      mediaUrl: string;
+      startSeconds: number;
+      durationSeconds: number;
+    }>;
+  };
+
+  const clips = Array.isArray(body?.clips) ? body.clips : [];
+  if (clips.length === 0) {
+    return reply.code(400).send({ error: "Nenhum trecho de áudio fornecido" });
+  }
+
+  const targetDir = safeDataPath("library", "custom", "characters");
+  await ensureUploadDirectory(targetDir);
+
+  const tempDir = path.join(targetDir, `tmp_${Date.now()}_${crypto.randomUUID()}`);
+  await fs.promises.mkdir(tempDir, { recursive: true });
+
+  const tempClips: string[] = [];
+
+  try {
+    for (let i = 0; i < clips.length; i++) {
+      const clip = clips[i];
+      if (!clip.mediaUrl) continue;
+      const relative = clip.mediaUrl.replace(/^\/media\//, "");
+      const sourceDiskPath = safeDataPath("library", relative);
+      const clipOutPath = path.join(tempDir, `clip_${i}.m4a`);
+
+      await extractAudioSegment(sourceDiskPath, clipOutPath, clip.startSeconds || 0, clip.durationSeconds || 10);
+      tempClips.push(clipOutPath);
+    }
+
+    if (tempClips.length === 0) {
+      return reply.code(400).send({ error: "Não foi possível extrair nenhum trecho dos vídeos informados" });
+    }
+
+    const finalFileName = `voice_${Date.now()}_${crypto.randomUUID()}.m4a`;
+    const finalPath = path.join(targetDir, finalFileName);
+
+    await concatAudioSegments(tempClips, finalPath);
+
+    const publicPath = `/media/custom/characters/${finalFileName}`;
+    return toJson({ voiceAudioUrl: publicPath });
+  } finally {
+    // cleanup tempDir
+    await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  }
 });
 
 app.get("/api/admin/collections", async () => toJson(await prisma.editorialCollection.findMany({

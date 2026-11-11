@@ -25,6 +25,9 @@ const AdminPackagesPage = lazy(() => import('./pages/admin/AdminPackagesPage').t
 const AdminClientsPage = lazy(() => import('./pages/admin/AdminClientsPage').then((module) => ({ default: module.AdminClientsPage })));
 const AdminVoiceActorsPage = lazy(() => import('./pages/admin/AdminVoiceActorsPage').then((module) => ({ default: module.AdminVoiceActorsPage })));
 const AdminVoiceActorDetailPage = lazy(() => import('./pages/admin/AdminVoiceActorDetailPage').then((module) => ({ default: module.AdminVoiceActorDetailPage })));
+const AdminCharactersPage = lazy(() => import('./pages/admin/AdminCharactersPage').then((module) => ({ default: module.AdminCharactersPage })));
+const AdminWorkCharactersPage = lazy(() => import('./pages/admin/AdminWorkCharactersPage').then((module) => ({ default: module.AdminWorkCharactersPage })));
+const AdminCharacterDetailPage = lazy(() => import('./pages/admin/AdminCharacterDetailPage').then((module) => ({ default: module.AdminCharacterDetailPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -60,6 +63,9 @@ export function App() {
             <Route path="/admin/clients" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminClientsPage /></Suspense></AdminShell></AdminRoute>} />
             <Route path="/admin/voice-actors" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminVoiceActorsPage /></Suspense></AdminShell></AdminRoute>} />
             <Route path="/admin/voice-actors/:id" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminVoiceActorDetailPage /></Suspense></AdminShell></AdminRoute>} />
+            <Route path="/admin/characters" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminCharactersPage /></Suspense></AdminShell></AdminRoute>} />
+            <Route path="/admin/characters/work/:workId" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminWorkCharactersPage /></Suspense></AdminShell></AdminRoute>} />
+            <Route path="/admin/characters/:id" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminCharacterDetailPage /></Suspense></AdminShell></AdminRoute>} />
           </Route>
           <Route path="/login" element={<Navigate to="/profiles" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />

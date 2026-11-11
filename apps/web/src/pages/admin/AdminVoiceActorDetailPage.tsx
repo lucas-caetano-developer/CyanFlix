@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
@@ -7,15 +7,16 @@ export function AdminVoiceActorDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
 
-  const [name, setName] = useState("");
-  const [photoUrl, setPhotoUrl] = useState("");
-  const [bio, setBio] = useState("");
+  // Edit Modal state (accessible via header button)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editPhotoUrl, setEditPhotoUrl] = useState("");
+  const [editBio, setEditBio] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const { data: actor, isLoading, isError } = useQuery({
     queryKey: ["admin", "voice-actor", id],
@@ -23,25 +24,16 @@ export function AdminVoiceActorDetailPage() {
     enabled: Boolean(id),
   });
 
-  useEffect(() => {
-    if (actor) {
-      setName(actor.name || "");
-      setPhotoUrl(actor.photoUrl || "");
-      setBio(actor.bio || "");
-    }
-  }, [actor]);
-
   const updateMutation = useMutation({
     mutationFn: (data: { name: string; photoUrl?: string | null; bio?: string | null }) =>
       id ? api.updateAdminVoiceActor(id, data) : Promise.reject(new Error("ID ausente")),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "voice-actors"] });
       void queryClient.invalidateQueries({ queryKey: ["admin", "voice-actor", id] });
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3500);
+      setIsEditModalOpen(false);
     },
     onError: (err: Error) => {
-      setErrorMessage(err.message || "Erro ao salvar alterações");
+      setEditError(err.message || "Erro ao salvar alterações");
     },
   });
 
@@ -56,39 +48,42 @@ export function AdminVoiceActorDetailPage() {
     },
   });
 
+  const openEditModal = () => {
+    if (!actor) return;
+    setEditName(actor.name || "");
+    setEditPhotoUrl(actor.photoUrl || "");
+    setEditBio(actor.bio || "");
+    setEditError(null);
+    setIsEditModalOpen(true);
+  };
+
   const uploadFile = async (file: File) => {
     if (!file) return;
     setIsUploading(true);
-    setErrorMessage(null);
+    setEditError(null);
     try {
       const res = await api.uploadVoiceActorPhoto(file);
-      setPhotoUrl(res.photoUrl);
+      setEditPhotoUrl(res.photoUrl);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      setErrorMessage("Erro ao enviar foto: " + message);
+      setEditError("Erro ao enviar foto: " + message);
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (editFileInputRef.current) editFileInputRef.current.value = "";
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) await uploadFile(file);
-  };
-
-  const handleSave = (e: React.FormEvent) => {
+  const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanName = name.trim();
+    const cleanName = editName.trim();
     if (!cleanName) {
-      setErrorMessage("O nome do dublador não pode ficar vazio.");
+      setEditError("O nome do dublador é obrigatório.");
       return;
     }
-    setErrorMessage(null);
     updateMutation.mutate({
       name: cleanName,
-      photoUrl: photoUrl.trim() || null,
-      bio: bio.trim() || null,
+      photoUrl: editPhotoUrl.trim() || null,
+      bio: editBio.trim() || null,
     });
   };
 
@@ -117,10 +112,7 @@ export function AdminVoiceActorDetailPage() {
     );
   }
 
-  const hasChanges =
-    name !== (actor.name || "") ||
-    photoUrl !== (actor.photoUrl || "") ||
-    bio !== (actor.bio || "");
+  const characters = actor.characters || [];
 
   return (
     <div className="admin-page">
@@ -131,223 +123,273 @@ export function AdminVoiceActorDetailPage() {
         </Link>
       </div>
 
-      <div className="admin-page__header">
-        <div>
-          <span className="admin-page__eyebrow">Perfil do Dublador</span>
-          <h1 className="admin-page__title">{actor.name}</h1>
-          <p className="admin-page__subtitle">
-            Edite as informações cadastrais e prepare a relação de personagens dublados por este profissional.
-          </p>
+      {/* Presentation Hero Profile Showcase */}
+      <div className="admin-profile-hero">
+        <div className="admin-profile-hero__avatar-wrap">
+          {actor.photoUrl ? (
+            <img src={actor.photoUrl} alt={actor.name} className="admin-profile-hero__avatar" />
+          ) : (
+            <div className="admin-profile-hero__placeholder">
+              {actor.name.trim().charAt(0).toUpperCase() || "🎙️"}
+            </div>
+          )}
         </div>
-        <div className="admin-page__header-actions">
-          <button
-            type="button"
-            className="btn btn--danger btn--sm"
-            onClick={() => {
-              if (confirm(`Deseja realmente remover permanentemente o perfil de "${actor.name}"?`)) {
-                deleteMutation.mutate(actor.id);
-              }
-            }}
-            disabled={deleteMutation.isPending}
-          >
-            {deleteMutation.isPending ? "Excluindo…" : "Excluir Dublador"}
-          </button>
+        <div className="admin-profile-hero__body">
+          <div className="admin-profile-hero__title-row">
+            <div>
+              <span className="admin-page__eyebrow">Dublador Oficial</span>
+              <h1 className="admin-profile-hero__name">{actor.name}</h1>
+            </div>
+            <div className="admin-profile-hero__actions">
+              <button
+                type="button"
+                className="btn btn--secondary btn--sm"
+                onClick={openEditModal}
+              >
+                ✏️ Editar Dublador
+              </button>
+              <button
+                type="button"
+                className="btn btn--danger btn--sm"
+                onClick={() => {
+                  if (confirm(`Deseja realmente remover o dublador "${actor.name}"?`)) {
+                    deleteMutation.mutate(actor.id);
+                  }
+                }}
+                disabled={deleteMutation.isPending}
+              >
+                {deleteMutation.isPending ? "Excluindo…" : "Excluir"}
+              </button>
+            </div>
+          </div>
+
+          <p className="admin-profile-hero__bio">
+            {actor.bio || "Nenhuma biografia detalhada cadastrada para este dublador."}
+          </p>
+
+          <div className="admin-profile-hero__meta">
+            <span>🎭 <strong>{characters.length}</strong> personagem{characters.length === 1 ? "" : "s"} vinculado{characters.length === 1 ? "" : "s"}</span>
+            <span>📅 Cadastrado em {new Date(actor.createdAt).toLocaleDateString("pt-BR")}</span>
+            <span>💾 Fotos 100% locais no servidor</span>
+          </div>
         </div>
       </div>
 
-      {saveSuccess && (
-        <div className="admin-alert admin-alert--success">
-          Alterações salvas com sucesso!
+      {/* Characters Showcase Section */}
+      <div className="admin-card">
+        <div className="admin-card__header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "0.85rem" }}>
+          <div>
+            <h2 className="admin-card__title" style={{ margin: 0, border: 0, padding: 0 }}>
+              Personagens Dublados
+            </h2>
+            <p className="admin-card__subtitle" style={{ margin: "0.25rem 0 0 0", color: "#94a3b8", fontSize: "0.85rem" }}>
+              Personagens interpretados por {actor.name} nas produções do catálogo.
+            </p>
+          </div>
+          <Link to="/admin/characters" className="btn btn--secondary btn--sm">
+            + Gerenciar Personagens
+          </Link>
         </div>
-      )}
 
-      {errorMessage && (
-        <div className="admin-alert admin-alert--danger">
-          {errorMessage}
-        </div>
-      )}
-
-      <div className="admin-voice-actor-detail-layout">
-        {/* Main Details Form */}
-        <div className="admin-voice-actor-detail-main">
-          <form onSubmit={handleSave} className="admin-card admin-voice-actor-form">
-            <h2 className="admin-card__title">Informações Principais</h2>
-
-            <div className="admin-form-group">
-              <label htmlFor="actor-name" className="admin-label">
-                Nome do Dublador <span className="admin-required">*</span>
-              </label>
-              <input
-                id="actor-name"
-                type="text"
-                className="admin-input"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="admin-form-group">
-              <label className="admin-label">Foto de Perfil (Arquivo Local do PC)</label>
-              <div
-                className={`admin-photo-upload-box ${isDragOver ? "admin-photo-upload-box--dragover" : ""}`}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setIsDragOver(true);
-                }}
-                onDragLeave={() => setIsDragOver(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsDragOver(false);
-                  const file = e.dataTransfer.files?.[0];
-                  if (file) void uploadFile(file);
-                }}
-              >
-                <div className="admin-photo-preview admin-photo-preview--lg">
-                  {photoUrl ? (
-                    <img src={photoUrl} alt={name} className="admin-photo-preview__img" />
-                  ) : (
-                    <div className="admin-photo-preview__placeholder">
-                      {name.trim().charAt(0).toUpperCase() || "🎙️"}
-                    </div>
-                  )}
-                </div>
-                <div className="admin-photo-upload-info">
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileUpload}
-                    accept="image/png, image/jpeg, image/webp, image/avif"
-                    style={{ display: "none" }}
-                    id="detail-actor-photo"
-                  />
-                  <div className="admin-photo-upload-actions">
-                    <button
-                      type="button"
-                      className="btn btn--secondary btn--sm"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isUploading}
-                    >
-                      {isUploading ? "Salvando foto…" : photoUrl ? "📁 Trocar Foto do PC" : "📁 Selecionar Foto do PC"}
-                    </button>
-                    {photoUrl && (
-                      <button
-                        type="button"
-                        className="btn btn--danger btn--xs"
-                        onClick={() => setPhotoUrl("")}
-                      >
-                        Remover Foto
-                      </button>
+        {characters.length === 0 ? (
+          <div className="admin-voice-actor-characters-placeholder">
+            <div className="admin-characters-placeholder__icon">🎭</div>
+            <h3>Nenhum personagem vinculado a este dublador ainda</h3>
+            <p>
+              Ao cadastrar ou editar personagens nas obras do catálogo, vincule {actor.name} como o dublador oficial para que apareçam aqui.
+            </p>
+            <Link to="/admin/characters" className="btn btn--primary btn--sm">
+              Ver Catálogo de Personagens
+            </Link>
+          </div>
+        ) : (
+          <div className="admin-characters__grid">
+            {characters.map((char) => (
+              <div key={char.id} className="admin-character-card">
+                <Link to={`/admin/characters/${char.id}`} className="admin-character-card__link">
+                  <div className="admin-character-card__avatar-wrap">
+                    {char.photoUrl ? (
+                      <img src={char.photoUrl} alt={char.name} className="admin-character-card__avatar" loading="lazy" />
+                    ) : (
+                      <div className="admin-character-card__avatar-placeholder">
+                        {char.name.trim().charAt(0).toUpperCase() || "🎭"}
+                      </div>
                     )}
                   </div>
-                  {isUploading ? (
-                    <span className="admin-photo-upload-status admin-photo-upload-status--uploading">
-                      ⏳ Enviando e armazenando foto no servidor…
-                    </span>
-                  ) : photoUrl ? (
-                    <span className="admin-photo-upload-status admin-photo-upload-status--success">
-                      ✓ Foto salva localmente no disco do servidor
-                    </span>
-                  ) : (
-                    <p className="admin-photo-local-note">
-                      Arraste uma foto aqui ou selecione um arquivo do computador (PNG, JPG, WEBP). O arquivo é armazenado localmente no servidor para funcionamento 100% offline.
-                    </p>
-                  )}
+                  <div className="admin-character-card__content">
+                    <h3 className="admin-character-card__name">{char.name}</h3>
+                    {char.work && (
+                      <span className="admin-work-badge" title={char.work.title}>
+                        🎬 {char.work.title}
+                      </span>
+                    )}
+                    <div className="admin-character-badges">
+                      {char.role && <span className="admin-role-badge">{char.role}</span>}
+                      {char.archetype && <span className="admin-archetype-badge">{char.archetype}</span>}
+                    </div>
+                  </div>
+                </Link>
+
+                {char.voiceAudioUrl && (
+                  <div className="admin-character-audio-preview">
+                    <audio controls src={char.voiceAudioUrl} className="admin-audio-player" preload="none" />
+                  </div>
+                )}
+
+                <div className="admin-character-card__actions">
+                  <Link to={`/admin/characters/${char.id}`} className="btn btn--secondary btn--xs">
+                    Ver Personagem
+                  </Link>
                 </div>
               </div>
-            </div>
+            ))}
+          </div>
+        )}
+      </div>
 
-            <div className="admin-form-group">
-              <label htmlFor="actor-bio" className="admin-label">
-                Biografia e Descrição
-              </label>
-              <textarea
-                id="actor-bio"
-                className="admin-textarea"
-                rows={6}
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                placeholder="Escreva uma descrição completa sobre a trajetória do dublador, estúdios, prêmios ou curiosidades..."
-              />
-            </div>
-
-            <div className="admin-form-actions">
+      {/* Edit Voice Actor Modal */}
+      {isEditModalOpen && (
+        <div className="admin-modal-overlay" onClick={() => setIsEditModalOpen(false)}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-modal__header">
+              <h3>Editar Dublador: {actor.name}</h3>
               <button
-                type="submit"
-                className="btn btn--primary"
-                disabled={updateMutation.isPending || isUploading || !hasChanges}
+                type="button"
+                className="admin-modal__close"
+                onClick={() => setIsEditModalOpen(false)}
+                aria-label="Fechar"
               >
-                {updateMutation.isPending ? "Salvando…" : "Salvar Alterações"}
+                ✕
               </button>
-              {hasChanges && (
+            </div>
+            <form onSubmit={handleEditSubmit} className="admin-modal__form">
+              {editError && (
+                <div className="admin-alert admin-alert--danger">{editError}</div>
+              )}
+
+              <div className="admin-form-group">
+                <label htmlFor="edit-actor-name" className="admin-label">
+                  Nome Completo <span className="admin-required">*</span>
+                </label>
+                <input
+                  id="edit-actor-name"
+                  type="text"
+                  className="admin-input"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div className="admin-form-group">
+                <label className="admin-label">Foto de Perfil (Arquivo Local do PC)</label>
+                <div
+                  className={`admin-photo-upload-box ${isDragOver ? "admin-photo-upload-box--dragover" : ""}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragOver(true);
+                  }}
+                  onDragLeave={() => setIsDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragOver(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) void uploadFile(file);
+                  }}
+                >
+                  <div className="admin-photo-preview">
+                    {editPhotoUrl ? (
+                      <img src={editPhotoUrl} alt="Prévia" className="admin-photo-preview__img" />
+                    ) : (
+                      <div className="admin-photo-preview__placeholder">
+                        {editName.trim().charAt(0).toUpperCase() || "🎙️"}
+                      </div>
+                    )}
+                  </div>
+                  <div className="admin-photo-upload-info">
+                    <input
+                      type="file"
+                      ref={editFileInputRef}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void uploadFile(file);
+                      }}
+                      accept="image/png, image/jpeg, image/webp, image/avif"
+                      style={{ display: "none" }}
+                      id="actor-photo-file-edit-detail"
+                    />
+                    <div className="admin-photo-upload-actions">
+                      <button
+                        type="button"
+                        className="btn btn--secondary btn--sm"
+                        onClick={() => editFileInputRef.current?.click()}
+                        disabled={isUploading}
+                      >
+                        {isUploading ? "Salvando foto…" : editPhotoUrl ? "📁 Trocar Foto do PC" : "📁 Selecionar Foto do PC"}
+                      </button>
+                      {editPhotoUrl && (
+                        <button
+                          type="button"
+                          className="btn btn--danger btn--xs"
+                          onClick={() => setEditPhotoUrl("")}
+                        >
+                          Remover Foto
+                        </button>
+                      )}
+                    </div>
+                    {isUploading ? (
+                      <span className="admin-photo-upload-status admin-photo-upload-status--uploading">
+                        ⏳ Enviando e armazenando foto no servidor…
+                      </span>
+                    ) : editPhotoUrl ? (
+                      <span className="admin-photo-upload-status admin-photo-upload-status--success">
+                        ✓ Foto salva localmente no disco do servidor
+                      </span>
+                    ) : (
+                      <p className="admin-photo-local-note">
+                        Selecione ou arraste uma foto do computador. O arquivo é armazenado localmente no servidor para funcionamento offline.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="admin-form-group">
+                <label htmlFor="edit-actor-bio" className="admin-label">
+                  Biografia / Descrição
+                </label>
+                <textarea
+                  id="edit-actor-bio"
+                  className="admin-textarea"
+                  value={editBio}
+                  onChange={(e) => setEditBio(e.target.value)}
+                  placeholder="Breve histórico profissional, estúdios habituais, curiosidades..."
+                  rows={4}
+                />
+              </div>
+
+              <div className="admin-modal__footer">
                 <button
                   type="button"
                   className="btn btn--secondary"
-                  onClick={() => {
-                    setName(actor.name || "");
-                    setPhotoUrl(actor.photoUrl || "");
-                    setBio(actor.bio || "");
-                    setErrorMessage(null);
-                  }}
+                  onClick={() => setIsEditModalOpen(false)}
+                  disabled={updateMutation.isPending}
                 >
-                  Descartar Alterações
+                  Cancelar
                 </button>
-              )}
-            </div>
-          </form>
-
-          {/* Section: Future Characters */}
-          <div className="admin-card admin-voice-actor-characters-card">
-            <div className="admin-card__header">
-              <div>
-                <h2 className="admin-card__title">Personagens Dublados</h2>
-                <p className="admin-card__subtitle">
-                  Personagens e produções associadas a este dublador no CyanFlix.
-                </p>
+                <button
+                  type="submit"
+                  className="btn btn--primary"
+                  disabled={updateMutation.isPending || isUploading}
+                >
+                  {updateMutation.isPending ? "Salvando…" : "Salvar Alterações"}
+                </button>
               </div>
-              <span className="admin-badge-future">Em breve</span>
-            </div>
-
-            <div className="admin-voice-actor-characters-placeholder">
-              <div className="admin-characters-placeholder__icon">🎭</div>
-              <h3>Módulo de Personagens em Desenvolvimento</h3>
-              <p>
-                A funcionalidade para vincular este dublador a personagens específicos de filmes, séries e animes será implementada a seguir.
-              </p>
-              <div className="admin-characters-placeholder__features">
-                <div className="admin-feature-pill">✨ Associação por Obra & Episódio</div>
-                <div className="admin-feature-pill">🎙️ Nome do Personagem</div>
-                <div className="admin-feature-pill">🖼️ Foto do Personagem</div>
-              </div>
-            </div>
+            </form>
           </div>
         </div>
-
-        {/* Sidebar Info */}
-        <aside className="admin-voice-actor-detail-sidebar">
-          <div className="admin-card">
-            <h3 className="admin-card__title">Metadados do Registro</h3>
-            <div className="admin-meta-list">
-              <div className="admin-meta-item">
-                <span className="admin-meta-item__label">ID no Sistema</span>
-                <code className="admin-meta-item__code">{actor.id}</code>
-              </div>
-              <div className="admin-meta-item">
-                <span className="admin-meta-item__label">Cadastrado em</span>
-                <span className="admin-meta-item__value">
-                  {new Date(actor.createdAt).toLocaleString("pt-BR")}
-                </span>
-              </div>
-              <div className="admin-meta-item">
-                <span className="admin-meta-item__label">Última atualização</span>
-                <span className="admin-meta-item__value">
-                  {new Date(actor.updatedAt).toLocaleString("pt-BR")}
-                </span>
-              </div>
-            </div>
-          </div>
-        </aside>
-      </div>
+      )}
     </div>
   );
 }

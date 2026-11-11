@@ -129,4 +129,62 @@ export type VoiceActor = {
   bio?: string | null;
   createdAt: string;
   updatedAt: string;
+  characters?: CharacterSummary[];
+  _count?: { characters: number };
+};
+
+export type Character = {
+  id: string;
+  name: string;
+  photoUrl?: string | null;
+  role?: string | null;
+  archetype?: string | null;
+  voiceAudioUrl?: string | null;
+  voiceActorId?: string | null;
+  voiceActor?: {
+    id: string;
+    name: string;
+    photoUrl?: string | null;
+    bio?: string | null;
+  } | null;
+  workId: string;
+  work?: {
+    id: string;
+    title: string;
+    contentKind: "movie" | "series" | "anime";
+    year?: number | null;
+    synopsis?: string | null;
+  } | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CharacterSummary = {
+  id: string;
+  name: string;
+  photoUrl?: string | null;
+  role?: string | null;
+  archetype?: string | null;
+  voiceAudioUrl?: string | null;
+  workId: string;
+  work?: {
+    id: string;
+    title: string;
+    contentKind: "movie" | "series" | "anime";
+  } | null;
+};
+
+export type PlayableSource = {
+  id: string;
+  label: string;
+  mediaUrl: string;
+  seasonNumber?: number;
+  episodeNumber?: number;
+};
+
+export type WorkPlayableSources = {
+  workId: string;
+  title: string;
+  contentKind: string;
+  sources: PlayableSource[];
 };

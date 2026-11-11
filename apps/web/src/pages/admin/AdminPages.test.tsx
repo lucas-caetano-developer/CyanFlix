@@ -9,6 +9,9 @@ import { AdminPackagesPage } from './AdminPackagesPage';
 import { AdminClientsPage } from './AdminClientsPage';
 import { AdminVoiceActorsPage } from './AdminVoiceActorsPage';
 import { AdminVoiceActorDetailPage } from './AdminVoiceActorDetailPage';
+import { AdminCharactersPage } from './AdminCharactersPage';
+import { AdminWorkCharactersPage } from './AdminWorkCharactersPage';
+import { AdminCharacterDetailPage } from './AdminCharacterDetailPage';
 import { api } from '../../lib/api';
 
 vi.mock('../../lib/api', () => ({
@@ -38,6 +41,15 @@ vi.mock('../../lib/api', () => ({
     updateAdminVoiceActor: vi.fn(),
     deleteAdminVoiceActor: vi.fn(),
     uploadVoiceActorPhoto: vi.fn(),
+    getAdminCharacters: vi.fn(),
+    getAdminCharacter: vi.fn(),
+    createAdminCharacter: vi.fn(),
+    updateAdminCharacter: vi.fn(),
+    deleteAdminCharacter: vi.fn(),
+    uploadCharacterPhoto: vi.fn(),
+    uploadCharacterAudio: vi.fn(),
+    getWorkPlayableSources: vi.fn(),
+    extractCharacterVoice: vi.fn(),
   },
 }));
 
@@ -240,7 +252,7 @@ describe('Admin Overhaul Pages', () => {
     expect(screen.getByText(/Trocar Foto do PC/i)).toBeInTheDocument();
   });
 
-  it('renders AdminVoiceActorDetailPage with details and future characters section', async () => {
+  it('renders AdminVoiceActorDetailPage as presentation profile showcase with characters', async () => {
     vi.mocked(api.getAdminVoiceActor).mockResolvedValue({
       id: 'actor-1',
       name: 'Guilherme Briggs',
@@ -248,17 +260,151 @@ describe('Admin Overhaul Pages', () => {
       bio: 'Dublador de Buzz Lightyear, Superman...',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      characters: [
+        {
+          id: 'char-1',
+          name: 'Buzz Lightyear',
+          photoUrl: '/media/custom/buzz.webp',
+          role: 'Protagonista',
+          archetype: 'Herói espacial cômico',
+          voiceAudioUrl: '/media/custom/buzz_voice.m4a',
+          workId: 'work-1',
+          work: { id: 'work-1', title: 'Toy Story', contentKind: 'movie' },
+        },
+      ],
     });
 
     renderWithRoute(<AdminVoiceActorDetailPage />);
 
     expect(await screen.findByText('Guilherme Briggs')).toBeInTheDocument();
+    expect(screen.getByText('Dublador de Buzz Lightyear, Superman...')).toBeInTheDocument();
+    expect(screen.getByText('Buzz Lightyear')).toBeInTheDocument();
+    expect(screen.getByText(/Toy Story/i)).toBeInTheDocument();
+    expect(screen.getByText('Herói espacial cômico')).toBeInTheDocument();
+    expect(screen.getByText('✏️ Editar Dublador')).toBeInTheDocument();
+
+    // Clicking edit opens the edit modal
+    fireEvent.click(screen.getByText('✏️ Editar Dublador'));
     expect(screen.getByDisplayValue('Guilherme Briggs')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('Dublador de Buzz Lightyear, Superman...')).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText(/https:\/\//i)).not.toBeInTheDocument();
-    expect(screen.getByText(/Trocar Foto do PC/i)).toBeInTheDocument();
-    expect(screen.getByText('Personagens Dublados')).toBeInTheDocument();
-    expect(screen.getByText('Em breve')).toBeInTheDocument();
-    expect(screen.getByText(/Módulo de Personagens em Desenvolvimento/i)).toBeInTheDocument();
+  });
+
+  it('renders AdminCharactersPage and allows navigating works', async () => {
+    vi.mocked(api.getAdminCatalog).mockResolvedValue({
+      items: [
+        {
+          id: 'work-1',
+          canonicalTitle: 'Attack on Titan',
+          title: 'Attack on Titan',
+          contentKind: 'anime',
+          year: 2013,
+          hidden: false,
+          featured: false,
+          seasonCount: 1,
+          episodeCount: 25,
+          override: null,
+        },
+      ],
+    });
+    vi.mocked(api.getAdminCharacters).mockResolvedValue([
+      {
+        id: 'char-1',
+        name: 'Eren Yeager',
+        workId: 'work-1',
+        role: 'Protagonista',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ]);
+    vi.mocked(api.getAdminVoiceActors).mockResolvedValue([]);
+
+    renderWithClient(<AdminCharactersPage />);
+
+    expect(await screen.findByText('Attack on Titan')).toBeInTheDocument();
+    expect(screen.getByText('+ Adicionar Personagem')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Attack on Titan/i })).toBeInTheDocument();
+  });
+
+  it('renders AdminWorkCharactersPage with characters and allows adding a character', async () => {
+    vi.mocked(api.getAdminWork).mockResolvedValue({
+      id: 'work-1',
+      stableId: 'aot',
+      contentKind: 'anime',
+      title: 'Attack on Titan',
+      year: 2013,
+      synopsis: 'Sinopse...',
+      hidden: false,
+      seasons: [],
+      assets: [],
+    });
+    vi.mocked(api.getAdminCharacters).mockResolvedValue([
+      {
+        id: 'char-1',
+        name: 'Eren Yeager',
+        photoUrl: '/media/custom/eren.webp',
+        role: 'Protagonista',
+        archetype: 'Determinado e impulsivo',
+        voiceAudioUrl: '/media/custom/eren_voice.m4a',
+        workId: 'work-1',
+        voiceActor: { id: 'actor-1', name: 'Lucas Almeida', photoUrl: null },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ]);
+    vi.mocked(api.getAdminVoiceActors).mockResolvedValue([
+      { id: 'actor-1', name: 'Lucas Almeida', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    ]);
+    vi.mocked(api.getWorkPlayableSources).mockResolvedValue({
+      workId: 'work-1',
+      title: 'Attack on Titan',
+      contentKind: 'anime',
+      sources: [{ id: 'ep-1', label: 'T1 E1 - A Queda', mediaUrl: '/media/publications/aot/ep1.m3u8' }],
+    });
+
+    renderWithRoute(
+      <AdminWorkCharactersPage />,
+      '/admin/characters/work/work-1',
+      '/admin/characters/work/:workId'
+    );
+
+    expect(await screen.findByText('Eren Yeager')).toBeInTheDocument();
+    expect(screen.getByText('Determinado e impulsivo')).toBeInTheDocument();
+    expect(screen.getByText('Lucas Almeida')).toBeInTheDocument();
+    expect(screen.getByText('+ Adicionar Personagem')).toBeInTheDocument();
+  });
+
+  it('renders AdminCharacterDetailPage as presentation showcase', async () => {
+    vi.mocked(api.getAdminCharacter).mockResolvedValue({
+      id: 'char-1',
+      name: 'Eren Yeager',
+      photoUrl: '/media/custom/eren.webp',
+      role: 'Protagonista',
+      archetype: 'Determinado e impulsivo',
+      voiceAudioUrl: '/media/custom/eren_voice.m4a',
+      workId: 'work-1',
+      work: { id: 'work-1', title: 'Attack on Titan', contentKind: 'anime', year: 2013, synopsis: 'Sinopse...' },
+      voiceActor: { id: 'actor-1', name: 'Lucas Almeida', photoUrl: null, bio: 'Dublador de animes...' },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    vi.mocked(api.getAdminVoiceActors).mockResolvedValue([]);
+    vi.mocked(api.getWorkPlayableSources).mockResolvedValue({
+      workId: 'work-1',
+      title: 'Attack on Titan',
+      contentKind: 'anime',
+      sources: [],
+    });
+
+    renderWithRoute(
+      <AdminCharacterDetailPage />,
+      '/admin/characters/char-1',
+      '/admin/characters/:id'
+    );
+
+    expect(await screen.findByText('Eren Yeager')).toBeInTheDocument();
+    expect(screen.getByText('Determinado e impulsivo')).toBeInTheDocument();
+    expect(screen.getByText('Lucas Almeida')).toBeInTheDocument();
+    expect(screen.getByText(/Dublador de animes.../i)).toBeInTheDocument();
+    expect(screen.getByText(/Gravação Oficial do Personagem/i)).toBeInTheDocument();
+    expect(screen.getByText('✏️ Editar Personagem')).toBeInTheDocument();
   });
 });

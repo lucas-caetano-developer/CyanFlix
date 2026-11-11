@@ -2509,16 +2509,20 @@
 }
 
 /* ==========================================================================
-   Voice Actors (Dubladores) Styles
+   Voice Actors (Dubladores) & Characters (Personagens) Styles
    ========================================================================== */
-.admin-voice-actors__grid {
+.admin-voice-actors__grid,
+.admin-characters__grid,
+.admin-characters-works-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
   gap: 1.5rem;
   margin-top: 1.5rem;
 }
 
-.admin-voice-actor-card {
+.admin-voice-actor-card,
+.admin-character-card,
+.admin-work-card {
   display: flex;
   flex-direction: column;
   background: rgba(22, 27, 34, 0.75);
@@ -2527,16 +2531,21 @@
   padding: 1.25rem;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  position: relative;
+  overflow: hidden;
 }
 
-.admin-voice-actor-card:hover {
+.admin-voice-actor-card:hover,
+.admin-character-card:hover,
+.admin-work-card:hover {
   transform: translateY(-2px);
   border-color: rgba(0, 212, 255, 0.4);
   box-shadow: 0 8px 24px rgba(0, 212, 255, 0.12);
   background: rgba(26, 32, 44, 0.9);
 }
 
-.admin-voice-actor-card__link {
+.admin-voice-actor-card__link,
+.admin-character-card__link {
   text-decoration: none;
   color: inherit;
   display: flex;
@@ -2546,7 +2555,8 @@
   flex: 1;
 }
 
-.admin-voice-actor-card__avatar-wrap {
+.admin-voice-actor-card__avatar-wrap,
+.admin-character-card__avatar-wrap {
   width: 96px;
   height: 96px;
   border-radius: 50%;
@@ -2554,9 +2564,11 @@
   background: linear-gradient(135deg, rgba(0, 212, 255, 0.8), rgba(59, 130, 246, 0.4));
   margin-bottom: 1rem;
   flex-shrink: 0;
+  box-shadow: 0 0 16px rgba(0, 212, 255, 0.25);
 }
 
-.admin-voice-actor-card__avatar {
+.admin-voice-actor-card__avatar,
+.admin-character-card__avatar {
   width: 100%;
   height: 100%;
   border-radius: 50%;
@@ -2565,7 +2577,8 @@
   display: block;
 }
 
-.admin-voice-actor-card__avatar-placeholder {
+.admin-voice-actor-card__avatar-placeholder,
+.admin-character-card__avatar-placeholder {
   width: 100%;
   height: 100%;
   border-radius: 50%;
@@ -2578,14 +2591,17 @@
   justify-content: center;
 }
 
-.admin-voice-actor-card__content {
+.admin-voice-actor-card__content,
+.admin-character-card__content {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
   width: 100%;
+  align-items: center;
 }
 
-.admin-voice-actor-card__name {
+.admin-voice-actor-card__name,
+.admin-character-card__name {
   font-size: 1.15rem;
   font-weight: 600;
   color: #ffffff;
@@ -2609,14 +2625,381 @@
   margin-top: 0.4rem;
 }
 
-.admin-voice-actor-card__actions {
+/* Card Action Buttons (NEVER OVERFLOW) */
+.admin-voice-actor-card__actions,
+.admin-character-card__actions {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 0.4rem;
   margin-top: 1.15rem;
   padding-top: 0.85rem;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.admin-voice-actor-card__actions .btn,
+.admin-character-card__actions .btn {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  padding: 0.42rem 0.35rem;
+  font-size: 0.75rem;
+  justify-content: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-voice-actor-card__actions .btn--danger,
+.admin-character-card__actions .btn--danger {
+  flex: 0 0 auto;
+  padding: 0.42rem 0.6rem;
+}
+
+/* Character Specific Badges and Elements */
+.admin-character-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: center;
+  margin-top: 0.25rem;
+}
+
+.admin-role-badge {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  text-transform: capitalize;
+}
+
+.admin-archetype-badge {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+}
+
+.admin-work-badge {
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 0.35rem;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-character-voice-actor {
+  display: flex;
+  align-items: center;
   gap: 0.5rem;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.65rem;
+  margin-top: 0.5rem;
+  text-decoration: none;
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  transition: all 0.15s ease;
+  max-width: 100%;
+}
+
+.admin-character-voice-actor:hover {
+  background: rgba(0, 212, 255, 0.12);
+  border-color: rgba(0, 212, 255, 0.4);
+  color: #ffffff;
+}
+
+.admin-character-voice-actor__thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #1e293b;
+  flex-shrink: 0;
+}
+
+.admin-character-audio-preview {
+  margin-top: 0.5rem;
+  width: 100%;
+}
+
+.admin-audio-player {
+  width: 100%;
+  height: 32px;
+  border-radius: 1rem;
+  outline: none;
+}
+
+/* Works Card in Characters section */
+.admin-work-card {
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+  align-items: center;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.admin-work-card__poster {
+  width: 72px;
+  height: 104px;
+  border-radius: 0.5rem;
+  object-fit: cover;
+  background: #1e293b;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.admin-work-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-work-card__title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-work-card__kind {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #00d4ff;
+  font-weight: 600;
+}
+
+.admin-work-card__count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin-top: 0.35rem;
+}
+
+/* Presentation Profile Showcase (Dublador & Character) */
+.admin-profile-hero {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+  background: linear-gradient(135deg, rgba(22, 27, 34, 0.9) 0%, rgba(14, 20, 31, 0.95) 100%);
+  border: 1px solid rgba(0, 212, 255, 0.2);
+  border-radius: 1.25rem;
+  padding: 2.25rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  margin-bottom: 2rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-profile-hero::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -20%;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(0, 212, 255, 0.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.admin-profile-hero__avatar-wrap {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  padding: 4px;
+  background: linear-gradient(135deg, #00d4ff, #7928ca);
+  flex-shrink: 0;
+  box-shadow: 0 0 30px rgba(0, 212, 255, 0.35);
+}
+
+.admin-profile-hero__avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #0f172a;
+}
+
+.admin-profile-hero__placeholder {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: #1e293b;
+  color: #00d4ff;
+  font-size: 3.5rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-profile-hero__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.admin-profile-hero__title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.admin-profile-hero__name {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.admin-profile-hero__actions {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.admin-profile-hero__bio {
+  font-size: 0.95rem;
+  color: #94a3b8;
+  line-height: 1.6;
+  margin: 0;
+  max-width: 800px;
+}
+
+.admin-profile-hero__meta {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  font-size: 0.82rem;
+  color: #64748b;
+  flex-wrap: wrap;
+}
+
+/* Voice Sample Section */
+.admin-voice-sample-card {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(0, 212, 255, 0.25);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.admin-voice-sample-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.admin-voice-sample-card__icon {
+  font-size: 1.75rem;
+}
+
+.admin-voice-sample-card__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.admin-voice-sample-card__desc {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+/* Mini Player & Video Audio Clipper */
+.admin-mini-clipper {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  background: rgba(10, 15, 25, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.85rem;
+  padding: 1.25rem;
+}
+
+.admin-mini-clipper__video-wrap {
+  width: 100%;
+  max-height: 240px;
+  background: #000000;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-mini-clipper__video {
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+}
+
+.admin-mini-clipper__controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.admin-mini-clipper__time-display {
+  font-family: monospace;
+  font-size: 0.95rem;
+  color: #00d4ff;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.4rem;
+}
+
+.admin-mini-clipper__clip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.admin-mini-clipper__clip-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.82rem;
+  color: #cbd5e1;
 }
 
 /* Card Container */
