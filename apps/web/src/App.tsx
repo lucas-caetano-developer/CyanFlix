@@ -17,7 +17,12 @@ import { SpatialNavigation } from './components/layout/SpatialNavigation';
 import './styles/index.css';
 
 const WatchPage = lazy(() => import('./pages/WatchPage').then((module) => ({ default: module.WatchPage })));
-const AdminPage = lazy(() => import('./pages/AdminPage').then((module) => ({ default: module.AdminPage })));
+const AdminOverviewPage = lazy(() => import('./pages/admin/AdminOverviewPage').then((module) => ({ default: module.AdminOverviewPage })));
+const AdminPublishPage = lazy(() => import('./pages/admin/AdminPublishPage').then((module) => ({ default: module.AdminPublishPage })));
+const AdminCatalogPage = lazy(() => import('./pages/admin/AdminCatalogPage').then((module) => ({ default: module.AdminCatalogPage })));
+const AdminHomeSectionsPage = lazy(() => import('./pages/admin/AdminHomeSectionsPage').then((module) => ({ default: module.AdminHomeSectionsPage })));
+const AdminPackagesPage = lazy(() => import('./pages/admin/AdminPackagesPage').then((module) => ({ default: module.AdminPackagesPage })));
+const AdminClientsPage = lazy(() => import('./pages/admin/AdminClientsPage').then((module) => ({ default: module.AdminClientsPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,7 +48,14 @@ export function App() {
             <Route path="/watch/:kind/:id" element={<ProfileGate><Suspense fallback={<Spinner fullScreen />}><WatchPage /></Suspense></ProfileGate>} />
             <Route path="/my-list" element={<Shell><MyListPage /></Shell>} />
             <Route path="/account" element={<Shell><AccountPage /></Shell>} />
-            <Route path="/admin" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminPage /></Suspense></AdminShell></AdminRoute>} />
+
+            {/* Admin Dedicated Routes */}
+            <Route path="/admin" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminOverviewPage /></Suspense></AdminShell></AdminRoute>} />
+            <Route path="/admin/publish" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminPublishPage /></Suspense></AdminShell></AdminRoute>} />
+            <Route path="/admin/catalog" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminCatalogPage /></Suspense></AdminShell></AdminRoute>} />
+            <Route path="/admin/home-sections" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminHomeSectionsPage /></Suspense></AdminShell></AdminRoute>} />
+            <Route path="/admin/packages" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminPackagesPage /></Suspense></AdminShell></AdminRoute>} />
+            <Route path="/admin/clients" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminClientsPage /></Suspense></AdminShell></AdminRoute>} />
           </Route>
           <Route path="/login" element={<Navigate to="/profiles" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
@@ -56,8 +68,6 @@ export function App() {
 function AuthenticatedRoutes() {
   const session = useQuery({ queryKey: ['auth', 'session'], queryFn: api.getSession, retry: false });
   if (session.isLoading) return <Spinner fullScreen />;
-  // A sessão é criada implicitamente pelo backend (conta do sistema), então
-  // não há mais tela de login obrigatória.
   if (session.isError || !session.data?.authenticated) return <Navigate to="/profiles" replace />;
   return <Outlet />;
 }

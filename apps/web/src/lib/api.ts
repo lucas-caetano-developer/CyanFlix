@@ -1,4 +1,4 @@
-import type { Profile, ProfilePreferences, HomeData, SearchResult, Work, PlaybackData, FallbackJob, AdminDashboard, Publication, PublicationDetail, Revision, RevisionCleanup, Session, Account, IntegrityCheck, AdminCatalogWork, AdminWorkDetail, AuditEntry, EditorialCollection, EditorialCollectionPreview, StorageMetrics, WorkDeletionPreview, WorkRating } from './types';
+import type { Profile, ProfilePreferences, HomeData, SearchResult, Work, PlaybackData, FallbackJob, AdminDashboard, Publication, PublicationDetail, Revision, RevisionCleanup, Session, Account, IntegrityCheck, AdminCatalogWork, AdminWorkDetail, AuditEntry, EditorialCollection, EditorialCollectionPreview, StorageMetrics, WorkDeletionPreview, WorkRating, HomeSectionConfig } from './types';
 
 export async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { credentials: 'same-origin', ...init });
@@ -60,6 +60,9 @@ export const api = {
   getAdminAccounts: () => fetchApi<Account[]>('/api/admin/accounts'),
   createAccount: (data: { username: string; password: string; role: "admin" | "viewer" }) => fetchApi<Account>('/api/admin/accounts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
   updateAccount: (id: string, data: { role?: "admin" | "viewer"; disabled?: boolean; password?: string }) => fetchApi<Account>(`/api/admin/accounts/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
+  deleteAccount: (id: string) => fetchApi<{ ok: boolean }>(`/api/admin/accounts/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  getHomeSections: () => fetchApi<HomeSectionConfig[]>('/api/admin/home-sections'),
+  updateHomeSections: (sections: HomeSectionConfig[]) => fetchApi<{ success: boolean; sections: HomeSectionConfig[] }>('/api/admin/home-sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sections }) }),
   addFavorite: (profileId: string, workId: string) => fetchApi<void>(`/api/profiles/${profileId}/favorites/${workId}`, { method: 'POST' }),
   removeFavorite: (profileId: string, workId: string) => fetchApi<void>(`/api/profiles/${profileId}/favorites/${workId}`, { method: 'DELETE' }),
   getFavorites: (profileId: string) => fetchApi<Work[]>(`/api/profiles/${profileId}/favorites`),

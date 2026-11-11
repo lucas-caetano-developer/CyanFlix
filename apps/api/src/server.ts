@@ -207,11 +207,71 @@ const catalogVisibilityWhere: Prisma.WorkWhereInput = { OR: [
   { editorialOverride: { is: { hidden: null } } },
   { editorialOverride: { is: { hidden: false } } },
 ] };
+interface HomeSectionConfig {
+  id: string;
+  title: string;
+  defaultTitle: string;
+  enabled: boolean;
+  type: "system" | "genre" | "collection";
+  sortOrder: number;
+}
+
+const DEFAULT_HOME_SECTIONS: HomeSectionConfig[] = [
+  { id: "featured", title: "Destaques", defaultTitle: "Destaques", enabled: true, type: "system", sortOrder: 0 },
+  { id: "popular", title: "Mais assistidos", defaultTitle: "Mais assistidos", enabled: true, type: "system", sortOrder: 1 },
+  { id: "recent", title: "Adicionados recentemente", defaultTitle: "Adicionados recentemente", enabled: true, type: "system", sortOrder: 2 },
+  { id: "anime", title: "Animes", defaultTitle: "Animes", enabled: true, type: "system", sortOrder: 3 },
+  { id: "genre:action", title: "Ação", defaultTitle: "Ação", enabled: true, type: "genre", sortOrder: 4 },
+  { id: "movies", title: "Filmes", defaultTitle: "Filmes", enabled: true, type: "system", sortOrder: 5 },
+  { id: "series", title: "Séries", defaultTitle: "Séries", enabled: true, type: "system", sortOrder: 6 },
+  { id: "genre:comedy", title: "Comédia", defaultTitle: "Comédia", enabled: true, type: "genre", sortOrder: 7 },
+  { id: "genre:drama", title: "Drama", defaultTitle: "Drama", enabled: true, type: "genre", sortOrder: 8 },
+  { id: "genre:scifi", title: "Ficção Científica", defaultTitle: "Ficção Científica", enabled: true, type: "genre", sortOrder: 9 },
+  { id: "genre:thriller", title: "Suspense e Terror", defaultTitle: "Suspense e Terror", enabled: true, type: "genre", sortOrder: 10 },
+  { id: "genre:animation", title: "Animação", defaultTitle: "Animação", enabled: true, type: "genre", sortOrder: 11 },
+  { id: "dubbed", title: "Dublado", defaultTitle: "Dublado", enabled: true, type: "system", sortOrder: 12 },
+  { id: "subtitled", title: "Legendado", defaultTitle: "Legendado", enabled: true, type: "system", sortOrder: 13 },
+  { id: "recommended", title: "Para você", defaultTitle: "Para você", enabled: true, type: "system", sortOrder: 14 },
+];
+
+const homeSectionsFile = path.join(env.dataRoot, "home_sections.json");
+
+function getStoredHomeSections(): HomeSectionConfig[] {
+  try {
+    if (fs.existsSync(homeSectionsFile)) {
+      const parsed = JSON.parse(fs.readFileSync(homeSectionsFile, "utf-8")) as HomeSectionConfig[];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const existingIds = new Set(parsed.map((s) => s.id));
+        const merged = [...parsed];
+        for (const def of DEFAULT_HOME_SECTIONS) {
+          if (!existingIds.has(def.id)) {
+            merged.push({ ...def, sortOrder: merged.length });
+          }
+        }
+        return merged.sort((a, b) => a.sortOrder - b.sortOrder);
+      }
+    }
+  } catch (err) {
+    app.log.warn({ err }, "Erro ao ler home_sections.json");
+  }
+  return [...DEFAULT_HOME_SECTIONS];
+}
+
+function saveStoredHomeSections(sections: HomeSectionConfig[]): void {
+  try {
+    fs.mkdirSync(env.dataRoot, { recursive: true });
+    fs.writeFileSync(homeSectionsFile, JSON.stringify(sections, null, 2), "utf-8");
+  } catch (err) {
+    app.log.error({ err }, "Erro ao salvar home_sections.json");
+    throw err;
+  }
+}
+
 app.get("/api/home", async (request, reply) => {
   const profile = await requireActiveProfile(request, reply);
   if (!profile) return;
   const kind = parseContentKind((request.query as { kind?: string }).kind);
-  const [works, collections, favorites, history] = await Promise.all([
+  const [works, collections, favorites, history, popularProgress] = await Promise.all([
     prisma.work.findMany({ where: { hidden: false, AND: [catalogAvailabilityWhere, catalogVisibilityWhere], ...(kind ? { contentKind: kind } : {}) }, include: workCardInclude, orderBy: [{ editorialOverride: { featured: "desc" } }, { createdAt: "desc" }], take: 80 }),
     prisma.editorialCollection.findMany({
       where: { state: "published", active: true },
@@ -225,6 +285,13 @@ app.get("/api/home", async (request, reply) => {
     }),
     prisma.favorite.findMany({ where: { profileId: profile.id }, take: 30, select: { workId: true, work: { select: { metadata: true, contentKind: true } } } }),
     prisma.viewingProgress.findMany({ where: { profileId: profile.id }, orderBy: { updatedAt: "desc" }, take: 30, select: { workId: true, episode: { select: { workId: true, work: { select: { metadata: true, contentKind: true } } } }, work: { select: { metadata: true, contentKind: true } } } }),
+    prisma.viewingProgress.groupBy({
+      by: ["workId"],
+      _count: { workId: true },
+      where: { workId: { not: null } },
+      orderBy: { _count: { workId: "desc" } },
+      take: 30,
+    }),
   ]);
   const cards = works.filter((work) => profileAllowsWork(profile.maxAgeRating, work)).slice(0, 40).map(toWorkCardDto);
   const collectionRows = collections.map((collection) => ({
@@ -240,7 +307,73 @@ app.get("/api/home", async (request, reply) => {
   const taste = recommendationSeeds.flatMap((seed) => recommendationTokens(seed.metadata));
   const seedKinds = recommendationSeeds.map((seed) => seed.contentKind);
   const recommendations = cards.filter((card) => !seedIds.has(card.id)).map((card) => ({ card, score: recommendationScore(card, taste, seedKinds) })).filter((entry) => entry.score > 0).sort((a, b) => b.score - a.score).slice(0, 20).map((entry) => entry.card);
-  return toJson({ hero: cards.find((item) => item.featured) ?? cards[0] ?? null, rows: [
+
+  // Mais assistidos
+  const popularWorkIds = new Set(popularProgress.map((p) => p.workId).filter(Boolean));
+  const popularCards = [
+    ...cards.filter((c) => popularWorkIds.has(c.id)),
+    ...cards.filter((c) => !popularWorkIds.has(c.id)),
+  ];
+
+  const rowMap = new Map<string, { id: string; defaultTitle: string; items: typeof cards }>();
+  rowMap.set("featured", { id: "featured", defaultTitle: "Destaques", items: cards.filter((item) => item.featured) });
+  rowMap.set("popular", { id: "popular", defaultTitle: "Mais assistidos", items: popularCards });
+  rowMap.set("recent", { id: "recent", defaultTitle: "Adicionados recentemente", items: cards });
+  rowMap.set("anime", { id: "anime", defaultTitle: "Animes", items: cards.filter((item) => item.contentKind === "anime") });
+  rowMap.set("movies", { id: "movies", defaultTitle: "Filmes", items: cards.filter((item) => item.contentKind === "movie") });
+  rowMap.set("series", { id: "series", defaultTitle: "Séries", items: cards.filter((item) => item.contentKind === "series") });
+  rowMap.set("dubbed", { id: "dubbed", defaultTitle: "Dublado", items: dubbed });
+  rowMap.set("subtitled", { id: "subtitled", defaultTitle: "Legendado", items: subtitled });
+  rowMap.set("recommended", { id: "recommended", defaultTitle: "Para você", items: recommendations });
+
+  for (const col of collectionRows) {
+    rowMap.set(col.id, { id: col.id, defaultTitle: col.title, items: col.items });
+  }
+  for (const gr of genreRows) {
+    rowMap.set(gr.id, { id: gr.id, defaultTitle: gr.title, items: gr.items });
+  }
+
+  function matchGenreWorks(genreKey: string) {
+    const term = genreKey.toLowerCase();
+    return cards.filter((card) => {
+      const meta = readObject(card.metadata);
+      const direct = Array.isArray(meta.genres) ? meta.genres : [];
+      const anilist = readObject(meta.anilist);
+      const nested = Array.isArray(anilist.genres) ? anilist.genres : [];
+      const all = [...direct, ...nested].map((g) => String(g).toLowerCase());
+      if (term === "action" || term === "ação" || term === "acao") return all.some((g) => g.includes("ação") || g.includes("acao") || g.includes("action"));
+      if (term === "comedy" || term === "comédia" || term === "comedia") return all.some((g) => g.includes("comédia") || g.includes("comedia") || g.includes("comedy"));
+      if (term === "drama") return all.some((g) => g.includes("drama"));
+      if (term === "scifi" || term === "ficção" || term === "ficção científica") return all.some((g) => g.includes("ficção") || g.includes("sci-fi") || g.includes("scifi"));
+      if (term === "thriller" || term === "suspense" || term === "terror") return all.some((g) => g.includes("suspense") || g.includes("terror") || g.includes("thriller") || g.includes("horror"));
+      if (term === "animation" || term === "animação" || term === "animacao") return all.some((g) => g.includes("animação") || g.includes("animacao") || g.includes("animation"));
+      return all.some((g) => g.includes(term));
+    });
+  }
+
+  const storedSections = getStoredHomeSections();
+  const configuredRows: Array<{ id: string; title: string; items: typeof cards }> = [];
+
+  for (const sec of storedSections) {
+    if (!sec.enabled) continue;
+    let found = rowMap.get(sec.id);
+    if (!found && sec.id.startsWith("genre:")) {
+      const gTerm = sec.id.replace(/^genre:/, "");
+      const matched = matchGenreWorks(gTerm);
+      if (matched.length > 0) {
+        found = { id: sec.id, defaultTitle: sec.defaultTitle, items: matched };
+      }
+    }
+    if (found && found.items.length > 0) {
+      configuredRows.push({
+        id: found.id,
+        title: sec.title.trim() || found.defaultTitle,
+        items: found.items,
+      });
+    }
+  }
+
+  const finalRows = configuredRows.length > 0 ? configuredRows : [
     { id: "featured", title: "Destaques", items: cards.filter((item) => item.featured) },
     { id: "recommended", title: "Para você", items: recommendations },
     { id: "recent", title: "Adicionados recentemente", items: cards },
@@ -251,7 +384,9 @@ app.get("/api/home", async (request, reply) => {
     { id: "series", title: "Séries", items: cards.filter((item) => item.contentKind === "series") },
     { id: "anime", title: "Animes", items: cards.filter((item) => item.contentKind === "anime") },
     ...genreRows,
-  ] });
+  ];
+
+  return toJson({ hero: cards.find((item) => item.featured) ?? cards[0] ?? null, rows: finalRows });
 });
 app.get("/api/search", async (request, reply) => {
   const profile = await requireActiveProfile(request, reply);
@@ -1057,6 +1192,79 @@ app.patch("/api/admin/accounts/:id", async (request, reply) => {
   }, select: { id: true, username: true, role: true, disabled: true, updatedAt: true } });
   return updated;
 });
+app.delete("/api/admin/accounts/:id", async (request, reply) => {
+  if (!requireOwner(request, reply)) return;
+  const identity = sessionIdentity(request);
+  const id = (request.params as { id: string }).id;
+  if (id === identity.accountId) {
+    return reply.code(409).send({ error: "Você não pode excluir sua própria conta conectada" });
+  }
+  const account = await prisma.account.findUnique({ where: { id }, select: { id: true, role: true, username: true } });
+  if (!account) return reply.code(404).send({ error: "Conta não encontrada" });
+  if (account.role === "owner") {
+    return reply.code(403).send({ error: "Contas com papel de proprietário (owner) não podem ser excluídas" });
+  }
+  await prisma.$transaction(async (tx) => {
+    await tx.editorialOverride.updateMany({
+      where: { updatedByAccountId: id },
+      data: { updatedByAccountId: identity.accountId },
+    });
+    await tx.editorialCollection.updateMany({
+      where: { createdByAccountId: id },
+      data: { createdByAccountId: identity.accountId },
+    });
+    await tx.editorialCollection.updateMany({
+      where: { updatedByAccountId: id },
+      data: { updatedByAccountId: identity.accountId },
+    });
+    await tx.auditLog.deleteMany({
+      where: { actorAccountId: id },
+    });
+    await tx.account.delete({ where: { id } });
+  });
+
+  return { ok: true };
+});
+app.get("/api/admin/home-sections", async (request, reply) => {
+  const sections = getStoredHomeSections();
+  const collections = await prisma.editorialCollection.findMany({
+    where: { state: "published", active: true },
+    select: { id: true, slug: true, title: true }
+  });
+  const existingIds = new Set(sections.map((s) => s.id));
+  const result = [...sections];
+  for (const col of collections) {
+    const colId = `collection:${col.slug}`;
+    if (!existingIds.has(colId)) {
+      result.push({
+        id: colId,
+        title: col.title,
+        defaultTitle: col.title,
+        enabled: true,
+        type: "collection",
+        sortOrder: result.length,
+      });
+    }
+  }
+  return toJson(result);
+});
+app.put("/api/admin/home-sections", async (request, reply) => {
+  const body = request.body as { sections?: HomeSectionConfig[] };
+  if (!Array.isArray(body?.sections)) {
+    return reply.code(400).send({ error: "Formato inválido. 'sections' deve ser um array." });
+  }
+  const sanitized = body.sections.map((sec, index) => ({
+    id: String(sec.id),
+    title: String(sec.title || sec.defaultTitle || sec.id).trim(),
+    defaultTitle: String(sec.defaultTitle || sec.title || sec.id).trim(),
+    enabled: Boolean(sec.enabled),
+    type: (sec.type === "genre" || sec.type === "collection" ? sec.type : "system") as "system" | "genre" | "collection",
+    sortOrder: typeof sec.sortOrder === "number" ? sec.sortOrder : index,
+  }));
+  saveStoredHomeSections(sanitized);
+
+  return toJson({ success: true, sections: sanitized });
+});
 app.get("/api/admin/revisions", async () => {
   const revisions = await prisma.revision.findMany({
     orderBy: { createdAt: "desc" },
@@ -1071,6 +1279,7 @@ app.get("/api/admin/revisions", async () => {
       number: revision.number,
       active: revision.active,
       createdAt: revision.createdAt,
+      publicationId: revision.publicationId,
       packageId: revision.publication.packageId,
       packageType: revision.publication.packageType,
       publicationState: revision.publication.state,

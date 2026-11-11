@@ -61,7 +61,16 @@ export type Publication = { id: string; uploadId: string; packageId: string; pac
 export type PublicationDetail = Publication & { manifest: Record<string, unknown>; diff: { previousRevision?: number | null; added: string[]; removed: string[]; changed: string[] } };
 export type StorageMetrics = { assets: { count: number; bytes: number }; media: { count: number; bytes: number }; publications: { count: number; bytes: number }; transcodeCache: { count: number; bytes: number }; disk?: { totalBytes: number; freeBytes: number } | null };
 
-export type Revision = { id: string; scopeKey: string; number: number; active: boolean; createdAt: string; packageId: string; packageType: "movie" | "season" | "episode_replacement"; publicationState: string; receiptStatus?: string | null; workTitle: string; seasonTitle?: string | null; episodeTitle?: string | null; episodeNumber?: number | null };
+export type HomeSectionConfig = {
+  id: string;
+  title: string;
+  defaultTitle: string;
+  enabled: boolean;
+  type: "system" | "genre" | "collection";
+  sortOrder: number;
+};
+
+export type Revision = { id: string; publicationId?: string; scopeKey: string; number: number; active: boolean; createdAt: string; packageId: string; packageType: "movie" | "season" | "episode_replacement"; publicationState: string; receiptStatus?: string | null; workTitle: string; seasonTitle?: string | null; episodeTitle?: string | null; episodeNumber?: number | null };
 export type WorkDeletionPreview = {
   work: { id: string; stableId: string; title: string; contentKind: "movie" | "series" | "anime" };
   counts: { seasons: number; episodes: number; assets: number; mediaObjects: number; favorites: number; progress: number; collectionItems: number; publications: number; transcodeJobs: number; bytes: number };
