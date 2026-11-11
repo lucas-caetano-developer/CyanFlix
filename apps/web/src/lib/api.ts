@@ -170,7 +170,7 @@ export const api = {
     return res.json() as Promise<{ voiceAudioUrl: string }>;
   },
   getWorkPlayableSources: (workId: string) => fetchApi<WorkPlayableSources>(`/api/admin/works/${encodeURIComponent(workId)}/playable-sources`),
-  extractCharacterVoice: (clips: Array<{ mediaUrl: string; startSeconds: number; durationSeconds: number }>) =>
+  extractCharacterVoice: (clips: Array<{ mediaUrl: string; startSeconds: number; durationSeconds: number; audioOffsetSeconds?: number }>) =>
     fetchApi<{ voiceAudioUrl: string }>('/api/admin/characters/extract-voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clips }) }),
   getHomeSections: () => fetchApi<HomeSectionConfig[]>('/api/admin/home-sections'),
   updateHomeSections: (sections: HomeSectionConfig[]) => fetchApi<{ success: boolean; sections: HomeSectionConfig[] }>('/api/admin/home-sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sections }) }),

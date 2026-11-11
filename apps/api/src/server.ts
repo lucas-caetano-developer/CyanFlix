@@ -1780,6 +1780,13 @@ app.post("/api/admin/characters/upload-audio", { bodyLimit: 50 * 1024 * 1024 }, 
   return toJson({ voiceAudioUrl: publicPath });
 });
 
+function extractMediaAudioOffset(codecs: unknown): number {
+  const delivery = readNestedObject(codecs, "delivery") ?? readObject(codecs);
+  const raw = delivery?.av_offset_seconds;
+  const val = Number(Array.isArray(raw) ? raw[0] : raw);
+  return Number.isFinite(val) ? val : 0;
+}
+
 app.get("/api/admin/works/:workId/playable-sources", async (request, reply) => {
   const { workId } = request.params as { workId: string };
   const work = await prisma.work.findUnique({
@@ -1801,14 +1808,18 @@ app.get("/api/admin/works/:workId/playable-sources", async (request, reply) => {
   });
   if (!work) return reply.code(404).send({ error: "Obra não encontrada" });
 
-  const sources: Array<{ id: string; label: string; mediaUrl: string; seasonNumber?: number; episodeNumber?: number }> = [];
+  const sources: Array<{ id: string; label: string; mediaUrl: string; seasonNumber?: number; episodeNumber?: number; audioOffsetSeconds?: number }> = [];
 
   if (work.contentKind === "movie" && work.mediaObjects[0]?.publicPath) {
-    sources.push({
-      id: work.id,
-      label: "Filme Completo",
-      mediaUrl: work.mediaObjects[0].publicPath,
-    });
+    const media = work.mediaObjects[0];
+    if (media.publicPath) {
+      sources.push({
+        id: work.id,
+        label: "Filme Completo",
+        mediaUrl: media.publicPath,
+        audioOffsetSeconds: extractMediaAudioOffset(media.codecs),
+      });
+    }
   } else {
     for (const season of work.seasons) {
       for (const ep of season.episodes) {
@@ -1820,6 +1831,7 @@ app.get("/api/admin/works/:workId/playable-sources", async (request, reply) => {
             mediaUrl: media.publicPath,
             seasonNumber: season.number,
             episodeNumber: ep.number,
+            audioOffsetSeconds: extractMediaAudioOffset(media.codecs),
           });
         }
       }
@@ -1886,6 +1898,7 @@ app.post("/api/admin/characters/extract-voice", async (request, reply) => {
       mediaUrl: string;
       startSeconds: number;
       durationSeconds: number;
+      audioOffsetSeconds?: number;
     }>;
   };
 
@@ -1910,7 +1923,8 @@ app.post("/api/admin/characters/extract-voice", async (request, reply) => {
       const sourceDiskPath = safeDataPath("library", relative);
       const clipOutPath = path.join(tempDir, `clip_${i}.m4a`);
 
-      await extractAudioSegment(sourceDiskPath, clipOutPath, clip.startSeconds || 0, clip.durationSeconds || 10);
+      const start = Math.max(0, (clip.startSeconds || 0) + (clip.audioOffsetSeconds || 0));
+      await extractAudioSegment(sourceDiskPath, clipOutPath, start, clip.durationSeconds || 10);
       tempClips.push(clipOutPath);
     }
 

@@ -2,12 +2,14 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Hls from "hls.js";
 import { api } from "../../lib/api";
+import { applyAudioInitPts, isSafariBrowser } from "../../lib/player";
 
 type ClipItem = {
   mediaUrl: string;
   sourceLabel: string;
   startSeconds: number;
   durationSeconds: number;
+  audioOffsetSeconds?: number;
 };
 
 type Props = {
@@ -36,11 +38,13 @@ export function MiniVideoAudioClipper({ workId, currentVoiceAudioUrl, onVoiceAud
   const [duration, setDuration] = useState<number>(0);
 
   const [clipStart, setClipStart] = useState<number>(0);
-  const [clipDuration, setClipDuration] = useState<number>(15);
+  const [clipEnd, setClipEnd] = useState<number>(0);
   const [clips, setClips] = useState<ClipItem[]>([]);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isUploadingAudio, setIsUploadingAudio] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const previewEndRef = useRef<number | null>(null);
 
   const { data: playableData, isLoading } = useQuery({
     queryKey: ["admin", "work-playable-sources", workId],
@@ -49,6 +53,13 @@ export function MiniVideoAudioClipper({ workId, currentVoiceAudioUrl, onVoiceAud
   });
 
   const sources = playableData?.sources || [];
+  const selectedSource = sources.find((s) => s.mediaUrl === selectedSourceUrl);
+  const currentAudioOffset = selectedSource?.audioOffsetSeconds ?? 0;
+  const audioOffsetRef = useRef<number>(currentAudioOffset);
+
+  useEffect(() => {
+    audioOffsetRef.current = currentAudioOffset;
+  }, [currentAudioOffset]);
 
   // Auto-select first source if available
   useEffect(() => {
@@ -57,7 +68,7 @@ export function MiniVideoAudioClipper({ workId, currentVoiceAudioUrl, onVoiceAud
     }
   }, [sources, selectedSourceUrl]);
 
-  // Setup video playback with Hls.js or native
+  // Setup video playback with Hls.js or native, applying A/V sync offset
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !selectedSourceUrl) return;
@@ -65,8 +76,11 @@ export function MiniVideoAudioClipper({ workId, currentVoiceAudioUrl, onVoiceAud
     let hls: Hls | null = null;
     const isHls = selectedSourceUrl.endsWith(".m3u8");
 
-    if (isHls && Hls.isSupported()) {
+    if (isHls && Hls.isSupported() && !isSafariBrowser()) {
       hls = new Hls({ enableWorker: true });
+      hls.on(Hls.Events.INIT_PTS_FOUND, (_event, data) => {
+        applyAudioInitPts(hls, data, audioOffsetRef.current);
+      });
       hls.loadSource(selectedSourceUrl);
       hls.attachMedia(video);
     } else {
@@ -74,7 +88,12 @@ export function MiniVideoAudioClipper({ workId, currentVoiceAudioUrl, onVoiceAud
     }
 
     const onTimeUpdate = () => {
-      setCurrentTime(video.currentTime);
+      const ct = video.currentTime;
+      setCurrentTime(ct);
+      if (previewEndRef.current !== null && ct >= previewEndRef.current) {
+        video.pause();
+        previewEndRef.current = null;
+      }
     };
     const onLoadedMetadata = () => {
       setDuration(video.duration || 0);
@@ -95,13 +114,29 @@ export function MiniVideoAudioClipper({ workId, currentVoiceAudioUrl, onVoiceAud
   const handleMarkStart = () => {
     const time = Math.floor(currentTime);
     setClipStart(time);
+    if (clipEnd <= time) {
+      setClipEnd(time + 10);
+    }
   };
 
   const handleMarkEnd = () => {
-    const end = Math.floor(currentTime);
-    if (end > clipStart) {
-      setClipDuration(end - clipStart);
+    const time = Math.ceil(currentTime);
+    setClipEnd(time);
+  };
+
+  const clipDuration = Math.max(0, +(clipEnd - clipStart).toFixed(1));
+
+  const handlePreviewClip = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (clipEnd <= clipStart) {
+      setErrorMessage("O tempo de fim deve ser maior que o início para prévia.");
+      return;
     }
+    setErrorMessage(null);
+    video.currentTime = clipStart;
+    previewEndRef.current = clipEnd;
+    video.play().catch(() => {});
   };
 
   const handleAddClip = () => {
@@ -109,8 +144,8 @@ export function MiniVideoAudioClipper({ workId, currentVoiceAudioUrl, onVoiceAud
     const sourceObj = sources.find((s) => s.mediaUrl === selectedSourceUrl);
     const sourceLabel = sourceObj ? sourceObj.label : "Trecho";
 
-    if (clipDuration <= 0) {
-      setErrorMessage("A duração do trecho deve ser maior que 0.");
+    if (clipEnd <= clipStart) {
+      setErrorMessage("O tempo de término deve ser maior que o tempo de início.");
       return;
     }
 
@@ -121,6 +156,7 @@ export function MiniVideoAudioClipper({ workId, currentVoiceAudioUrl, onVoiceAud
         sourceLabel,
         startSeconds: clipStart,
         durationSeconds: clipDuration,
+        audioOffsetSeconds: currentAudioOffset,
       },
     ]);
     setErrorMessage(null);
@@ -128,6 +164,19 @@ export function MiniVideoAudioClipper({ workId, currentVoiceAudioUrl, onVoiceAud
 
   const handleRemoveClip = (index: number) => {
     setClips((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handlePlayClipSnippet = (clip: ClipItem) => {
+    if (clip.mediaUrl !== selectedSourceUrl) {
+      setSelectedSourceUrl(clip.mediaUrl);
+    }
+    setTimeout(() => {
+      const video = videoRef.current;
+      if (!video) return;
+      video.currentTime = clip.startSeconds;
+      previewEndRef.current = clip.startSeconds + clip.durationSeconds;
+      video.play().catch(() => {});
+    }, 100);
   };
 
   const handleGenerateVoice = async () => {
@@ -143,6 +192,7 @@ export function MiniVideoAudioClipper({ workId, currentVoiceAudioUrl, onVoiceAud
           mediaUrl: c.mediaUrl,
           startSeconds: c.startSeconds,
           durationSeconds: c.durationSeconds,
+          audioOffsetSeconds: c.audioOffsetSeconds,
         }))
       );
       onVoiceAudioChange(res.voiceAudioUrl);
@@ -240,7 +290,7 @@ export function MiniVideoAudioClipper({ workId, currentVoiceAudioUrl, onVoiceAud
             </select>
           </div>
 
-          <div className="admin-mini-clipper__video-wrap">
+          <div className="admin-mini-clipper__video-wrap" style={{ marginTop: "0.5rem" }}>
             <video
               ref={videoRef}
               controls
@@ -249,35 +299,83 @@ export function MiniVideoAudioClipper({ workId, currentVoiceAudioUrl, onVoiceAud
             />
           </div>
 
-          <div className="admin-mini-clipper__controls">
-            <div className="admin-mini-clipper__time-display">
-              ⏱️ {formatSeconds(currentTime)} / {formatSeconds(duration)}
+          <div className="admin-mini-clipper__controls" style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div className="admin-mini-clipper__time-display" style={{ fontSize: "0.85rem", fontWeight: 600, color: "#38bdf8" }}>
+                ⏱️ Posição Atual: {formatSeconds(currentTime)} / {formatSeconds(duration)}
+              </div>
+              {clipDuration > 0 && (
+                <span style={{ fontSize: "0.82rem", color: "#fbbf24", fontWeight: 600 }}>
+                  Duração do trecho: {clipDuration}s
+                </span>
+              )}
             </div>
 
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+            {/* Início e Fim inputs */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", background: "rgba(15, 23, 42, 0.4)", padding: "0.6rem", borderRadius: "0.5rem", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <label style={{ fontSize: "0.78rem", color: "#94a3b8" }}>Início ({formatSeconds(clipStart)}):</label>
+                  <button
+                    type="button"
+                    className="btn btn--secondary btn--xs"
+                    onClick={handleMarkStart}
+                    title="Definir início no tempo atual do vídeo"
+                  >
+                    ⏱️ Tempo Atual
+                  </button>
+                </div>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  className="admin-input"
+                  value={clipStart}
+                  onChange={(e) => setClipStart(Math.max(0, Number(e.target.value) || 0))}
+                  style={{ fontSize: "0.85rem", padding: "0.3rem 0.5rem" }}
+                />
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <label style={{ fontSize: "0.78rem", color: "#94a3b8" }}>Fim ({formatSeconds(clipEnd)}):</label>
+                  <button
+                    type="button"
+                    className="btn btn--secondary btn--xs"
+                    onClick={handleMarkEnd}
+                    title="Definir fim no tempo atual do vídeo"
+                  >
+                    ⏱️ Tempo Atual
+                  </button>
+                </div>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  className="admin-input"
+                  value={clipEnd}
+                  onChange={(e) => setClipEnd(Math.max(0, Number(e.target.value) || 0))}
+                  style={{ fontSize: "0.85rem", padding: "0.3rem 0.5rem" }}
+                />
+              </div>
+            </div>
+
+            {/* Actions for current snippet */}
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end" }}>
               <button
                 type="button"
                 className="btn btn--secondary btn--xs"
-                onClick={handleMarkStart}
-                title="Define o início do trecho no ponto atual do vídeo"
+                onClick={handlePreviewClip}
+                disabled={clipDuration <= 0}
+                title="Tocar trecho selecionado de Início até Fim"
               >
-                Início: {formatSeconds(clipStart)}
+                ▶️ Ouvir Prévia
               </button>
-              <button
-                type="button"
-                className="btn btn--secondary btn--xs"
-                onClick={handleMarkEnd}
-                title="Define o fim do trecho no ponto atual do vídeo"
-              >
-                Fim: {formatSeconds(clipStart + clipDuration)}
-              </button>
-              <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>
-                ({clipDuration}s)
-              </span>
               <button
                 type="button"
                 className="btn btn--primary btn--xs"
                 onClick={handleAddClip}
+                disabled={clipDuration <= 0}
                 title="Adiciona este trecho à lista de gravação"
               >
                 ➕ Gravar Trecho ({clipDuration}s)
@@ -293,17 +391,28 @@ export function MiniVideoAudioClipper({ workId, currentVoiceAudioUrl, onVoiceAud
               </div>
               <div className="admin-mini-clipper__clip-list">
                 {clips.map((clip, idx) => (
-                  <div key={idx} className="admin-mini-clipper__clip-item">
+                  <div key={idx} className="admin-mini-clipper__clip-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem" }}>
                     <span>
                       <strong>#{idx + 1} {clip.sourceLabel}:</strong> {formatSeconds(clip.startSeconds)} até {formatSeconds(clip.startSeconds + clip.durationSeconds)} ({clip.durationSeconds}s)
                     </span>
-                    <button
-                      type="button"
-                      className="btn btn--danger btn--xs"
-                      onClick={() => handleRemoveClip(idx)}
-                    >
-                      ✕
-                    </button>
+                    <div style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}>
+                      <button
+                        type="button"
+                        className="btn btn--secondary btn--xs"
+                        onClick={() => handlePlayClipSnippet(clip)}
+                        title="Ouvir no player"
+                      >
+                        ▶
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--danger btn--xs"
+                        onClick={() => handleRemoveClip(idx)}
+                        title="Remover trecho"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -315,7 +424,7 @@ export function MiniVideoAudioClipper({ workId, currentVoiceAudioUrl, onVoiceAud
                   onClick={handleGenerateVoice}
                   disabled={isProcessing}
                 >
-                  {isProcessing ? "⏳ Processando com FFmpeg no servidor…" : `✨ Gerar Áudio Final (${clips.length} trechos)`}
+                  {isProcessing ? "⏳ Processando com FFmpeg no servidor…" : `✨ Gerar Áudio Final (${clips.length} trecho${clips.length > 1 ? "s" : ""})`}
                 </button>
                 <button
                   type="button"
@@ -332,7 +441,7 @@ export function MiniVideoAudioClipper({ workId, currentVoiceAudioUrl, onVoiceAud
           {/* Direct audio upload option */}
           <div style={{ marginTop: "0.85rem", paddingTop: "0.85rem", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
-              Ou se já possuir o arquivo de áudio extraído no computador:
+              Ou se já possuir o arquivo de áudio gravado no computador:
             </span>
             <input
               type="file"

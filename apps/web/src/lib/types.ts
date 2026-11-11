@@ -180,6 +180,7 @@ export type PlayableSource = {
   mediaUrl: string;
   seasonNumber?: number;
   episodeNumber?: number;
+  audioOffsetSeconds?: number;
 };
 
 export type WorkPlayableSources = {

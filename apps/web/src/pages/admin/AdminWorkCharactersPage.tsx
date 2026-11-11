@@ -3,6 +3,8 @@ import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { MiniVideoAudioClipper } from "../../components/admin/MiniVideoAudioClipper";
+import { CharacterArchetypeSelector } from "../../components/admin/CharacterArchetypeSelector";
+import { CHARACTER_ROLES, parseArchetypes } from "../../lib/characterConstants";
 import type { Character, VoiceActor } from "../../lib/types";
 
 export function AdminWorkCharactersPage() {
@@ -17,7 +19,7 @@ export function AdminWorkCharactersPage() {
   const [formName, setFormName] = useState("");
   const [formPhotoUrl, setFormPhotoUrl] = useState("");
   const [formRole, setFormRole] = useState("Protagonista");
-  const [formArchetype, setFormArchetype] = useState("");
+  const [formArchetypes, setFormArchetypes] = useState<string[]>([]);
   const [formVoiceActorId, setFormVoiceActorId] = useState("");
   const [formVoiceAudioUrl, setFormVoiceAudioUrl] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -97,7 +99,7 @@ export function AdminWorkCharactersPage() {
     setFormName("");
     setFormPhotoUrl("");
     setFormRole("Protagonista");
-    setFormArchetype("");
+    setFormArchetypes([]);
     setFormVoiceActorId("");
     setFormVoiceAudioUrl(null);
     setFormError(null);
@@ -113,7 +115,7 @@ export function AdminWorkCharactersPage() {
     setFormName(char.name || "");
     setFormPhotoUrl(char.photoUrl || "");
     setFormRole(char.role || "Protagonista");
-    setFormArchetype(char.archetype || "");
+    setFormArchetypes(parseArchetypes(char.archetype));
     setFormVoiceActorId(char.voiceActorId || "");
     setFormVoiceAudioUrl(char.voiceAudioUrl || null);
     setFormError(null);
@@ -152,7 +154,7 @@ export function AdminWorkCharactersPage() {
           workId,
           photoUrl: formPhotoUrl.trim() || null,
           role: formRole.trim() || null,
-          archetype: formArchetype.trim() || null,
+          archetype: formArchetypes.join(", ") || null,
           voiceAudioUrl: formVoiceAudioUrl,
           voiceActorId: formVoiceActorId.trim() || null,
         },
@@ -163,7 +165,7 @@ export function AdminWorkCharactersPage() {
         workId,
         photoUrl: formPhotoUrl.trim() || null,
         role: formRole.trim() || null,
-        archetype: formArchetype.trim() || null,
+        archetype: formArchetypes.join(", ") || null,
         voiceAudioUrl: formVoiceAudioUrl,
         voiceActorId: formVoiceActorId.trim() || null,
       });
@@ -270,7 +272,9 @@ export function AdminWorkCharactersPage() {
 
                   <div className="admin-character-badges">
                     {char.role && <span className="admin-role-badge">{char.role}</span>}
-                    {char.archetype && <span className="admin-archetype-badge">{char.archetype}</span>}
+                    {parseArchetypes(char.archetype).map((arch) => (
+                      <span key={arch} className="admin-archetype-badge">{arch}</span>
+                    ))}
                   </div>
 
                   {char.voiceActor ? (
@@ -475,53 +479,39 @@ export function AdminWorkCharactersPage() {
                 </span>
               </div>
 
-              {/* Role & Archetype */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                <div className="admin-form-group">
-                  <label htmlFor="char-modal-role" className="admin-label">
-                    Tipo / Papel
-                  </label>
-                  <select
-                    id="char-modal-role"
-                    className="admin-select"
-                    value={formRole}
-                    onChange={(e) => setFormRole(e.target.value)}
-                  >
-                    <option value="Protagonista">Protagonista</option>
-                    <option value="Antagonista / Vilão">Antagonista / Vilão</option>
-                    <option value="Coadjuvante">Coadjuvante</option>
-                    <option value="Secundário">Secundário</option>
-                    <option value="Participação Especial">Participação Especial</option>
-                  </select>
-                </div>
+              {/* Role & Archetype Selection */}
+              <div className="admin-form-group">
+                <label htmlFor="char-modal-role" className="admin-label">
+                  Tipo / Papel
+                </label>
+                <select
+                  id="char-modal-role"
+                  className="admin-select"
+                  value={formRole}
+                  onChange={(e) => setFormRole(e.target.value)}
+                >
+                  {CHARACTER_ROLES.map((role) => (
+                    <option key={role.value} value={role.value}>
+                      {role.label} — {role.description}
+                    </option>
+                  ))}
+                </select>
+                <span className="admin-form-hint">
+                  Função estrutural do personagem na narrativa (seleção única).
+                </span>
+              </div>
 
-                <div className="admin-form-group">
-                  <label htmlFor="char-modal-archetype" className="admin-label">
-                    Arquétipo Descritivo
-                  </label>
-                  <input
-                    id="char-modal-archetype"
-                    type="text"
-                    list="work-archetypes-list"
-                    className="admin-input"
-                    value={formArchetype}
-                    onChange={(e) => setFormArchetype(e.target.value)}
-                    placeholder="Ex: Protagonista cômico, Vilão misterioso..."
-                  />
-                  <datalist id="work-archetypes-list">
-                    <option value="Protagonista heroico" />
-                    <option value="Protagonista cômico" />
-                    <option value="Protagonista relutante" />
-                    <option value="Vilão cômico" />
-                    <option value="Vilão misterioso" />
-                    <option value="Vilão calculista" />
-                    <option value="Anti-herói sombrio" />
-                    <option value="Mentor sábio" />
-                    <option value="Alívio cômico" />
-                    <option value="Rival determinado" />
-                    <option value="Aliado leal" />
-                  </datalist>
-                </div>
+              <div className="admin-form-group">
+                <label className="admin-label">
+                  Arquétipo(s) Narrativo(s) e Comportamental(is)
+                </label>
+                <span className="admin-form-hint" style={{ marginBottom: "0.5rem", display: "block" }}>
+                  Selecione um ou múltiplos arquétipos que definem a essência e personalidade do personagem.
+                </span>
+                <CharacterArchetypeSelector
+                  selected={formArchetypes}
+                  onChange={setFormArchetypes}
+                />
               </div>
 
               {/* Voice Sample with Mini Player */}

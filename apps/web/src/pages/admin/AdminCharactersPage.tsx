@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { useDebounce } from "../../hooks/useDebounce";
 import { MiniVideoAudioClipper } from "../../components/admin/MiniVideoAudioClipper";
+import { CharacterArchetypeSelector } from "../../components/admin/CharacterArchetypeSelector";
+import { CHARACTER_ROLES } from "../../lib/characterConstants";
 import type { VoiceActor } from "../../lib/types";
 
 export function AdminCharactersPage() {
@@ -18,7 +20,7 @@ export function AdminCharactersPage() {
   const [newName, setNewName] = useState("");
   const [newPhotoUrl, setNewPhotoUrl] = useState("");
   const [newRole, setNewRole] = useState("Protagonista");
-  const [newArchetype, setNewArchetype] = useState("");
+  const [newArchetypes, setNewArchetypes] = useState<string[]>([]);
   const [newVoiceActorId, setNewVoiceActorId] = useState("");
   const [newVoiceAudioUrl, setNewVoiceAudioUrl] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -76,7 +78,7 @@ export function AdminCharactersPage() {
     setNewName("");
     setNewPhotoUrl("");
     setNewRole("Protagonista");
-    setNewArchetype("");
+    setNewArchetypes([]);
     setNewVoiceActorId("");
     setNewVoiceAudioUrl(null);
     setFormError(null);
@@ -114,7 +116,7 @@ export function AdminCharactersPage() {
       workId: selectedWorkId,
       photoUrl: newPhotoUrl.trim() || null,
       role: newRole.trim() || null,
-      archetype: newArchetype.trim() || null,
+      archetype: newArchetypes.join(", ") || null,
       voiceAudioUrl: newVoiceAudioUrl,
       voiceActorId: newVoiceActorId.trim() || null,
     });
@@ -367,53 +369,39 @@ export function AdminCharactersPage() {
                 </span>
               </div>
 
-              {/* Role & Archetype Row */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                <div className="admin-form-group">
-                  <label htmlFor="char-role" className="admin-label">
-                    Tipo / Papel
-                  </label>
-                  <select
-                    id="char-role"
-                    className="admin-select"
-                    value={newRole}
-                    onChange={(e) => setNewRole(e.target.value)}
-                  >
-                    <option value="Protagonista">Protagonista</option>
-                    <option value="Antagonista / Vilão">Antagonista / Vilão</option>
-                    <option value="Coadjuvante">Coadjuvante</option>
-                    <option value="Secundário">Secundário</option>
-                    <option value="Participação Especial">Participação Especial</option>
-                  </select>
-                </div>
+              {/* Role & Archetype Selection */}
+              <div className="admin-form-group">
+                <label htmlFor="char-role" className="admin-label">
+                  Tipo / Papel
+                </label>
+                <select
+                  id="char-role"
+                  className="admin-select"
+                  value={newRole}
+                  onChange={(e) => setNewRole(e.target.value)}
+                >
+                  {CHARACTER_ROLES.map((role) => (
+                    <option key={role.value} value={role.value}>
+                      {role.label} — {role.description}
+                    </option>
+                  ))}
+                </select>
+                <span className="admin-form-hint">
+                  Função estrutural do personagem na narrativa (seleção única).
+                </span>
+              </div>
 
-                <div className="admin-form-group">
-                  <label htmlFor="char-archetype" className="admin-label">
-                    Arquétipo Descritivo
-                  </label>
-                  <input
-                    id="char-archetype"
-                    type="text"
-                    list="archetypes-list"
-                    className="admin-input"
-                    value={newArchetype}
-                    onChange={(e) => setNewArchetype(e.target.value)}
-                    placeholder="Ex: Protagonista cômico, Vilão misterioso..."
-                  />
-                  <datalist id="archetypes-list">
-                    <option value="Protagonista heroico" />
-                    <option value="Protagonista cômico" />
-                    <option value="Protagonista relutante" />
-                    <option value="Vilão cômico" />
-                    <option value="Vilão misterioso" />
-                    <option value="Vilão calculista" />
-                    <option value="Anti-herói sombrio" />
-                    <option value="Mentor sábio" />
-                    <option value="Alívio cômico" />
-                    <option value="Rival determinado" />
-                    <option value="Aliado leal" />
-                  </datalist>
-                </div>
+              <div className="admin-form-group">
+                <label className="admin-label">
+                  Arquétipo(s) Narrativo(s) e Comportamental(is)
+                </label>
+                <span className="admin-form-hint" style={{ marginBottom: "0.5rem", display: "block" }}>
+                  Selecione um ou múltiplos arquétipos que definem a personalidade e o padrão narrativo.
+                </span>
+                <CharacterArchetypeSelector
+                  selected={newArchetypes}
+                  onChange={setNewArchetypes}
+                />
               </div>
 
               {/* Voice Sample Clipper with Mini Player */}

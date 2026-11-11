@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
+import { parseArchetypes } from "../../lib/characterConstants";
 
 export function AdminVoiceActorDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -225,7 +226,9 @@ export function AdminVoiceActorDetailPage() {
                     )}
                     <div className="admin-character-badges">
                       {char.role && <span className="admin-role-badge">{char.role}</span>}
-                      {char.archetype && <span className="admin-archetype-badge">{char.archetype}</span>}
+                      {parseArchetypes(char.archetype).map((arch) => (
+                        <span key={arch} className="admin-archetype-badge">{arch}</span>
+                      ))}
                     </div>
                   </div>
                 </Link>
