@@ -18,6 +18,7 @@ export function AdminWorkCharactersPage() {
   // Form states
   const [formName, setFormName] = useState("");
   const [formPhotoUrl, setFormPhotoUrl] = useState("");
+  const [formBodyPhotoUrl, setFormBodyPhotoUrl] = useState("");
   const [formRole, setFormRole] = useState("Protagonista");
   const [formArchetypes, setFormArchetypes] = useState<string[]>([]);
   const [formProfileSentiments, setFormProfileSentiments] = useState("");
@@ -25,8 +26,11 @@ export function AdminWorkCharactersPage() {
   const [formVoiceAudioUrl, setFormVoiceAudioUrl] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isUploadingBodyPhoto, setIsUploadingBodyPhoto] = useState(false);
+  const [isDragOverBody, setIsDragOverBody] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const bodyPhotoInputRef = useRef<HTMLInputElement>(null);
 
   // Deleting state
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -56,6 +60,7 @@ export function AdminWorkCharactersPage() {
       name: string;
       workId: string;
       photoUrl?: string | null;
+      bodyPhotoUrl?: string | null;
       role?: string | null;
       archetype?: string | null;
       profileSentiments?: string | null;
@@ -100,6 +105,7 @@ export function AdminWorkCharactersPage() {
   const resetForm = () => {
     setFormName("");
     setFormPhotoUrl("");
+    setFormBodyPhotoUrl("");
     setFormRole("Protagonista");
     setFormArchetypes([]);
     setFormProfileSentiments("");
@@ -117,6 +123,7 @@ export function AdminWorkCharactersPage() {
     setEditingCharacter(char);
     setFormName(char.name || "");
     setFormPhotoUrl(char.photoUrl || "");
+    setFormBodyPhotoUrl(char.bodyPhotoUrl || "");
     setFormRole(char.role || "Protagonista");
     setFormArchetypes(parseArchetypes(char.archetype));
     setFormProfileSentiments(char.profileSentiments || "");
@@ -131,13 +138,29 @@ export function AdminWorkCharactersPage() {
     setFormError(null);
     try {
       const res = await api.uploadCharacterPhoto(file);
-      setFormPhotoUrl(res.photoUrl);
+      setFormPhotoUrl(res.photoUrl || res.url || "");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setFormError("Erro ao enviar foto: " + msg);
+      setFormError("Erro ao enviar foto de perfil: " + msg);
     } finally {
       setIsUploadingPhoto(false);
       if (photoInputRef.current) photoInputRef.current.value = "";
+    }
+  };
+
+  const uploadBodyPhoto = async (file: File) => {
+    if (!file) return;
+    setIsUploadingBodyPhoto(true);
+    setFormError(null);
+    try {
+      const res = await api.uploadCharacterPhoto(file);
+      setFormBodyPhotoUrl(res.bodyPhotoUrl || res.photoUrl || res.url || "");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setFormError("Erro ao enviar foto de corpo: " + msg);
+    } finally {
+      setIsUploadingBodyPhoto(false);
+      if (bodyPhotoInputRef.current) bodyPhotoInputRef.current.value = "";
     }
   };
 
@@ -157,6 +180,7 @@ export function AdminWorkCharactersPage() {
           name: cleanName,
           workId,
           photoUrl: formPhotoUrl.trim() || null,
+          bodyPhotoUrl: formBodyPhotoUrl.trim() || null,
           role: formRole.trim() || null,
           archetype: formArchetypes.join(", ") || null,
           profileSentiments: formProfileSentiments.trim() || null,
@@ -169,6 +193,7 @@ export function AdminWorkCharactersPage() {
         name: cleanName,
         workId,
         photoUrl: formPhotoUrl.trim() || null,
+        bodyPhotoUrl: formBodyPhotoUrl.trim() || null,
         role: formRole.trim() || null,
         archetype: formArchetypes.join(", ") || null,
         profileSentiments: formProfileSentiments.trim() || null,
@@ -267,6 +292,8 @@ export function AdminWorkCharactersPage() {
                 <div className="admin-character-card__avatar-wrap">
                   {char.photoUrl ? (
                     <img src={char.photoUrl} alt={char.name} className="admin-character-card__avatar" loading="lazy" />
+                  ) : char.bodyPhotoUrl ? (
+                    <img src={char.bodyPhotoUrl} alt={char.name} className="admin-character-card__avatar" loading="lazy" />
                   ) : (
                     <div className="admin-character-card__avatar-placeholder">
                       {char.name.trim().charAt(0).toUpperCase() || "🎭"}
@@ -388,9 +415,9 @@ export function AdminWorkCharactersPage() {
                 />
               </div>
 
-              {/* Photo Upload (Local file from PC only) */}
+              {/* Profile Photo Upload */}
               <div className="admin-form-group">
-                <label className="admin-label">Foto do Personagem (Arquivo Local do PC)</label>
+                <label className="admin-label">Foto de Perfil (Avatar / Rosto) — Opcional</label>
                 <div
                   className={`admin-photo-upload-box ${isDragOver ? "admin-photo-upload-box--dragover" : ""}`}
                   onDragOver={(e) => {
@@ -407,10 +434,10 @@ export function AdminWorkCharactersPage() {
                 >
                   <div className="admin-photo-preview">
                     {formPhotoUrl ? (
-                      <img src={formPhotoUrl} alt="Prévia" className="admin-photo-preview__img" />
+                      <img src={formPhotoUrl} alt="Prévia do perfil" className="admin-photo-preview__img" />
                     ) : (
                       <div className="admin-photo-preview__placeholder">
-                        {formName.trim().charAt(0).toUpperCase() || "🎭"}
+                        {formName.trim().charAt(0).toUpperCase() || "👤"}
                       </div>
                     )}
                   </div>
@@ -433,7 +460,7 @@ export function AdminWorkCharactersPage() {
                         onClick={() => photoInputRef.current?.click()}
                         disabled={isUploadingPhoto}
                       >
-                        {isUploadingPhoto ? "Salvando foto…" : formPhotoUrl ? "📁 Trocar Foto do PC" : "📁 Selecionar Foto do PC"}
+                        {isUploadingPhoto ? "Salvando foto…" : formPhotoUrl ? "📁 Trocar Foto de Perfil" : "📁 Selecionar Foto de Perfil"}
                       </button>
                       {formPhotoUrl && (
                         <button
@@ -441,7 +468,7 @@ export function AdminWorkCharactersPage() {
                           className="btn btn--danger btn--xs"
                           onClick={() => setFormPhotoUrl("")}
                         >
-                          Remover Foto
+                          Remover Perfil
                         </button>
                       )}
                     </div>
@@ -455,7 +482,81 @@ export function AdminWorkCharactersPage() {
                       </span>
                     ) : (
                       <p className="admin-photo-local-note">
-                        Arraste uma foto aqui ou selecione um arquivo do computador (PNG, JPG, WEBP).
+                        Foto de avatar / rosto para ícones e cards (PNG, JPG, WEBP).
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Body Photo Upload */}
+              <div className="admin-form-group">
+                <label className="admin-label">Foto de Corpo (Visual Completo) — Opcional</label>
+                <div
+                  className={`admin-photo-upload-box ${isDragOverBody ? "admin-photo-upload-box--dragover" : ""}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragOverBody(true);
+                  }}
+                  onDragLeave={() => setIsDragOverBody(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragOverBody(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) void uploadBodyPhoto(file);
+                  }}
+                >
+                  <div className="admin-photo-preview admin-photo-preview--body">
+                    {formBodyPhotoUrl ? (
+                      <img src={formBodyPhotoUrl} alt="Prévia de corpo" className="admin-photo-preview__img" />
+                    ) : (
+                      <div className="admin-photo-preview__placeholder" style={{ fontSize: "1.25rem" }}>
+                        🧍
+                      </div>
+                    )}
+                  </div>
+                  <div className="admin-photo-upload-info">
+                    <input
+                      type="file"
+                      ref={bodyPhotoInputRef}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void uploadBodyPhoto(file);
+                      }}
+                      accept="image/png, image/jpeg, image/webp, image/avif"
+                      style={{ display: "none" }}
+                      id="char-modal-body-photo"
+                    />
+                    <div className="admin-photo-upload-actions">
+                      <button
+                        type="button"
+                        className="btn btn--secondary btn--sm"
+                        onClick={() => bodyPhotoInputRef.current?.click()}
+                        disabled={isUploadingBodyPhoto}
+                      >
+                        {isUploadingBodyPhoto ? "Salvando foto…" : formBodyPhotoUrl ? "📁 Trocar Foto de Corpo" : "📁 Selecionar Foto de Corpo"}
+                      </button>
+                      {formBodyPhotoUrl && (
+                        <button
+                          type="button"
+                          className="btn btn--danger btn--xs"
+                          onClick={() => setFormBodyPhotoUrl("")}
+                        >
+                          Remover Corpo
+                        </button>
+                      )}
+                    </div>
+                    {isUploadingBodyPhoto ? (
+                      <span className="admin-photo-upload-status admin-photo-upload-status--uploading">
+                        ⏳ Enviando e armazenando foto de corpo no servidor…
+                      </span>
+                    ) : formBodyPhotoUrl ? (
+                      <span className="admin-photo-upload-status admin-photo-upload-status--success">
+                        ✓ Foto de corpo salva localmente no disco
+                      </span>
+                    ) : (
+                      <p className="admin-photo-local-note">
+                        Imagem de corpo inteiro para exibição na página do personagem (PNG, JPG, WEBP).
                       </p>
                     )}
                   </div>
@@ -569,7 +670,7 @@ export function AdminWorkCharactersPage() {
                 <button
                   type="submit"
                   className="btn btn--primary"
-                  disabled={createMutation.isPending || updateMutation.isPending || isUploadingPhoto}
+                  disabled={createMutation.isPending || updateMutation.isPending || isUploadingPhoto || isUploadingBodyPhoto}
                 >
                   {createMutation.isPending || updateMutation.isPending
                     ? "Salvando…"

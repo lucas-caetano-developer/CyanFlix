@@ -442,6 +442,7 @@ model Character {
   id                String      @id @default(uuid())
   name              String
   photoUrl          String?
+  bodyPhotoUrl      String?
   role              String?
   archetype         String?
   profileSentiments String?

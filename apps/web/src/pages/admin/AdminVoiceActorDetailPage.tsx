@@ -211,6 +211,8 @@ export function AdminVoiceActorDetailPage() {
                   <div className="admin-character-card__avatar-wrap">
                     {char.photoUrl ? (
                       <img src={char.photoUrl} alt={char.name} className="admin-character-card__avatar" loading="lazy" />
+                    ) : char.bodyPhotoUrl ? (
+                      <img src={char.bodyPhotoUrl} alt={char.name} className="admin-character-card__avatar" loading="lazy" />
                     ) : (
                       <div className="admin-character-card__avatar-placeholder">
                         {char.name.trim().charAt(0).toUpperCase() || "🎭"}

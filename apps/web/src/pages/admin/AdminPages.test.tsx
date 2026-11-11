@@ -372,11 +372,12 @@ describe('Admin Overhaul Pages', () => {
     expect(screen.getByText('+ Adicionar Personagem')).toBeInTheDocument();
   });
 
-  it('renders AdminCharacterDetailPage as presentation showcase', async () => {
+  it('renders AdminCharacterDetailPage as presentation showcase with profile and body photo', async () => {
     vi.mocked(api.getAdminCharacter).mockResolvedValue({
       id: 'char-1',
       name: 'Eren Yeager',
       photoUrl: '/media/custom/eren.webp',
+      bodyPhotoUrl: '/media/custom/eren_corpo.webp',
       role: 'Protagonista',
       archetype: 'Determinado e impulsivo',
       voiceAudioUrl: '/media/custom/eren_voice.m4a',
@@ -405,6 +406,16 @@ describe('Admin Overhaul Pages', () => {
     expect(screen.getByText('Lucas Almeida')).toBeInTheDocument();
     expect(screen.getByText(/Dublador de animes.../i)).toBeInTheDocument();
     expect(screen.getByText(/Gravação Oficial do Personagem/i)).toBeInTheDocument();
+    expect(screen.getByText('Visual de Corpo Inteiro')).toBeInTheDocument();
+    const bodyImg = screen.getByAltText('Visual de corpo de Eren Yeager');
+    expect(bodyImg).toHaveAttribute('src', '/media/custom/eren_corpo.webp');
+
     expect(screen.getByText('✏️ Editar Personagem')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('✏️ Editar Personagem'));
+
+    expect(screen.getByText(/Foto de Perfil \(Avatar \/ Rosto\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Foto de Corpo \(Visual Completo\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Trocar Foto de Perfil/i)).toBeInTheDocument();
+    expect(screen.getByText(/Trocar Foto de Corpo/i)).toBeInTheDocument();
   });
 });

@@ -1625,6 +1625,7 @@ app.post("/api/admin/characters", async (request, reply) => {
     workId?: string;
     workIds?: string[];
     photoUrl?: string | null;
+    bodyPhotoUrl?: string | null;
     role?: string | null;
     archetype?: string | null;
     profileSentiments?: string | null;
@@ -1658,6 +1659,7 @@ app.post("/api/admin/characters", async (request, reply) => {
       name,
       works: { connect: foundWorks.map((w) => ({ id: w.id })) },
       photoUrl: typeof body.photoUrl === "string" && body.photoUrl.trim() ? body.photoUrl.trim() : null,
+      bodyPhotoUrl: typeof body.bodyPhotoUrl === "string" && body.bodyPhotoUrl.trim() ? body.bodyPhotoUrl.trim() : null,
       role: typeof body.role === "string" && body.role.trim() ? body.role.trim() : null,
       archetype: typeof body.archetype === "string" && body.archetype.trim() ? body.archetype.trim() : null,
       profileSentiments: typeof body.profileSentiments === "string" && body.profileSentiments.trim() ? body.profileSentiments.trim() : null,
@@ -1686,6 +1688,7 @@ app.patch("/api/admin/characters/:id", async (request, reply) => {
     addWorkId?: string;
     removeWorkId?: string;
     photoUrl?: string | null;
+    bodyPhotoUrl?: string | null;
     role?: string | null;
     archetype?: string | null;
     profileSentiments?: string | null;
@@ -1717,6 +1720,9 @@ app.patch("/api/admin/characters/:id", async (request, reply) => {
   }
   if (body.photoUrl !== undefined) {
     data.photoUrl = typeof body.photoUrl === "string" && body.photoUrl.trim() ? body.photoUrl.trim() : null;
+  }
+  if (body.bodyPhotoUrl !== undefined) {
+    data.bodyPhotoUrl = typeof body.bodyPhotoUrl === "string" && body.bodyPhotoUrl.trim() ? body.bodyPhotoUrl.trim() : null;
   }
   if (body.role !== undefined) {
     data.role = typeof body.role === "string" && body.role.trim() ? body.role.trim() : null;
@@ -1791,7 +1797,7 @@ app.post("/api/admin/characters/upload-photo", { bodyLimit: 25 * 1024 * 1024 }, 
   }
 
   const publicPath = `/media/custom/characters/${finalFileName}`;
-  return toJson({ photoUrl: publicPath });
+  return toJson({ photoUrl: publicPath, bodyPhotoUrl: publicPath, url: publicPath });
 });
 
 app.post("/api/admin/characters/upload-audio", { bodyLimit: 50 * 1024 * 1024 }, async (request, reply) => {

@@ -134,9 +134,9 @@ export const api = {
     return fetchApi<Character[]>(`/api/admin/characters${query ? `?${query}` : ''}`);
   },
   getAdminCharacter: (id: string) => fetchApi<Character>(`/api/admin/characters/${encodeURIComponent(id)}`),
-  createAdminCharacter: (data: { name: string; workId?: string; workIds?: string[]; photoUrl?: string | null; role?: string | null; archetype?: string | null; profileSentiments?: string | null; voiceAudioUrl?: string | null; voiceActorId?: string | null }) =>
+  createAdminCharacter: (data: { name: string; workId?: string; workIds?: string[]; photoUrl?: string | null; bodyPhotoUrl?: string | null; role?: string | null; archetype?: string | null; profileSentiments?: string | null; voiceAudioUrl?: string | null; voiceActorId?: string | null }) =>
     fetchApi<Character>('/api/admin/characters', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
-  updateAdminCharacter: (id: string, data: { name?: string; workId?: string; workIds?: string[]; addWorkId?: string; removeWorkId?: string; photoUrl?: string | null; role?: string | null; archetype?: string | null; profileSentiments?: string | null; voiceAudioUrl?: string | null; voiceActorId?: string | null }) =>
+  updateAdminCharacter: (id: string, data: { name?: string; workId?: string; workIds?: string[]; addWorkId?: string; removeWorkId?: string; photoUrl?: string | null; bodyPhotoUrl?: string | null; role?: string | null; archetype?: string | null; profileSentiments?: string | null; voiceAudioUrl?: string | null; voiceActorId?: string | null }) =>
     fetchApi<Character>(`/api/admin/characters/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
   deleteAdminCharacter: (id: string) => fetchApi<void>(`/api/admin/characters/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   uploadCharacterPhoto: async (file: File) => {
@@ -152,7 +152,7 @@ export const api = {
       body: file,
     });
     if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
-    return res.json() as Promise<{ photoUrl: string }>;
+    return res.json() as Promise<{ photoUrl: string; bodyPhotoUrl?: string; url?: string }>;
   },
   uploadCharacterAudio: async (file: File) => {
     const query = new URLSearchParams({ filename: file.name });

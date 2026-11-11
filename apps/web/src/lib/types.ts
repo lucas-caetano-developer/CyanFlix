@@ -137,6 +137,7 @@ export type Character = {
   id: string;
   name: string;
   photoUrl?: string | null;
+  bodyPhotoUrl?: string | null;
   role?: string | null;
   archetype?: string | null;
   profileSentiments?: string | null;
@@ -172,6 +173,7 @@ export type CharacterSummary = {
   id: string;
   name: string;
   photoUrl?: string | null;
+  bodyPhotoUrl?: string | null;
   role?: string | null;
   archetype?: string | null;
   profileSentiments?: string | null;
