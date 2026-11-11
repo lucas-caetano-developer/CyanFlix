@@ -186,14 +186,26 @@ async function processPublication(publication: { id: string; uploadId: string; f
       return;
     }
     const message = (error instanceof Error ? error.message : String(error)).slice(0, 4_000);
-    const terminal = publication.finalizationAttempts >= env.publicationMaxAttempts;
-    const delaySeconds = Math.min(15 * 2 ** Math.max(0, publication.finalizationAttempts - 1), 15 * 60);
+    const isRetryableConflict =
+      message.includes("write conflict") ||
+      message.includes("deadlock") ||
+      message.includes("could not serialize") ||
+      message.includes("P2034") ||
+      message.includes("55P03") ||
+      message.includes("40001") ||
+      message.includes("40P01");
+
+    const effectiveAttempts = isRetryableConflict
+      ? Math.max(1, publication.finalizationAttempts - 1)
+      : publication.finalizationAttempts;
+    const terminal = effectiveAttempts >= env.publicationMaxAttempts;
+    const delaySeconds = isRetryableConflict ? 4 : Math.min(15 * 2 ** Math.max(0, publication.finalizationAttempts - 1), 15 * 60);
     const nextAttemptAt = terminal ? null : new Date(Date.now() + delaySeconds * 1000);
     await prisma.publication.updateMany({
       where: { id: publication.id, finalizationWorkerId: workerId },
       data: {
         state: terminal ? "failed" : undefined,
-        errorMessage: terminal ? message : `Tentativa ${publication.finalizationAttempts} falhou; nova tentativa agendada: ${message}`,
+        errorMessage: terminal ? message : `Tentativa temporariamente adiada por concorrência (em ${delaySeconds}s): ${message}`,
         finalizationWorkerId: null,
         finalizationLeaseUntil: null,
         finalizationHeartbeatAt: null,
@@ -212,7 +224,11 @@ async function renewPublicationLease(publicationId: string): Promise<void> {
     where: { id: publicationId, finalizationWorkerId: workerId, state: { in: ["validating", "promoting"] } },
     data: { finalizationHeartbeatAt: now, finalizationLeaseUntil: new Date(now.getTime() + env.publicationLeaseSeconds * 1000) },
   });
-  if (!renewed.count) throw new Error("Lease da publicação não pertence mais a este worker");
+  if (!renewed.count) {
+    const pub = await prisma.publication.findUnique({ where: { id: publicationId }, select: { state: true } });
+    if (pub?.state === "confirmed") return;
+    throw new Error("Lease da publicação não pertence mais a este worker");
+  }
 }
 
 async function fillSlots(): Promise<void> {

@@ -42,12 +42,12 @@ export async function finalizePublication(
       manifest,
       publication.manifestSha256,
     );
-    await prisma.publication.update({ where: { id: publication.id }, data: { state: "promoting" } });
+    await prisma.publication.updateMany({ where: { id: publication.id }, data: { state: "promoting" } });
 
     if (sourceRoot === stagingRoot) {
       await fs.promises.mkdir(path.dirname(libraryRoot), { recursive: true });
       if (await directoryExists(libraryRoot)) {
-        throw new Error("Diretório final já existe para uma publicação não confirmada");
+        await fs.promises.rm(libraryRoot, { recursive: true, force: true });
       }
       await fs.promises.rename(stagingRoot, libraryRoot);
     }
@@ -65,192 +65,245 @@ async function promoteManifest(
   libraryRelativeRoot: string,
   manifest: PackageManifest,
 ): Promise<void> {
-  await prisma.$transaction(async (tx) => {
-    const replacement = manifest.package_type === "episode_replacement";
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${manifest.season ? manifest.season.id : manifest.work.id}))`;
-
-    let work;
-    if (replacement) {
-      work = await tx.work.findUnique({ where: { stableId: manifest.work.id } });
-      if (!work) throw new Error("A obra da substituição ainda não existe no catálogo");
-    } else {
-      work = await tx.work.upsert({
-        where: { stableId: manifest.work.id },
-        create: {
-          stableId: manifest.work.id,
-          contentKind: manifest.work.content_kind,
-          title: manifest.work.title,
-          originalTitle: manifest.work.original_title,
-          year: manifest.work.year,
-          synopsis: readNestedString(manifest.work.metadata, "overview"),
-          searchText: buildSearchText(manifest.work.title, manifest.work.original_title, manifest.work.metadata),
-          providerIds: jsonValue(manifest.work.provider_ids),
-          metadata: jsonValue(manifest.work.metadata),
-        },
-        update: {
-          contentKind: manifest.work.content_kind,
-          title: manifest.work.title,
-          originalTitle: manifest.work.original_title,
-          year: manifest.work.year,
-          synopsis: readNestedString(manifest.work.metadata, "overview"),
-          searchText: buildSearchText(manifest.work.title, manifest.work.original_title, manifest.work.metadata),
-          providerIds: jsonValue(manifest.work.provider_ids),
-          metadata: jsonValue(manifest.work.metadata),
-        },
-      });
-    }
-
-    let season: { id: string; stableId: string } | null = null;
-    const episodeMap: Record<string, string> = {};
-    if (manifest.season) {
-      const existingSeason = await tx.season.findUnique({ where: { stableId: manifest.season.id } });
-      if (existingSeason && existingSeason.workId !== work.id) {
-        throw new Error("ID estável da temporada pertence a outra obra");
-      }
-      if (replacement) {
-        if (!existingSeason) throw new Error("A temporada da substituição ainda não existe no catálogo");
-        season = { id: existingSeason.id, stableId: existingSeason.stableId };
-      } else {
-        season = await tx.season.upsert({
-          where: { stableId: manifest.season.id },
-          create: {
-            stableId: manifest.season.id,
-            workId: work.id,
-            number: manifest.season.number,
-            title: manifest.season.title,
-            metadata: jsonValue(manifest.season.metadata),
-            completeness: jsonValue(manifest.season.publication_completeness),
-          },
-          update: {
-            number: manifest.season.number,
-            title: manifest.season.title,
-            metadata: jsonValue(manifest.season.metadata),
-            completeness: jsonValue(manifest.season.publication_completeness),
-          },
-        });
-      }
-      for (const item of manifest.episodes) {
-        const existing = await tx.episode.findUnique({ where: { stableId: item.id } });
-        if (existing && (existing.workId !== work.id || existing.seasonId !== season.id)) {
-          throw new Error(`ID estável do episódio ${item.id} pertence a outro escopo`);
+  const maxRetries = 5;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        const replacement = manifest.package_type === "episode_replacement";
+        // Always take an advisory transaction lock on the work to serialize all promotions for this work
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${manifest.work.id}))`;
+        if (manifest.season) {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${manifest.season.id}))`;
         }
-        const episode = await tx.episode.upsert({
-          where: { stableId: item.id },
-          create: {
-            stableId: item.id,
-            workId: work.id,
-            seasonId: season.id,
-            number: item.number,
-            absoluteNumber: item.absolute_number,
-            title: item.title,
-            synopsis: readNestedString(item.metadata, "synopsis") ?? readNestedString(item.metadata, "overview"),
-            metadata: jsonValue({ ...item.metadata, delivery: item.delivery }),
-            markers: jsonValue(item.markers),
-            sourceSha256: item.source_sha256,
-            mediaManifest: item.media_manifest,
-          },
-          update: {
-            number: item.number,
-            absoluteNumber: item.absolute_number,
-            title: item.title,
-            synopsis: readNestedString(item.metadata, "synopsis") ?? readNestedString(item.metadata, "overview"),
-            metadata: jsonValue({ ...item.metadata, delivery: item.delivery }),
-            markers: jsonValue(item.markers),
-            sourceSha256: item.source_sha256,
-            mediaManifest: item.media_manifest,
+
+        let work;
+        if (replacement) {
+          work = await tx.work.findUnique({ where: { stableId: manifest.work.id } });
+          if (!work) throw new Error("A obra da substituição ainda não existe no catálogo");
+        } else {
+          const existingWork = await tx.work.findUnique({ where: { stableId: manifest.work.id } });
+          const existingMeta = readObject(existingWork?.metadata);
+          const manifestMeta = readObject(manifest.work.metadata);
+          const mergedMeta = { ...existingMeta, ...manifestMeta };
+
+          if (!existingWork) {
+            work = await tx.work.create({
+              data: {
+                stableId: manifest.work.id,
+                contentKind: manifest.work.content_kind,
+                title: manifest.work.title,
+                originalTitle: manifest.work.original_title,
+                year: manifest.work.year,
+                synopsis: readNestedString(manifest.work.metadata, "overview"),
+                searchText: buildSearchText(manifest.work.title, manifest.work.original_title, manifest.work.metadata),
+                providerIds: jsonValue(manifest.work.provider_ids),
+                metadata: jsonValue(manifest.work.metadata),
+              },
+            });
+          } else {
+            work = await tx.work.update({
+              where: { id: existingWork.id },
+              data: {
+                contentKind: manifest.work.content_kind,
+                title: existingWork.title || manifest.work.title,
+                originalTitle: existingWork.originalTitle ?? manifest.work.original_title,
+                year: existingWork.year ?? manifest.work.year,
+                synopsis: existingWork.synopsis ?? readNestedString(manifest.work.metadata, "overview"),
+                searchText: buildSearchText(existingWork.title || manifest.work.title, existingWork.originalTitle ?? manifest.work.original_title, mergedMeta),
+                providerIds: jsonValue({ ...readObject(existingWork.providerIds), ...readObject(manifest.work.provider_ids) }),
+                metadata: jsonValue(mergedMeta),
+              },
+            });
+          }
+        }
+
+        let season: { id: string; stableId: string } | null = null;
+        const episodeMap: Record<string, string> = {};
+        if (manifest.season) {
+          const existingSeason = await tx.season.findUnique({ where: { stableId: manifest.season.id } });
+          if (existingSeason && existingSeason.workId !== work.id) {
+            throw new Error("ID estável da temporada pertence a outra obra");
+          }
+          if (replacement) {
+            if (!existingSeason) throw new Error("A temporada da substituição ainda não existe no catálogo");
+            season = { id: existingSeason.id, stableId: existingSeason.stableId };
+          } else {
+            const existingSeasonMeta = readObject(existingSeason?.metadata);
+            const manifestSeasonMeta = readObject(manifest.season.metadata);
+            const mergedSeasonMeta = { ...existingSeasonMeta, ...manifestSeasonMeta };
+
+            if (!existingSeason) {
+              season = await tx.season.create({
+                data: {
+                  stableId: manifest.season.id,
+                  workId: work.id,
+                  number: manifest.season.number,
+                  title: manifest.season.title,
+                  metadata: jsonValue(manifest.season.metadata),
+                  completeness: jsonValue(manifest.season.publication_completeness),
+                },
+              });
+            } else {
+              season = await tx.season.update({
+                where: { id: existingSeason.id },
+                data: {
+                  number: manifest.season.number,
+                  title: existingSeason.title || manifest.season.title,
+                  metadata: jsonValue(mergedSeasonMeta),
+                  completeness: jsonValue(manifest.season.publication_completeness),
+                },
+              });
+            }
+          }
+          for (const item of manifest.episodes) {
+            const existing = await tx.episode.findUnique({ where: { stableId: item.id } });
+            if (existing && (existing.workId !== work.id || existing.seasonId !== season.id)) {
+              throw new Error(`ID estável do episódio ${item.id} pertence a outro escopo`);
+            }
+            if (!existing) {
+              const episode = await tx.episode.create({
+                data: {
+                  stableId: item.id,
+                  workId: work.id,
+                  seasonId: season.id,
+                  number: item.number,
+                  absoluteNumber: item.absolute_number,
+                  title: item.title,
+                  synopsis: readNestedString(item.metadata, "synopsis") ?? readNestedString(item.metadata, "overview"),
+                  metadata: jsonValue({ ...item.metadata, delivery: item.delivery }),
+                  markers: jsonValue(item.markers),
+                  sourceSha256: item.source_sha256,
+                  mediaManifest: item.media_manifest,
+                },
+              });
+              episodeMap[item.id] = episode.id;
+            } else {
+              const episode = await tx.episode.update({
+                where: { id: existing.id },
+                data: {
+                  number: item.number,
+                  absoluteNumber: item.absolute_number,
+                  title: existing.title || item.title,
+                  synopsis: existing.synopsis ?? (readNestedString(item.metadata, "synopsis") ?? readNestedString(item.metadata, "overview")),
+                  metadata: jsonValue({ ...readObject(existing.metadata), ...readObject(item.metadata), delivery: item.delivery }),
+                  markers: jsonValue(item.markers),
+                  sourceSha256: item.source_sha256,
+                  mediaManifest: item.media_manifest,
+                },
+              });
+              episodeMap[item.id] = episode.id;
+            }
+          }
+        }
+
+        const assetRows = manifest.assets.map((asset) => ({
+          stableId: asset.id,
+          type: asset.type,
+          relativePath: asset.path,
+          publicPath: `/media/${libraryRelativeRoot}/${asset.path}`,
+          sizeBytes: BigInt(asset.size_bytes),
+          sha256: asset.sha256,
+          metadata: asset.metadata as Prisma.InputJsonValue,
+          workId: work.id,
+          seasonId: asset.season_id ? season?.id ?? null : null,
+          episodeId: asset.episode_id ? episodeMap[asset.episode_id] : null,
+          publicationId,
+        }));
+        for (const rows of chunks(assetRows, 1000)) await tx.asset.createMany({ data: rows });
+
+        if (manifest.package_type === "movie") {
+          await tx.mediaObject.create({
+            data: {
+              kind: "movie_hls",
+              relativePath: manifest.movie!.media_manifest,
+              publicPath: `/media/${libraryRelativeRoot}/${manifest.movie!.media_manifest}`,
+              codecs: jsonValue({ delivery: manifest.movie!.delivery, markers: manifest.movie!.markers }),
+              workId: work.id,
+              publicationId,
+            },
+          });
+        } else {
+          await tx.mediaObject.createMany({
+            data: manifest.episodes.map((item) => ({
+              kind: "episode_hls",
+              relativePath: item.media_manifest,
+              publicPath: `/media/${libraryRelativeRoot}/${item.media_manifest}`,
+              codecs: item.delivery as Prisma.InputJsonValue,
+              workId: work.id,
+              episodeId: episodeMap[item.id],
+              publicationId,
+            })),
+          });
+        }
+
+        const scopeKey = replacement
+          ? `episode:${manifest.episodes[0].id}`
+          : manifest.package_type === "season"
+            ? `season:${manifest.season!.id}`
+            : `movie:${manifest.work.id}`;
+        const latest = await tx.revision.aggregate({ where: { scopeKey }, _max: { number: true } });
+        const revisionNumber = (latest._max.number ?? 0) + 1;
+        await tx.revision.updateMany({ where: { scopeKey, active: true }, data: { active: false } });
+        if (manifest.package_type === "season") {
+          // A full/partial season revision is authoritative for the episodes it
+          // contains, so previous per-episode replacements no longer override it.
+          await tx.revision.updateMany({
+            where: { scopeKey: { in: manifest.episodes.map((item) => `episode:${item.id}`) }, active: true },
+            data: { active: false },
+          });
+        }
+        const revision = await tx.revision.create({
+          data: { publicationId, scopeKey, number: revisionNumber, snapshot: jsonValue(manifest) },
+        });
+        if (manifest.package_type === "season") {
+          await tx.season.update({ where: { id: season!.id }, data: { activeRevisionId: revision.id } });
+          await tx.episode.updateMany({
+            where: { id: { in: Object.values(episodeMap) } },
+            data: { activeRevisionId: revision.id },
+          });
+        } else if (replacement) {
+          await tx.episode.updateMany({
+            where: { stableId: manifest.episodes[0].id, seasonId: season!.id },
+            data: { activeRevisionId: revision.id },
+          });
+        }
+        await tx.publicationReceipt.create({
+          data: {
+            publicationId,
+            packageId: manifest.package_id,
+            remoteWorkId: work.id,
+            remoteSeasonId: season?.id,
+            remoteEpisodeIds: episodeMap,
+            remoteRevision: revisionNumber,
+            manifestSha256: manifest.manifest_sha256,
           },
         });
-        episodeMap[item.id] = episode.id;
+        await tx.publication.update({
+          where: { id: publicationId },
+          data: { state: "confirmed", confirmedAt: new Date(), errorMessage: null },
+        });
+      }, { timeout: 120_000 });
+      return;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      const isRetryable =
+        errorMsg.includes("write conflict") ||
+        errorMsg.includes("deadlock") ||
+        errorMsg.includes("could not serialize") ||
+        errorMsg.includes("P2034") ||
+        errorMsg.includes("55P03") ||
+        errorMsg.includes("40001") ||
+        errorMsg.includes("40P01");
+
+      if (isRetryable && attempt < maxRetries) {
+        const backoff = Math.min(500 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 500), 5000);
+        console.warn(`[promoteManifest] Conflito transacional na tentativa ${attempt}/${maxRetries}. Retentando em ${backoff}ms...`, errorMsg);
+        await new Promise((res) => setTimeout(res, backoff));
+        continue;
       }
+      throw error;
     }
-
-    const assetRows = manifest.assets.map((asset) => ({
-      stableId: asset.id,
-      type: asset.type,
-      relativePath: asset.path,
-      publicPath: `/media/${libraryRelativeRoot}/${asset.path}`,
-      sizeBytes: BigInt(asset.size_bytes),
-      sha256: asset.sha256,
-      metadata: asset.metadata as Prisma.InputJsonValue,
-      workId: work.id,
-      seasonId: asset.season_id ? season?.id ?? null : null,
-      episodeId: asset.episode_id ? episodeMap[asset.episode_id] : null,
-      publicationId,
-    }));
-    for (const rows of chunks(assetRows, 1000)) await tx.asset.createMany({ data: rows });
-
-    if (manifest.package_type === "movie") {
-      await tx.mediaObject.create({
-        data: {
-          kind: "movie_hls",
-          relativePath: manifest.movie!.media_manifest,
-          publicPath: `/media/${libraryRelativeRoot}/${manifest.movie!.media_manifest}`,
-          codecs: jsonValue({ delivery: manifest.movie!.delivery, markers: manifest.movie!.markers }),
-          workId: work.id,
-          publicationId,
-        },
-      });
-    } else {
-      await tx.mediaObject.createMany({
-        data: manifest.episodes.map((item) => ({
-          kind: "episode_hls",
-          relativePath: item.media_manifest,
-          publicPath: `/media/${libraryRelativeRoot}/${item.media_manifest}`,
-          codecs: item.delivery as Prisma.InputJsonValue,
-          workId: work.id,
-          episodeId: episodeMap[item.id],
-          publicationId,
-        })),
-      });
-    }
-
-    const scopeKey = replacement
-      ? `episode:${manifest.episodes[0].id}`
-      : manifest.package_type === "season"
-        ? `season:${manifest.season!.id}`
-        : `movie:${manifest.work.id}`;
-    const latest = await tx.revision.aggregate({ where: { scopeKey }, _max: { number: true } });
-    const revisionNumber = (latest._max.number ?? 0) + 1;
-    await tx.revision.updateMany({ where: { scopeKey, active: true }, data: { active: false } });
-    if (manifest.package_type === "season") {
-      // A full/partial season revision is authoritative for the episodes it
-      // contains, so previous per-episode replacements no longer override it.
-      await tx.revision.updateMany({
-        where: { scopeKey: { in: manifest.episodes.map((item) => `episode:${item.id}`) }, active: true },
-        data: { active: false },
-      });
-    }
-    const revision = await tx.revision.create({
-      data: { publicationId, scopeKey, number: revisionNumber, snapshot: jsonValue(manifest) },
-    });
-    if (manifest.package_type === "season") {
-      await tx.season.update({ where: { id: season!.id }, data: { activeRevisionId: revision.id } });
-      await tx.episode.updateMany({
-        where: { id: { in: Object.values(episodeMap) } },
-        data: { activeRevisionId: revision.id },
-      });
-    } else if (replacement) {
-      await tx.episode.updateMany({
-        where: { stableId: manifest.episodes[0].id, seasonId: season!.id },
-        data: { activeRevisionId: revision.id },
-      });
-    }
-    await tx.publicationReceipt.create({
-      data: {
-        publicationId,
-        packageId: manifest.package_id,
-        remoteWorkId: work.id,
-        remoteSeasonId: season?.id,
-        remoteEpisodeIds: episodeMap,
-        remoteRevision: revisionNumber,
-        manifestSha256: manifest.manifest_sha256,
-      },
-    });
-    await tx.publication.update({
-      where: { id: publicationId },
-      data: { state: "confirmed", confirmedAt: new Date(), errorMessage: null },
-    });
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 60_000 });
+  }
 }
 
 async function validatePackage(
@@ -346,6 +399,10 @@ function readNestedString(value: unknown, key: string): string | null {
   if (!value || typeof value !== "object") return null;
   const nested = (value as Record<string, unknown>)[key];
   return typeof nested === "string" && nested.trim() ? nested : null;
+}
+
+function readObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
 function jsonValue(value: unknown): Prisma.InputJsonValue {

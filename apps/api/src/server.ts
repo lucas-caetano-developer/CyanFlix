@@ -1067,59 +1067,66 @@ app.patch("/api/admin/works/:id/metadata", async (request, reply) => {
   const work = await prisma.work.findUnique({ where: { id: workId }, include: { editorialOverride: true } });
   if (!work) return reply.code(404).send({ error: "Obra não encontrada" });
 
-  const existingMeta = readObject(work.metadata);
-  const existingOverrideMeta = readObject(work.editorialOverride?.metadata);
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${work.stableId}))`;
 
-  const workUpdates: Prisma.WorkUpdateInput = {};
-  if (typeof body.year === "number" || body.year === null) workUpdates.year = body.year;
-  if (typeof body.originalTitle === "string" || body.originalTitle === null) workUpdates.originalTitle = body.originalTitle?.trim() || null;
-  if (typeof body.contentKind === "string" && ["movie", "series", "anime"].includes(body.contentKind)) {
-    workUpdates.contentKind = body.contentKind as any;
-  }
+    const currentWork = await tx.work.findUnique({ where: { id: workId } });
+    if (!currentWork) return;
 
-  const updatedMeta = { ...existingMeta };
-  if (Array.isArray(body.genres)) {
-    updatedMeta.genres = body.genres.filter((g) => typeof g === "string" && g.trim()).map((g) => g.trim());
-  }
-  if (typeof body.certification === "string" || body.certification === null) {
-    updatedMeta.certification = body.certification?.trim() || null;
-  }
-  if (typeof body.trailerUrl === "string" || body.trailerUrl === null) {
-    updatedMeta.trailer_url = body.trailerUrl?.trim() || null;
-  }
-  workUpdates.metadata = jsonValue(updatedMeta);
+    const existingMeta = readObject(currentWork.metadata);
+    const existingOverrideMeta = readObject(work.editorialOverride?.metadata);
 
-  if (Object.keys(workUpdates).length > 0) {
-    await prisma.work.update({ where: { id: workId }, data: workUpdates });
-  }
+    const workUpdates: Prisma.WorkUpdateInput = {};
+    if (typeof body.year === "number" || body.year === null) workUpdates.year = body.year;
+    if (typeof body.originalTitle === "string" || body.originalTitle === null) workUpdates.originalTitle = body.originalTitle?.trim() || null;
+    if (typeof body.contentKind === "string" && ["movie", "series", "anime"].includes(body.contentKind)) {
+      workUpdates.contentKind = body.contentKind as any;
+    }
 
-  const cleanTitle = typeof body.title === "string" ? body.title.trim() : undefined;
-  const cleanSynopsis = typeof body.synopsis === "string" ? body.synopsis.trim() : undefined;
-  const cleanHidden = typeof body.hidden === "boolean" ? body.hidden : undefined;
-  const cleanFeatured = typeof body.featured === "boolean" ? body.featured : undefined;
+    const updatedMeta = { ...existingMeta };
+    if (Array.isArray(body.genres)) {
+      updatedMeta.genres = body.genres.filter((g) => typeof g === "string" && g.trim()).map((g) => g.trim());
+    }
+    if (typeof body.certification === "string" || body.certification === null) {
+      updatedMeta.certification = body.certification?.trim() || null;
+    }
+    if (typeof body.trailerUrl === "string" || body.trailerUrl === null) {
+      updatedMeta.trailer_url = body.trailerUrl?.trim() || null;
+    }
+    workUpdates.metadata = jsonValue(updatedMeta);
 
-  const updatedOverrideMeta = { ...existingOverrideMeta, ...updatedMeta };
+    if (Object.keys(workUpdates).length > 0) {
+      await tx.work.update({ where: { id: workId }, data: workUpdates });
+    }
 
-  await prisma.editorialOverride.upsert({
-    where: { workId },
-    create: {
-      workId,
-      updatedByAccountId: identity.accountId,
-      title: cleanTitle ?? null,
-      synopsis: cleanSynopsis ?? null,
-      hidden: cleanHidden ?? null,
-      featured: cleanFeatured ?? null,
-      metadata: jsonValue(updatedOverrideMeta),
-    },
-    update: {
-      updatedByAccountId: identity.accountId,
-      ...(cleanTitle !== undefined ? { title: cleanTitle || null } : {}),
-      ...(cleanSynopsis !== undefined ? { synopsis: cleanSynopsis || null } : {}),
-      ...(cleanHidden !== undefined ? { hidden: cleanHidden } : {}),
-      ...(cleanFeatured !== undefined ? { featured: cleanFeatured } : {}),
-      metadata: jsonValue(updatedOverrideMeta),
-    },
-  });
+    const cleanTitle = typeof body.title === "string" ? body.title.trim() : undefined;
+    const cleanSynopsis = typeof body.synopsis === "string" ? body.synopsis.trim() : undefined;
+    const cleanHidden = typeof body.hidden === "boolean" ? body.hidden : undefined;
+    const cleanFeatured = typeof body.featured === "boolean" ? body.featured : undefined;
+
+    const updatedOverrideMeta = { ...existingOverrideMeta, ...updatedMeta };
+
+    await tx.editorialOverride.upsert({
+      where: { workId },
+      create: {
+        workId,
+        updatedByAccountId: identity.accountId,
+        title: cleanTitle ?? null,
+        synopsis: cleanSynopsis ?? null,
+        hidden: cleanHidden ?? null,
+        featured: cleanFeatured ?? null,
+        metadata: jsonValue(updatedOverrideMeta),
+      },
+      update: {
+        updatedByAccountId: identity.accountId,
+        ...(cleanTitle !== undefined ? { title: cleanTitle || null } : {}),
+        ...(cleanSynopsis !== undefined ? { synopsis: cleanSynopsis || null } : {}),
+        ...(cleanHidden !== undefined ? { hidden: cleanHidden } : {}),
+        ...(cleanFeatured !== undefined ? { featured: cleanFeatured } : {}),
+        metadata: jsonValue(updatedOverrideMeta),
+      },
+    });
+  }, { timeout: 30_000 });
 
   const updatedWork = await prisma.work.findUnique({
     where: { id: workId },
