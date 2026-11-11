@@ -522,6 +522,10 @@ export function AdminWorkCharactersPage() {
                     workId={workId}
                     currentVoiceAudioUrl={formVoiceAudioUrl}
                     onVoiceAudioChange={setFormVoiceAudioUrl}
+                    onSaveDirect={editingCharacter ? async (url) => {
+                      await api.updateAdminCharacter(editingCharacter.id, { voiceAudioUrl: url });
+                      void queryClient.invalidateQueries({ queryKey: ["admin", "characters"] });
+                    } : undefined}
                   />
                 </div>
               )}

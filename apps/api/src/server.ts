@@ -1780,11 +1780,49 @@ app.post("/api/admin/characters/upload-audio", { bodyLimit: 50 * 1024 * 1024 }, 
   return toJson({ voiceAudioUrl: publicPath });
 });
 
-function extractMediaAudioOffset(codecs: unknown): number {
+function extractMediaAudioOffset(codecs: unknown, metadata?: unknown): number {
   const delivery = readNestedObject(codecs, "delivery") ?? readObject(codecs);
-  const raw = delivery?.av_offset_seconds;
+  let raw = delivery?.av_offset_seconds;
+  if (!raw && metadata) {
+    const metaDelivery = readNestedObject(metadata, "delivery") ?? readObject(metadata);
+    raw = metaDelivery?.av_offset_seconds;
+  }
   const val = Number(Array.isArray(raw) ? raw[0] : raw);
   return Number.isFinite(val) ? val : 0;
+}
+
+async function resolveAudioSource(sourceDiskPath: string): Promise<string> {
+  if (!sourceDiskPath.endsWith(".m3u8")) {
+    return sourceDiskPath;
+  }
+  try {
+    const content = await fs.promises.readFile(sourceDiskPath, "utf8");
+    const lines = content.split(/\r?\n/);
+    const audioLines = lines.filter((l) => l.startsWith("#EXT-X-MEDIA:") && l.includes("TYPE=AUDIO") && l.includes('URI="'));
+    if (audioLines.length > 0) {
+      // Prioritize Portuguese dub track if available, else default/first
+      const preferred = audioLines.find((l) =>
+        /LANGUAGE="por"|NAME=".*portug[uê]s.*"|NAME=".*dub.*"/i.test(l)
+      ) || audioLines.find((l) => /DEFAULT=YES/i.test(l)) || audioLines[0];
+
+      const match = preferred.match(/URI="([^"]+)"/);
+      if (match?.[1]) {
+        const uri = match[1];
+        let resolved = uri;
+        if (uri.startsWith("/media/")) {
+          resolved = safeDataPath("library", uri.replace(/^\/media\//, ""));
+        } else {
+          resolved = path.resolve(path.dirname(sourceDiskPath), uri);
+        }
+        if (fs.existsSync(resolved)) {
+          return resolved;
+        }
+      }
+    }
+  } catch {
+    // fallback to original path
+  }
+  return sourceDiskPath;
 }
 
 app.get("/api/admin/works/:workId/playable-sources", async (request, reply) => {
@@ -1808,7 +1846,14 @@ app.get("/api/admin/works/:workId/playable-sources", async (request, reply) => {
   });
   if (!work) return reply.code(404).send({ error: "Obra não encontrada" });
 
-  const sources: Array<{ id: string; label: string; mediaUrl: string; seasonNumber?: number; episodeNumber?: number; audioOffsetSeconds?: number }> = [];
+  const sources: Array<{
+    id: string;
+    label: string;
+    mediaUrl: string;
+    seasonNumber?: number;
+    episodeNumber?: number;
+    audioOffsetSeconds?: number;
+  }> = [];
 
   if (work.contentKind === "movie" && work.mediaObjects[0]?.publicPath) {
     const media = work.mediaObjects[0];
@@ -1817,7 +1862,7 @@ app.get("/api/admin/works/:workId/playable-sources", async (request, reply) => {
         id: work.id,
         label: "Filme Completo",
         mediaUrl: media.publicPath,
-        audioOffsetSeconds: extractMediaAudioOffset(media.codecs),
+        audioOffsetSeconds: extractMediaAudioOffset(media.codecs, work.metadata),
       });
     }
   } else {
@@ -1831,7 +1876,7 @@ app.get("/api/admin/works/:workId/playable-sources", async (request, reply) => {
             mediaUrl: media.publicPath,
             seasonNumber: season.number,
             episodeNumber: ep.number,
-            audioOffsetSeconds: extractMediaAudioOffset(media.codecs),
+            audioOffsetSeconds: extractMediaAudioOffset(media.codecs, ep.metadata),
           });
         }
       }
@@ -1843,7 +1888,10 @@ app.get("/api/admin/works/:workId/playable-sources", async (request, reply) => {
 function extractAudioSegment(inputPath: string, outputPath: string, startSeconds: number, durationSeconds: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn("ffmpeg", [
+      "-hide_banner",
       "-y",
+      "-protocol_whitelist", "file,http,https,tcp,tls,crypto,data",
+      "-allowed_extensions", "ALL",
       "-ss", String(Math.max(0, startSeconds)),
       "-t", String(Math.max(0.5, durationSeconds)),
       "-i", inputPath,
@@ -1859,8 +1907,11 @@ function extractAudioSegment(inputPath: string, outputPath: string, startSeconds
     });
     child.on("error", (err) => reject(err));
     child.on("close", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`FFmpeg falhou ao extrair áudio (${code}): ${stderr}`));
+      if (code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 100) {
+        resolve();
+      } else {
+        reject(new Error(`FFmpeg falhou ao extrair áudio (${code}): ${stderr || "arquivo de saída vazio"}`));
+      }
     });
   });
 }
@@ -1870,7 +1921,11 @@ function concatAudioSegments(inputPaths: string[], outputPath: string): Promise<
     return fs.promises.copyFile(inputPaths[0], outputPath);
   }
   return new Promise((resolve, reject) => {
-    const args = ["-y"];
+    const args = [
+      "-hide_banner",
+      "-y",
+      "-protocol_whitelist", "file,http,https,tcp,tls,crypto,data"
+    ];
     for (const p of inputPaths) {
       args.push("-i", p);
     }
@@ -1886,8 +1941,11 @@ function concatAudioSegments(inputPaths: string[], outputPath: string): Promise<
     });
     child.on("error", (err) => reject(err));
     child.on("close", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`FFmpeg concat falhou (${code}): ${stderr}`));
+      if (code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 100) {
+        resolve();
+      } else {
+        reject(new Error(`FFmpeg concat falhou (${code}): ${stderr || "arquivo final vazio"}`));
+      }
     });
   });
 }
@@ -1921,10 +1979,11 @@ app.post("/api/admin/characters/extract-voice", async (request, reply) => {
       if (!clip.mediaUrl) continue;
       const relative = clip.mediaUrl.replace(/^\/media\//, "");
       const sourceDiskPath = safeDataPath("library", relative);
+      const audioInputPath = await resolveAudioSource(sourceDiskPath);
       const clipOutPath = path.join(tempDir, `clip_${i}.m4a`);
 
       const start = Math.max(0, (clip.startSeconds || 0) + (clip.audioOffsetSeconds || 0));
-      await extractAudioSegment(sourceDiskPath, clipOutPath, start, clip.durationSeconds || 10);
+      await extractAudioSegment(audioInputPath, clipOutPath, start, clip.durationSeconds || 10);
       tempClips.push(clipOutPath);
     }
 

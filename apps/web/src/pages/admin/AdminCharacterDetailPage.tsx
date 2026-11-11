@@ -490,6 +490,10 @@ export function AdminCharacterDetailPage() {
                     workId={character.workId}
                     currentVoiceAudioUrl={formVoiceAudioUrl}
                     onVoiceAudioChange={setFormVoiceAudioUrl}
+                    onSaveDirect={async (url) => {
+                      await api.updateAdminCharacter(character.id, { voiceAudioUrl: url });
+                      void queryClient.invalidateQueries({ queryKey: ["admin", "character", character.id] });
+                    }}
                   />
                 </div>
               )}
