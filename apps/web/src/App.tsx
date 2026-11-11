@@ -23,6 +23,8 @@ const AdminCatalogPage = lazy(() => import('./pages/admin/AdminCatalogPage').the
 const AdminHomeSectionsPage = lazy(() => import('./pages/admin/AdminHomeSectionsPage').then((module) => ({ default: module.AdminHomeSectionsPage })));
 const AdminPackagesPage = lazy(() => import('./pages/admin/AdminPackagesPage').then((module) => ({ default: module.AdminPackagesPage })));
 const AdminClientsPage = lazy(() => import('./pages/admin/AdminClientsPage').then((module) => ({ default: module.AdminClientsPage })));
+const AdminVoiceActorsPage = lazy(() => import('./pages/admin/AdminVoiceActorsPage').then((module) => ({ default: module.AdminVoiceActorsPage })));
+const AdminVoiceActorDetailPage = lazy(() => import('./pages/admin/AdminVoiceActorDetailPage').then((module) => ({ default: module.AdminVoiceActorDetailPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,6 +58,8 @@ export function App() {
             <Route path="/admin/home-sections" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminHomeSectionsPage /></Suspense></AdminShell></AdminRoute>} />
             <Route path="/admin/packages" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminPackagesPage /></Suspense></AdminShell></AdminRoute>} />
             <Route path="/admin/clients" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminClientsPage /></Suspense></AdminShell></AdminRoute>} />
+            <Route path="/admin/voice-actors" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminVoiceActorsPage /></Suspense></AdminShell></AdminRoute>} />
+            <Route path="/admin/voice-actors/:id" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminVoiceActorDetailPage /></Suspense></AdminShell></AdminRoute>} />
           </Route>
           <Route path="/login" element={<Navigate to="/profiles" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />

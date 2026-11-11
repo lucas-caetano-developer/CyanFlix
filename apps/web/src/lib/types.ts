@@ -121,3 +121,12 @@ export type RevisionCleanup = {
   candidates: Array<{ publicationId: string; packageId: string; scopeKey: string; revisionNumber: number; createdAt: string; sizeBytes?: number | null }>;
   jobs: Array<{ id: string; publicationId: string; state: "queued" | "processing" | "completed" | "failed"; attempts: number; sizeBytes?: number | null; error?: string | null; createdAt: string; completedAt?: string | null }>;
 };
+
+export type VoiceActor = {
+  id: string;
+  name: string;
+  photoUrl?: string | null;
+  bio?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};

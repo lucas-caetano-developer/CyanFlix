@@ -424,3 +424,14 @@ model IntegrityCheck {
 
   @@index([startedAt])
 }
+
+model VoiceActor {
+  id        String   @id @default(uuid())
+  name      String
+  photoUrl  String?
+  bio       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+}

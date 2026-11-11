@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AdminOverviewPage } from './AdminOverviewPage';
 import { AdminCatalogPage } from './AdminCatalogPage';
 import { AdminHomeSectionsPage } from './AdminHomeSectionsPage';
 import { AdminPackagesPage } from './AdminPackagesPage';
 import { AdminClientsPage } from './AdminClientsPage';
+import { AdminVoiceActorsPage } from './AdminVoiceActorsPage';
+import { AdminVoiceActorDetailPage } from './AdminVoiceActorDetailPage';
 import { api } from '../../lib/api';
 
 vi.mock('../../lib/api', () => ({
@@ -30,6 +32,12 @@ vi.mock('../../lib/api', () => ({
     createAccount: vi.fn(),
     updateAccount: vi.fn(),
     deleteAccount: vi.fn(),
+    getAdminVoiceActors: vi.fn(),
+    getAdminVoiceActor: vi.fn(),
+    createAdminVoiceActor: vi.fn(),
+    updateAdminVoiceActor: vi.fn(),
+    deleteAdminVoiceActor: vi.fn(),
+    uploadVoiceActorPhoto: vi.fn(),
   },
 }));
 
@@ -40,6 +48,21 @@ function renderWithClient(ui: React.ReactElement) {
   return render(
     <QueryClientProvider client={testClient}>
       <BrowserRouter>{ui}</BrowserRouter>
+    </QueryClientProvider>
+  );
+}
+
+function renderWithRoute(ui: React.ReactElement, initialEntry = '/admin/voice-actors/actor-1', path = '/admin/voice-actors/:id') {
+  const testClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={testClient}>
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <Routes>
+          <Route path={path} element={ui} />
+        </Routes>
+      </MemoryRouter>
     </QueryClientProvider>
   );
 }
@@ -182,5 +205,48 @@ describe('Admin Overhaul Pages', () => {
     expect(screen.getByText('Ativa')).toBeInTheDocument();
     expect(screen.getByText('Inativar Conta')).toBeInTheDocument();
     expect(screen.getByText('Excluir Conta')).toBeInTheDocument();
+  });
+
+  it('renders AdminVoiceActorsPage and allows opening create modal', async () => {
+    vi.mocked(api.getAdminVoiceActors).mockResolvedValue([
+      {
+        id: 'actor-1',
+        name: 'Wendel Bezerra',
+        photoUrl: '/media/custom/wendel.webp',
+        bio: 'Dublador de Goku, Bob Esponja...',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ]);
+
+    renderWithClient(<AdminVoiceActorsPage />);
+
+    expect(await screen.findByText('Wendel Bezerra')).toBeInTheDocument();
+    expect(screen.getByText('Dublador de Goku, Bob Esponja...')).toBeInTheDocument();
+    expect(screen.getByText('+ Adicionar Dublador')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('+ Adicionar Dublador'));
+    expect(screen.getByText('Novo Dublador')).toBeInTheDocument();
+    expect(screen.getByLabelText(/Nome Completo/i)).toBeInTheDocument();
+  });
+
+  it('renders AdminVoiceActorDetailPage with details and future characters section', async () => {
+    vi.mocked(api.getAdminVoiceActor).mockResolvedValue({
+      id: 'actor-1',
+      name: 'Guilherme Briggs',
+      photoUrl: '/media/custom/briggs.webp',
+      bio: 'Dublador de Buzz Lightyear, Superman...',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    renderWithRoute(<AdminVoiceActorDetailPage />);
+
+    expect(await screen.findByText('Guilherme Briggs')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Guilherme Briggs')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Dublador de Buzz Lightyear, Superman...')).toBeInTheDocument();
+    expect(screen.getByText('Personagens Dublados')).toBeInTheDocument();
+    expect(screen.getByText('Em breve')).toBeInTheDocument();
+    expect(screen.getByText(/Módulo de Personagens em Desenvolvimento/i)).toBeInTheDocument();
   });
 });

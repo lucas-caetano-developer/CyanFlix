@@ -1,4 +1,4 @@
-import type { Profile, ProfilePreferences, HomeData, SearchResult, Work, PlaybackData, FallbackJob, AdminDashboard, Publication, PublicationDetail, Revision, RevisionCleanup, Session, Account, IntegrityCheck, AdminCatalogWork, AdminWorkDetail, AuditEntry, EditorialCollection, EditorialCollectionPreview, StorageMetrics, WorkDeletionPreview, WorkRating, HomeSectionConfig, Asset, Episode } from './types';
+import type { Profile, ProfilePreferences, HomeData, SearchResult, Work, PlaybackData, FallbackJob, AdminDashboard, Publication, PublicationDetail, Revision, RevisionCleanup, Session, Account, IntegrityCheck, AdminCatalogWork, AdminWorkDetail, AuditEntry, EditorialCollection, EditorialCollectionPreview, StorageMetrics, WorkDeletionPreview, WorkRating, HomeSectionConfig, Asset, Episode, VoiceActor } from './types';
 
 export async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { credentials: 'same-origin', ...init });
@@ -100,6 +100,31 @@ export const api = {
   createAccount: (data: { username: string; password: string; role: "admin" | "viewer" }) => fetchApi<Account>('/api/admin/accounts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
   updateAccount: (id: string, data: { role?: "admin" | "viewer"; disabled?: boolean; password?: string }) => fetchApi<Account>(`/api/admin/accounts/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
   deleteAccount: (id: string) => fetchApi<{ ok: boolean }>(`/api/admin/accounts/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  getAdminVoiceActors: (q = '') => fetchApi<VoiceActor[]>(`/api/admin/voice-actors${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  getAdminVoiceActor: (id: string) => fetchApi<VoiceActor>(`/api/admin/voice-actors/${encodeURIComponent(id)}`),
+  createAdminVoiceActor: (data: { name: string; photoUrl?: string | null; bio?: string | null }) =>
+    fetchApi<VoiceActor>('/api/admin/voice-actors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
+  updateAdminVoiceActor: (id: string, data: { name?: string; photoUrl?: string | null; bio?: string | null }) =>
+    fetchApi<VoiceActor>(`/api/admin/voice-actors/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
+  deleteAdminVoiceActor: (id: string) => fetchApi<void>(`/api/admin/voice-actors/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  uploadVoiceActorPhoto: async (file: File) => {
+    const query = new URLSearchParams({ filename: file.name });
+    const res = await fetch(`/api/admin/voice-actors/upload-photo?${query}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'x-original-name': encodeURIComponent(file.name),
+        'x-mime-type': file.type || 'image/jpeg',
+      },
+      body: file,
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `HTTP ${res.status}`);
+    }
+    return res.json() as Promise<{ photoUrl: string }>;
+  },
   getHomeSections: () => fetchApi<HomeSectionConfig[]>('/api/admin/home-sections'),
   updateHomeSections: (sections: HomeSectionConfig[]) => fetchApi<{ success: boolean; sections: HomeSectionConfig[] }>('/api/admin/home-sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sections }) }),
   addFavorite: (profileId: string, workId: string) => fetchApi<void>(`/api/profiles/${profileId}/favorites/${workId}`, { method: 'POST' }),
