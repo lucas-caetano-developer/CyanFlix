@@ -148,7 +148,7 @@ export type Character = {
     photoUrl?: string | null;
     bio?: string | null;
   } | null;
-  workId: string;
+  workId?: string;
   work?: {
     id: string;
     title: string;
@@ -156,6 +156,14 @@ export type Character = {
     year?: number | null;
     synopsis?: string | null;
   } | null;
+  workIds?: string[];
+  works?: Array<{
+    id: string;
+    title: string;
+    contentKind: "movie" | "series" | "anime";
+    year?: number | null;
+    synopsis?: string | null;
+  }>;
   createdAt: string;
   updatedAt: string;
 };
@@ -168,12 +176,17 @@ export type CharacterSummary = {
   archetype?: string | null;
   profileSentiments?: string | null;
   voiceAudioUrl?: string | null;
-  workId: string;
+  workId?: string;
   work?: {
     id: string;
     title: string;
     contentKind: "movie" | "series" | "anime";
   } | null;
+  works?: Array<{
+    id: string;
+    title: string;
+    contentKind: "movie" | "series" | "anime";
+  }>;
 };
 
 export type PlayableSource = {

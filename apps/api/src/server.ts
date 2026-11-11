@@ -1477,7 +1477,7 @@ app.get("/api/admin/voice-actors/:id", async (request, reply) => {
     include: {
       characters: {
         include: {
-          work: {
+          works: {
             select: { id: true, title: true, contentKind: true }
           }
         },
@@ -1486,7 +1486,14 @@ app.get("/api/admin/voice-actors/:id", async (request, reply) => {
     }
   });
   if (!actor) return reply.code(404).send({ error: "Dublador não encontrado" });
-  return toJson(actor);
+  return toJson({
+    ...actor,
+    characters: actor.characters.map((c) => ({
+      ...c,
+      workId: c.works[0]?.id || "",
+      work: c.works[0] || null,
+    }))
+  });
 });
 
 app.patch("/api/admin/voice-actors/:id", async (request, reply) => {
@@ -1565,7 +1572,7 @@ app.post("/api/admin/voice-actors/upload-photo", { bodyLimit: 25 * 1024 * 1024 }
 app.get("/api/admin/characters", async (request) => {
   const query = request.query as { workId?: string; voiceActorId?: string; q?: string };
   const where: Prisma.CharacterWhereInput = {};
-  if (query.workId) where.workId = query.workId;
+  if (query.workId) where.works = { some: { id: query.workId } };
   if (query.voiceActorId) where.voiceActorId = query.voiceActorId;
   if (query.q) {
     const q = query.q.trim().slice(0, 200);
@@ -1575,12 +1582,16 @@ app.get("/api/admin/characters", async (request) => {
   const characters = await prisma.character.findMany({
     where,
     include: {
-      work: { select: { id: true, title: true, contentKind: true, year: true } },
+      works: { select: { id: true, title: true, contentKind: true, year: true } },
       voiceActor: { select: { id: true, name: true, photoUrl: true } }
     },
     orderBy: [{ createdAt: "desc" }]
   });
-  return toJson(characters);
+  return toJson(characters.map((c) => ({
+    ...c,
+    workId: c.works[0]?.id || "",
+    work: c.works[0] || null,
+  })));
 });
 
 app.get("/api/admin/characters/:id", async (request, reply) => {
@@ -1588,7 +1599,7 @@ app.get("/api/admin/characters/:id", async (request, reply) => {
   const character = await prisma.character.findUnique({
     where: { id },
     include: {
-      work: {
+      works: {
         select: {
           id: true,
           title: true,
@@ -1601,13 +1612,18 @@ app.get("/api/admin/characters/:id", async (request, reply) => {
     }
   });
   if (!character) return reply.code(404).send({ error: "Personagem não encontrado" });
-  return toJson(character);
+  return toJson({
+    ...character,
+    workId: character.works[0]?.id || "",
+    work: character.works[0] || null,
+  });
 });
 
 app.post("/api/admin/characters", async (request, reply) => {
   const body = request.body as {
     name?: string;
     workId?: string;
+    workIds?: string[];
     photoUrl?: string | null;
     role?: string | null;
     archetype?: string | null;
@@ -1620,11 +1636,16 @@ app.post("/api/admin/characters", async (request, reply) => {
   if (!name) return reply.code(400).send({ error: "Nome do personagem é obrigatório" });
   if (name.length > 200) return reply.code(400).send({ error: "Nome excede 200 caracteres" });
 
-  const workId = typeof body?.workId === "string" ? body.workId.trim() : "";
-  if (!workId) return reply.code(400).send({ error: "A obra vinculada é obrigatória" });
+  const rawWorkIds = Array.isArray(body?.workIds)
+    ? body.workIds
+    : typeof body?.workId === "string" && body.workId.trim()
+    ? [body.workId.trim()]
+    : [];
+  const cleanWorkIds = [...new Set(rawWorkIds.filter((id) => typeof id === "string" && id.trim()))];
+  if (cleanWorkIds.length === 0) return reply.code(400).send({ error: "Ao menos uma obra vinculada é obrigatória" });
 
-  const work = await prisma.work.findUnique({ where: { id: workId } });
-  if (!work) return reply.code(404).send({ error: "Obra vinculada não encontrada" });
+  const foundWorks = await prisma.work.findMany({ where: { id: { in: cleanWorkIds } }, select: { id: true } });
+  if (foundWorks.length === 0) return reply.code(404).send({ error: "Obra vinculada não encontrada" });
 
   let voiceActorId = typeof body.voiceActorId === "string" && body.voiceActorId.trim() ? body.voiceActorId.trim() : null;
   if (voiceActorId) {
@@ -1635,7 +1656,7 @@ app.post("/api/admin/characters", async (request, reply) => {
   const character = await prisma.character.create({
     data: {
       name,
-      workId,
+      works: { connect: foundWorks.map((w) => ({ id: w.id })) },
       photoUrl: typeof body.photoUrl === "string" && body.photoUrl.trim() ? body.photoUrl.trim() : null,
       role: typeof body.role === "string" && body.role.trim() ? body.role.trim() : null,
       archetype: typeof body.archetype === "string" && body.archetype.trim() ? body.archetype.trim() : null,
@@ -1644,12 +1665,16 @@ app.post("/api/admin/characters", async (request, reply) => {
       voiceActorId,
     },
     include: {
-      work: { select: { id: true, title: true, contentKind: true, year: true } },
+      works: { select: { id: true, title: true, contentKind: true, year: true } },
       voiceActor: { select: { id: true, name: true, photoUrl: true } }
     }
   });
 
-  return reply.code(201).send(toJson(character));
+  return reply.code(201).send(toJson({
+    ...character,
+    workId: character.works[0]?.id || "",
+    work: character.works[0] || null,
+  }));
 });
 
 app.patch("/api/admin/characters/:id", async (request, reply) => {
@@ -1657,6 +1682,9 @@ app.patch("/api/admin/characters/:id", async (request, reply) => {
   const body = request.body as {
     name?: string;
     workId?: string;
+    workIds?: string[];
+    addWorkId?: string;
+    removeWorkId?: string;
     photoUrl?: string | null;
     role?: string | null;
     archetype?: string | null;
@@ -1674,11 +1702,17 @@ app.patch("/api/admin/characters/:id", async (request, reply) => {
     if (!cleanName) return reply.code(400).send({ error: "Nome do personagem não pode ser vazio" });
     data.name = cleanName;
   }
-  if (body.workId !== undefined) {
+  if (Array.isArray(body.workIds)) {
+    const validIds = body.workIds.filter((wId) => typeof wId === "string" && wId.trim());
+    data.works = { set: validIds.map((wId) => ({ id: wId })) };
+  } else if (typeof body.addWorkId === "string" && body.addWorkId.trim()) {
+    data.works = { connect: [{ id: body.addWorkId.trim() }] };
+  } else if (typeof body.removeWorkId === "string" && body.removeWorkId.trim()) {
+    data.works = { disconnect: [{ id: body.removeWorkId.trim() }] };
+  } else if (body.workId !== undefined) {
     const cleanWorkId = typeof body.workId === "string" ? body.workId.trim() : "";
     if (cleanWorkId) {
-      const work = await prisma.work.findUnique({ where: { id: cleanWorkId } });
-      if (work) data.work = { connect: { id: cleanWorkId } };
+      data.works = { connect: [{ id: cleanWorkId }] };
     }
   }
   if (body.photoUrl !== undefined) {
@@ -1709,12 +1743,16 @@ app.patch("/api/admin/characters/:id", async (request, reply) => {
     where: { id },
     data,
     include: {
-      work: { select: { id: true, title: true, contentKind: true, year: true } },
+      works: { select: { id: true, title: true, contentKind: true, year: true } },
       voiceActor: { select: { id: true, name: true, photoUrl: true } }
     }
   });
 
-  return toJson(updated);
+  return toJson({
+    ...updated,
+    workId: updated.works[0]?.id || "",
+    work: updated.works[0] || null,
+  });
 });
 
 app.delete("/api/admin/characters/:id", async (request, reply) => {

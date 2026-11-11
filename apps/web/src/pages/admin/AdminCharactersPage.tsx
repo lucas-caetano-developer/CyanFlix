@@ -47,7 +47,10 @@ export function AdminCharactersPage() {
 
   // Calculate characters count per work
   const charCountByWork = characters.reduce<Record<string, number>>((acc, char) => {
-    acc[char.workId] = (acc[char.workId] || 0) + 1;
+    const wIds = char.works && char.works.length > 0 ? char.works.map((w) => w.id) : char.workId ? [char.workId] : [];
+    for (const wId of wIds) {
+      acc[wId] = (acc[wId] || 0) + 1;
+    }
     return acc;
   }, {});
 

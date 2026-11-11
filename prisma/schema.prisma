@@ -448,12 +448,10 @@ model Character {
   voiceAudioUrl     String?
   voiceActorId      String?
   voiceActor        VoiceActor? @relation(fields: [voiceActorId], references: [id], onDelete: SetNull)
-  workId            String
-  work              Work        @relation(fields: [workId], references: [id], onDelete: Cascade)
+  works             Work[]
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
-  @@index([workId])
   @@index([voiceActorId])
   @@index([name])
 }

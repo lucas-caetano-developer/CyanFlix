@@ -219,11 +219,19 @@ export function AdminVoiceActorDetailPage() {
                   </div>
                   <div className="admin-character-card__content">
                     <h3 className="admin-character-card__name">{char.name}</h3>
-                    {char.work && (
+                    {char.works && char.works.length > 0 ? (
+                      <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
+                        {char.works.map((w) => (
+                          <span key={w.id} className="admin-work-badge" title={w.title}>
+                            🎬 {w.title}
+                          </span>
+                        ))}
+                      </div>
+                    ) : char.work ? (
                       <span className="admin-work-badge" title={char.work.title}>
                         🎬 {char.work.title}
                       </span>
-                    )}
+                    ) : null}
                     <div className="admin-character-badges">
                       {char.role && <span className="admin-role-badge">{char.role}</span>}
                       {parseArchetypes(char.archetype).map((arch) => (

@@ -53,8 +53,9 @@ export function AdminCharacterDetailPage() {
     mutationFn: (charId: string) => api.deleteAdminCharacter(charId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "characters"] });
-      if (character?.workId) {
-        navigate(`/admin/characters/work/${character.workId}`);
+      const redirectWorkId = character?.works?.[0]?.id || character?.workId;
+      if (redirectWorkId) {
+        navigate(`/admin/characters/work/${redirectWorkId}`);
       } else {
         navigate("/admin/characters");
       }
@@ -136,16 +137,17 @@ export function AdminCharacterDetailPage() {
     );
   }
 
-  const work = character.work;
-  const actor = character.voiceActor;
+  const works = character?.works && character.works.length > 0 ? character.works : character?.work ? [character.work] : [];
+  const primaryWork = works[0];
+  const actor = character?.voiceActor;
 
   return (
     <div className="admin-page">
       {/* Top breadcrumb */}
       <div className="admin-breadcrumb-bar">
-        {work ? (
-          <Link to={`/admin/characters/work/${work.id}`} className="admin-back-link">
-            ← Voltar para {work.title}
+        {primaryWork ? (
+          <Link to={`/admin/characters/work/${primaryWork.id}`} className="admin-back-link">
+            ← Voltar para {primaryWork.title}
           </Link>
         ) : (
           <Link to="/admin/characters" className="admin-back-link">
@@ -169,7 +171,11 @@ export function AdminCharacterDetailPage() {
           <div className="admin-profile-hero__title-row">
             <div>
               <span className="admin-page__eyebrow">
-                {work ? `Personagem de ${work.title}` : "Personagem"}
+                {works.length > 1
+                  ? `Personagem presente em ${works.length} obras`
+                  : primaryWork
+                  ? `Personagem de ${primaryWork.title}`
+                  : "Personagem"}
               </span>
               <h1 className="admin-profile-hero__name">{character.name}</h1>
             </div>
@@ -193,11 +199,11 @@ export function AdminCharacterDetailPage() {
           </div>
 
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
-            {work && (
-              <Link to={`/admin/characters/work/${work.id}`} className="admin-work-badge">
-                🎬 {work.title} ({work.contentKind.toUpperCase()})
+            {works.map((w) => (
+              <Link key={w.id} to={`/admin/characters/work/${w.id}`} className="admin-work-badge">
+                🎬 {w.title} ({w.contentKind.toUpperCase()})
               </Link>
-            )}
+            ))}
             {character.role && <span className="admin-role-badge">{character.role}</span>}
             {parseArchetypes(character.archetype).map((arch) => (
               <span key={arch} className="admin-archetype-badge">{arch}</span>
@@ -314,23 +320,27 @@ export function AdminCharacterDetailPage() {
 
         {/* Sidebar: Work Info */}
         <aside className="admin-voice-actor-detail-sidebar">
-          {work && (
+          {works.length > 0 && (
             <div className="admin-card">
-              <h3 className="admin-card__title">Obra de Origem</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
-                <h4 style={{ margin: 0, color: "#ffffff", fontSize: "1.1rem" }}>{work.title}</h4>
-                <div style={{ display: "flex", gap: "0.4rem" }}>
-                  <span className="admin-role-badge">{work.contentKind}</span>
-                  {work.year && <span className="admin-archetype-badge">{work.year}</span>}
-                </div>
-                {work.synopsis && (
-                  <p style={{ margin: 0, color: "#94a3b8", fontSize: "0.82rem", lineHeight: 1.5 }}>
-                    {work.synopsis}
-                  </p>
-                )}
-                <Link to={`/admin/characters/work/${work.id}`} className="btn btn--secondary btn--sm" style={{ marginTop: "0.5rem" }}>
-                  Ver Todos Personagens da Obra →
-                </Link>
+              <h3 className="admin-card__title">{works.length > 1 ? "Obras Vinculadas" : "Obra de Origem"}</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                {works.map((w) => (
+                  <div key={w.id} style={{ display: "flex", flexDirection: "column", gap: "0.4rem", paddingBottom: "0.85rem", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                    <h4 style={{ margin: 0, color: "#ffffff", fontSize: "1.05rem" }}>{w.title}</h4>
+                    <div style={{ display: "flex", gap: "0.4rem" }}>
+                      <span className="admin-role-badge">{w.contentKind}</span>
+                      {w.year && <span className="admin-archetype-badge">{w.year}</span>}
+                    </div>
+                    {w.synopsis && (
+                      <p style={{ margin: 0, color: "#94a3b8", fontSize: "0.82rem", lineHeight: 1.4 }}>
+                        {w.synopsis}
+                      </p>
+                    )}
+                    <Link to={`/admin/characters/work/${w.id}`} className="btn btn--secondary btn--xs" style={{ marginTop: "0.4rem", alignSelf: "flex-start" }}>
+                      Ver Todos Personagens da Obra →
+                    </Link>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -537,11 +547,11 @@ export function AdminCharacterDetailPage() {
               </div>
 
               {/* Voice Sample with Mini Player */}
-              {character.workId && (
+              {primaryWork && (
                 <div className="admin-form-group">
                   <label className="admin-label">Amostra de Voz da Dublagem</label>
                   <MiniVideoAudioClipper
-                    workId={character.workId}
+                    workId={primaryWork.id}
                     currentVoiceAudioUrl={formVoiceAudioUrl}
                     onVoiceAudioChange={setFormVoiceAudioUrl}
                     onSaveDirect={async (url) => {
