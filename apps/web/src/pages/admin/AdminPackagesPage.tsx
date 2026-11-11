@@ -406,6 +406,41 @@ export function AdminPackagesPage() {
             </div>
 
             <div className="admin-editor-drawer__body">
+              {detail.data.errorMessage && (
+                <div className="admin-failure-alert-box">
+                  <div className="admin-failure-alert-box__header">
+                    <span className="admin-failure-alert-box__icon">⚠️</span>
+                    <div>
+                      <h4>Falha no Processamento do Pacote</h4>
+                      <p className="admin-failure-alert-box__msg">
+                        {detail.data.errorMessage}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="admin-failure-alert-box__meta">
+                    <span>Tentativas de finalização: <strong>{detail.data.finalizationAttempts ?? 1}</strong></span>
+                    {detail.data.finalizationWorkerId && (
+                      <span>Worker: <code>{detail.data.finalizationWorkerId}</code></span>
+                    )}
+                    {detail.data.finalizationNextAttemptAt && (
+                      <span>Próxima tentativa agendada: {new Date(detail.data.finalizationNextAttemptAt).toLocaleTimeString("pt-BR")}</span>
+                    )}
+                  </div>
+                  {detail.data.state === "failed" && (
+                    <div className="admin-failure-alert-box__action">
+                      <button
+                        type="button"
+                        className="btn btn--primary btn--sm"
+                        disabled={retry.isPending}
+                        onClick={() => retry.mutate(detail.data!.id)}
+                      >
+                        {retry.isPending ? "Reiniciando…" : "▶ Retomar Processamento / Tentar Novamente"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="admin-manifest-summary">
                 <div className="admin-summary-pill">
                   <span>Status:</span>

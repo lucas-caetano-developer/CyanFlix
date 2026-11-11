@@ -90,6 +90,11 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const session = useQuery({ queryKey: ['auth', 'session'], queryFn: api.getSession });
   const clearProfile = useProfileStore((state) => state.clearProfile);
   const [liveStatus, setLiveStatus] = useState<'connecting' | 'live' | 'offline'>('connecting');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     const events = new EventSource('/api/admin/events');
@@ -127,14 +132,33 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="admin-shell" data-spatial-scope="admin">
-      <aside className="admin-sidebar">
-        <Link to="/admin" className="admin-sidebar__brand">
-          <span className="admin-sidebar__brand-mark">C</span>
-          <span>
-            <strong>CyanFlix</strong>
-            <small>Administração</small>
-          </span>
-        </Link>
+      {/* Mobile Backdrop */}
+      {mobileMenuOpen && (
+        <div
+          className="admin-sidebar-backdrop"
+          onClick={() => setMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      <aside className={`admin-sidebar ${mobileMenuOpen ? 'admin-sidebar--open' : ''}`}>
+        <div className="admin-sidebar__top-row">
+          <Link to="/admin" className="admin-sidebar__brand">
+            <span className="admin-sidebar__brand-mark">C</span>
+            <span>
+              <strong>CyanFlix</strong>
+              <small>Administração</small>
+            </span>
+          </Link>
+          <button
+            type="button"
+            className="admin-sidebar__close-mobile"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Fechar menu"
+          >
+            ✕
+          </button>
+        </div>
 
         <nav className="admin-sidebar__nav" aria-label="Navegação administrativa">
           {navItems.map((item) => {
@@ -190,11 +214,26 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
       <div className="admin-shell__main">
         <header className="admin-shell__topbar">
-          <div className="admin-shell__live-indicator">
-            <span className={`admin-live-dot admin-live-dot--${liveStatus}`} />
-            <span className="admin-live-text">
-              {liveStatus === 'live' ? 'Atualização ao vivo' : liveStatus === 'connecting' ? 'Conectando…' : 'Reconectando…'}
-            </span>
+          <div className="admin-shell__topbar-left">
+            <button
+              type="button"
+              className="admin-sidebar-toggle-btn"
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Abrir menu de navegação"
+            >
+              <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" strokeWidth="2" fill="none">
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </button>
+
+            <div className="admin-shell__live-indicator">
+              <span className={`admin-live-dot admin-live-dot--${liveStatus}`} />
+              <span className="admin-live-text">
+                {liveStatus === 'live' ? 'Atualização ao vivo' : liveStatus === 'connecting' ? 'Conectando…' : 'Reconectando…'}
+              </span>
+            </div>
           </div>
 
           <div className="admin-shell__topbar-actions">

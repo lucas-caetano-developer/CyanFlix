@@ -2,6 +2,7 @@ import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
 import fs from "node:fs";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import crypto from "node:crypto";
@@ -890,12 +891,38 @@ app.get("/api/admin/catalog", async (request) => {
     nextCursor: hasMore ? page.at(-1)?.id ?? null : null,
   });
 });
+function convertVideoToMp4(inputPath: string, outputPath: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("ffmpeg", [
+      "-y",
+      "-i", inputPath,
+      "-c:v", "libx264",
+      "-preset", "veryfast",
+      "-crf", "22",
+      "-c:a", "aac",
+      "-b:a", "192k",
+      "-movflags", "+faststart",
+      outputPath
+    ]);
+    let stderr = "";
+    child.stderr?.on("data", (chunk) => {
+      stderr += chunk.toString();
+      if (stderr.length > 5000) stderr = stderr.slice(-5000);
+    });
+    child.on("error", (err) => reject(err));
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`FFmpeg remux falhou (${code}): ${stderr}`));
+    });
+  });
+}
+
 app.get("/api/admin/works/:id", async (request, reply) => {
   const id = (request.params as { id: string }).id;
   const work = await prisma.work.findUnique({ where: { id }, include: {
     editorialOverride: true,
-    assets: { where: { type: { in: workPresentationAssetTypes } }, orderBy: { createdAt: "desc" }, select: { id: true, type: true, publicPath: true, sizeBytes: true, metadata: true } },
-    seasons: { orderBy: { number: "asc" }, include: { assets: { where: { type: { in: seasonPresentationAssetTypes } }, select: { id: true, type: true, publicPath: true, sizeBytes: true } }, episodes: { orderBy: { number: "asc" }, select: { id: true, number: true, title: true, hidden: true, activeRevisionId: true } } } },
+    assets: { where: { type: { in: workPresentationAssetTypes } }, orderBy: { createdAt: "desc" }, select: { id: true, type: true, publicPath: true, sizeBytes: true, metadata: true, relativePath: true } },
+    seasons: { orderBy: { number: "asc" }, include: { assets: { where: { type: { in: seasonPresentationAssetTypes } }, select: { id: true, type: true, publicPath: true, sizeBytes: true } }, episodes: { orderBy: { number: "asc" }, include: { assets: { where: { type: { in: episodePresentationAssetTypes } }, select: { id: true, type: true, publicPath: true, sizeBytes: true } } } } } },
   } });
   return work ? toJson(work) : reply.code(404).send({ error: "Obra não encontrada" });
 });
@@ -1021,6 +1048,323 @@ app.patch("/api/admin/works/:id/editorial", async (request, reply) => {
   });
   return result ? toJson(result) : reply.code(404).send({ error: "Obra não encontrada" });
 });
+app.patch("/api/admin/works/:id/metadata", async (request, reply) => {
+  const workId = (request.params as { id: string }).id;
+  const identity = sessionIdentity(request);
+  const body = request.body as {
+    title?: unknown;
+    originalTitle?: unknown;
+    year?: unknown;
+    contentKind?: unknown;
+    synopsis?: unknown;
+    hidden?: unknown;
+    featured?: unknown;
+    genres?: unknown;
+    certification?: unknown;
+    trailerUrl?: unknown;
+  };
+
+  const work = await prisma.work.findUnique({ where: { id: workId }, include: { editorialOverride: true } });
+  if (!work) return reply.code(404).send({ error: "Obra não encontrada" });
+
+  const existingMeta = readObject(work.metadata);
+  const existingOverrideMeta = readObject(work.editorialOverride?.metadata);
+
+  const workUpdates: Prisma.WorkUpdateInput = {};
+  if (typeof body.year === "number" || body.year === null) workUpdates.year = body.year;
+  if (typeof body.originalTitle === "string" || body.originalTitle === null) workUpdates.originalTitle = body.originalTitle?.trim() || null;
+  if (typeof body.contentKind === "string" && ["movie", "series", "anime"].includes(body.contentKind)) {
+    workUpdates.contentKind = body.contentKind as any;
+  }
+
+  const updatedMeta = { ...existingMeta };
+  if (Array.isArray(body.genres)) {
+    updatedMeta.genres = body.genres.filter((g) => typeof g === "string" && g.trim()).map((g) => g.trim());
+  }
+  if (typeof body.certification === "string" || body.certification === null) {
+    updatedMeta.certification = body.certification?.trim() || null;
+  }
+  if (typeof body.trailerUrl === "string" || body.trailerUrl === null) {
+    updatedMeta.trailer_url = body.trailerUrl?.trim() || null;
+  }
+  workUpdates.metadata = jsonValue(updatedMeta);
+
+  if (Object.keys(workUpdates).length > 0) {
+    await prisma.work.update({ where: { id: workId }, data: workUpdates });
+  }
+
+  const cleanTitle = typeof body.title === "string" ? body.title.trim() : undefined;
+  const cleanSynopsis = typeof body.synopsis === "string" ? body.synopsis.trim() : undefined;
+  const cleanHidden = typeof body.hidden === "boolean" ? body.hidden : undefined;
+  const cleanFeatured = typeof body.featured === "boolean" ? body.featured : undefined;
+
+  const updatedOverrideMeta = { ...existingOverrideMeta, ...updatedMeta };
+
+  await prisma.editorialOverride.upsert({
+    where: { workId },
+    create: {
+      workId,
+      updatedByAccountId: identity.accountId,
+      title: cleanTitle ?? null,
+      synopsis: cleanSynopsis ?? null,
+      hidden: cleanHidden ?? null,
+      featured: cleanFeatured ?? null,
+      metadata: jsonValue(updatedOverrideMeta),
+    },
+    update: {
+      updatedByAccountId: identity.accountId,
+      ...(cleanTitle !== undefined ? { title: cleanTitle || null } : {}),
+      ...(cleanSynopsis !== undefined ? { synopsis: cleanSynopsis || null } : {}),
+      ...(cleanHidden !== undefined ? { hidden: cleanHidden } : {}),
+      ...(cleanFeatured !== undefined ? { featured: cleanFeatured } : {}),
+      metadata: jsonValue(updatedOverrideMeta),
+    },
+  });
+
+  const updatedWork = await prisma.work.findUnique({
+    where: { id: workId },
+    include: {
+      editorialOverride: true,
+      assets: { where: { type: { in: workPresentationAssetTypes } }, orderBy: { createdAt: "desc" }, select: { id: true, type: true, publicPath: true, sizeBytes: true, metadata: true, relativePath: true } },
+      seasons: {
+        orderBy: { number: "asc" },
+        include: {
+          assets: { where: { type: { in: seasonPresentationAssetTypes } }, select: { id: true, type: true, publicPath: true, sizeBytes: true } },
+          episodes: {
+            orderBy: { number: "asc" },
+            include: {
+              assets: { where: { type: { in: episodePresentationAssetTypes } }, select: { id: true, type: true, publicPath: true, sizeBytes: true } }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  return toJson(updatedWork);
+});
+
+app.patch("/api/admin/episodes/:id/metadata", async (request, reply) => {
+  const id = (request.params as { id: string }).id;
+  const identity = sessionIdentity(request);
+  const body = request.body as { title?: unknown; synopsis?: unknown; hidden?: unknown; number?: unknown };
+
+  const before = await prisma.episode.findUnique({ where: { id } });
+  if (!before) return reply.code(404).send({ error: "Episódio não encontrado" });
+
+  const data: Prisma.EpisodeUpdateInput = {};
+  if (typeof body.title === "string" || body.title === null) data.title = body.title?.trim() || null;
+  if (typeof body.synopsis === "string" || body.synopsis === null) data.synopsis = body.synopsis?.trim() || null;
+  if (typeof body.hidden === "boolean") data.hidden = body.hidden;
+  if (typeof body.number === "number") data.number = body.number;
+
+  const updated = await prisma.episode.update({
+    where: { id },
+    data,
+    include: {
+      assets: { where: { type: { in: episodePresentationAssetTypes } }, select: { id: true, type: true, publicPath: true, sizeBytes: true } }
+    }
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorAccountId: identity.accountId,
+      action: "episode.metadata_updated",
+      targetType: "episode",
+      targetId: id,
+      beforeValue: jsonValue(before),
+      afterValue: jsonValue(updated),
+    }
+  });
+
+  return toJson(updated);
+});
+
+app.patch("/api/admin/seasons/:id/metadata", async (request, reply) => {
+  const id = (request.params as { id: string }).id;
+  const identity = sessionIdentity(request);
+  const body = request.body as { title?: unknown; hidden?: unknown };
+
+  const before = await prisma.season.findUnique({ where: { id } });
+  if (!before) return reply.code(404).send({ error: "Temporada não encontrada" });
+
+  const data: Prisma.SeasonUpdateInput = {};
+  if (typeof body.title === "string" || body.title === null) data.title = body.title?.trim() || null;
+  if (typeof body.hidden === "boolean") data.hidden = body.hidden;
+
+  const updated = await prisma.season.update({ where: { id }, data });
+  await prisma.auditLog.create({
+    data: {
+      actorAccountId: identity.accountId,
+      action: "season.metadata_updated",
+      targetType: "season",
+      targetId: id,
+      beforeValue: jsonValue(before),
+      afterValue: jsonValue(updated),
+    }
+  });
+  return toJson(updated);
+});
+
+app.post("/api/admin/works/:id/upload-asset", { bodyLimit: 500 * 1024 * 1024 }, async (request, reply) => {
+  const workId = (request.params as { id: string }).id;
+  const query = request.query as { type?: string; filename?: string };
+  const identity = sessionIdentity(request);
+  const assetType = query.type ?? "trailer";
+  if (!["trailer", "poster", "backdrop"].includes(assetType)) {
+    return reply.code(400).send({ error: "Tipo de asset inválido. Use trailer, poster ou backdrop." });
+  }
+
+  const work = await prisma.work.findUnique({ where: { id: workId } });
+  if (!work) return reply.code(404).send({ error: "Obra não encontrada" });
+
+  const origName = query.filename || (request.headers["x-original-name"] as string) || "asset";
+  const ext = path.extname(origName).toLowerCase() || (assetType === "trailer" ? ".mp4" : ".webp");
+
+  const customDir = safeDataPath("library", "custom", workId);
+  await ensureUploadDirectory(customDir);
+
+  const tempName = `temp_${Date.now()}_${crypto.randomUUID()}${ext}`;
+  const tempPath = path.join(customDir, tempName);
+
+  const hash = crypto.createHash("sha256");
+  let sizeBytes = 0;
+  const fileOut = fs.createWriteStream(tempPath);
+
+  for await (const chunk of request.raw) {
+    sizeBytes += (chunk as Buffer).length;
+    hash.update(chunk as Buffer);
+    fileOut.write(chunk);
+  }
+  await new Promise<void>((resolve, reject) => {
+    fileOut.end((err: Error | null) => (err ? reject(err) : resolve()));
+  });
+
+  if (sizeBytes === 0) {
+    try { await fs.promises.unlink(tempPath); } catch {}
+    return reply.code(400).send({ error: "Nenhum arquivo enviado" });
+  }
+
+  let finalFileName = `${assetType}_${Date.now()}${ext}`;
+  let finalPath = path.join(customDir, finalFileName);
+  let finalSha256 = hash.digest("hex");
+
+  if (assetType === "trailer" && [".ts", ".mkv", ".mov", ".avi", ".flv"].includes(ext)) {
+    const mp4Name = `${assetType}_${Date.now()}.mp4`;
+    const mp4Path = path.join(customDir, mp4Name);
+    try {
+      await convertVideoToMp4(tempPath, mp4Path);
+      await fs.promises.unlink(tempPath).catch(() => {});
+      finalFileName = mp4Name;
+      finalPath = mp4Path;
+      const stat = await fs.promises.stat(finalPath);
+      sizeBytes = stat.size;
+      const newHash = crypto.createHash("sha256");
+      for await (const chunk of fs.createReadStream(finalPath)) newHash.update(chunk as Buffer);
+      finalSha256 = newHash.digest("hex");
+    } catch {
+      finalFileName = tempName;
+      finalPath = tempPath;
+    }
+  } else {
+    await fs.promises.rename(tempPath, finalPath);
+  }
+
+  const publicPath = `/media/custom/${workId}/${finalFileName}`;
+  const asset = await prisma.asset.create({
+    data: {
+      stableId: crypto.randomUUID(),
+      type: assetType === "backdrop" ? "hero" : assetType,
+      relativePath: `custom/${workId}/${finalFileName}`,
+      publicPath,
+      sizeBytes: BigInt(sizeBytes),
+      sha256: finalSha256,
+      metadata: jsonValue({ originalName: origName, uploadedAt: new Date().toISOString() }),
+      workId,
+    }
+  });
+
+  const current = await prisma.editorialOverride.findUnique({ where: { workId } });
+  const currentMeta = readObject(current?.metadata);
+  const preferredAssets = {
+    ...readObject(currentMeta.preferred_assets),
+    [assetType === "backdrop" ? "hero" : assetType]: asset.id,
+  };
+  await prisma.editorialOverride.upsert({
+    where: { workId },
+    create: {
+      workId,
+      updatedByAccountId: identity.accountId,
+      metadata: jsonValue({
+        ...currentMeta,
+        preferred_assets: preferredAssets,
+        ...(assetType === "trailer" ? { trailer_url: publicPath } : {})
+      })
+    },
+    update: {
+      updatedByAccountId: identity.accountId,
+      metadata: jsonValue({
+        ...currentMeta,
+        preferred_assets: preferredAssets,
+        ...(assetType === "trailer" ? { trailer_url: publicPath } : {})
+      })
+    }
+  });
+
+  return toJson({ asset });
+});
+
+app.post("/api/admin/episodes/:id/upload-thumbnail", { bodyLimit: 50 * 1024 * 1024 }, async (request, reply) => {
+  const episodeId = (request.params as { id: string }).id;
+  const query = request.query as { filename?: string };
+  const episode = await prisma.episode.findUnique({ where: { id: episodeId }, select: { id: true, workId: true } });
+  if (!episode) return reply.code(404).send({ error: "Episódio não encontrado" });
+
+  const origName = query.filename || "thumbnail.webp";
+  const ext = path.extname(origName).toLowerCase() || ".webp";
+
+  const customDir = safeDataPath("library", "custom", episode.workId, "episodes", episodeId);
+  await ensureUploadDirectory(customDir);
+
+  const finalFileName = `thumb_${Date.now()}${ext}`;
+  const finalPath = path.join(customDir, finalFileName);
+
+  const hash = crypto.createHash("sha256");
+  let sizeBytes = 0;
+  const fileOut = fs.createWriteStream(finalPath);
+
+  for await (const chunk of request.raw) {
+    sizeBytes += (chunk as Buffer).length;
+    hash.update(chunk as Buffer);
+    fileOut.write(chunk);
+  }
+  await new Promise<void>((resolve, reject) => {
+    fileOut.end((err: Error | null) => (err ? reject(err) : resolve()));
+  });
+
+  if (sizeBytes === 0) {
+    try { await fs.promises.unlink(finalPath); } catch {}
+    return reply.code(400).send({ error: "Nenhum arquivo enviado" });
+  }
+
+  const publicPath = `/media/custom/${episode.workId}/episodes/${episodeId}/${finalFileName}`;
+  const asset = await prisma.asset.create({
+    data: {
+      stableId: crypto.randomUUID(),
+      type: "thumbnail_webp",
+      relativePath: `custom/${episode.workId}/episodes/${episodeId}/${finalFileName}`,
+      publicPath,
+      sizeBytes: BigInt(sizeBytes),
+      sha256: hash.digest("hex"),
+      metadata: jsonValue({ originalName: origName, uploadedAt: new Date().toISOString() }),
+      workId: episode.workId,
+      episodeId,
+    }
+  });
+
+  return toJson({ asset });
+});
+
 app.get("/api/admin/collections", async () => toJson(await prisma.editorialCollection.findMany({
   orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
   include: { items: { orderBy: { position: "asc" }, include: { work: { select: { id: true, title: true, contentKind: true, editorialOverride: { select: { title: true, hidden: true } } } } } } },

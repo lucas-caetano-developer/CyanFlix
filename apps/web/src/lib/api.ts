@@ -1,4 +1,4 @@
-import type { Profile, ProfilePreferences, HomeData, SearchResult, Work, PlaybackData, FallbackJob, AdminDashboard, Publication, PublicationDetail, Revision, RevisionCleanup, Session, Account, IntegrityCheck, AdminCatalogWork, AdminWorkDetail, AuditEntry, EditorialCollection, EditorialCollectionPreview, StorageMetrics, WorkDeletionPreview, WorkRating, HomeSectionConfig } from './types';
+import type { Profile, ProfilePreferences, HomeData, SearchResult, Work, PlaybackData, FallbackJob, AdminDashboard, Publication, PublicationDetail, Revision, RevisionCleanup, Session, Account, IntegrityCheck, AdminCatalogWork, AdminWorkDetail, AuditEntry, EditorialCollection, EditorialCollectionPreview, StorageMetrics, WorkDeletionPreview, WorkRating, HomeSectionConfig, Asset, Episode } from './types';
 
 export async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { credentials: 'same-origin', ...init });
@@ -40,9 +40,48 @@ export const api = {
   getWorkDeletionPreview: (id: string) => fetchApi<WorkDeletionPreview>(`/api/admin/works/${encodeURIComponent(id)}/deletion-preview`),
   deleteAdminWork: (id: string, confirmTitle: string) => fetchApi<{ deleted: boolean; workId: string; stableId: string; title: string }>(`/api/admin/works/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmTitle }) }),
   updateAdminSeason: (id: string, hidden: boolean) => fetchApi<{ id: string; hidden: boolean; workId: string }>(`/api/admin/seasons/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hidden }) }),
+  updateAdminSeasonMetadata: (id: string, data: { title?: string | null; hidden?: boolean }) => fetchApi<{ id: string; title: string | null; hidden: boolean }>(`/api/admin/seasons/${encodeURIComponent(id)}/metadata`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
   updateAdminEpisode: (id: string, hidden: boolean) => fetchApi<{ id: string; hidden: boolean; workId: string }>(`/api/admin/episodes/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hidden }) }),
+  updateAdminEpisodeMetadata: (id: string, data: { title?: string | null; synopsis?: string | null; hidden?: boolean; number?: number }) => fetchApi<Episode>(`/api/admin/episodes/${encodeURIComponent(id)}/metadata`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
   updatePresentationAsset: (workId: string, assetType: string, assetId: string) => fetchApi<void>(`/api/admin/works/${encodeURIComponent(workId)}/presentation`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assetType, assetId }) }),
   updateEditorialWork: (id: string, data: { title?: string | null; synopsis?: string | null; hidden?: boolean | null; featured?: boolean | null }) => fetchApi<Pick<AdminCatalogWork, 'id'> & Partial<AdminCatalogWork>>(`/api/admin/works/${encodeURIComponent(id)}/editorial`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
+  updateAdminWorkMetadata: (id: string, data: { title?: string | null; originalTitle?: string | null; year?: number | null; contentKind?: "movie" | "series" | "anime"; synopsis?: string | null; hidden?: boolean | null; featured?: boolean | null; genres?: string[]; certification?: string | null; trailerUrl?: string | null }) => fetchApi<AdminWorkDetail>(`/api/admin/works/${encodeURIComponent(id)}/metadata`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
+  uploadWorkAsset: async (workId: string, type: 'trailer' | 'poster' | 'backdrop', file: File) => {
+    const query = new URLSearchParams({ type, filename: file.name });
+    const res = await fetch(`/api/admin/works/${encodeURIComponent(workId)}/upload-asset?${query}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'x-original-name': encodeURIComponent(file.name),
+        'x-mime-type': file.type || 'application/octet-stream',
+      },
+      body: file,
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `HTTP ${res.status}`);
+    }
+    return res.json() as Promise<{ asset: Asset }>;
+  },
+  uploadEpisodeThumbnail: async (episodeId: string, file: File) => {
+    const query = new URLSearchParams({ filename: file.name });
+    const res = await fetch(`/api/admin/episodes/${encodeURIComponent(episodeId)}/upload-thumbnail?${query}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'x-original-name': encodeURIComponent(file.name),
+        'x-mime-type': file.type || 'image/jpeg',
+      },
+      body: file,
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `HTTP ${res.status}`);
+    }
+    return res.json() as Promise<{ asset: Asset }>;
+  },
   getAdminCollections: () => fetchApi<EditorialCollection[]>('/api/admin/collections'),
   createAdminCollection: (data: { title: string; slug?: string }) => fetchApi<EditorialCollection>('/api/admin/collections', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
   updateAdminCollection: (id: string, data: { title?: string; slug?: string; description?: string | null; active?: boolean; featured?: boolean; sortOrder?: number; workIds?: string[] }) => fetchApi<{ collection: EditorialCollection; workIds: string[] }>(`/api/admin/collections/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
