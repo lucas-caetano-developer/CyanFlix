@@ -30,6 +30,9 @@ export function AdminHomeSectionsPage() {
         queryClient.invalidateQueries({ queryKey: ["home"] }),
       ]);
     },
+    onError: (err) => {
+      alert(`Falha ao salvar seções: ${err instanceof Error ? err.message : String(err)}`);
+    },
   });
 
   const toggleEnabled = (index: number) => {

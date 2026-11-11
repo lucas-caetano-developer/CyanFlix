@@ -236,8 +236,38 @@ const DEFAULT_HOME_SECTIONS: HomeSectionConfig[] = [
 ];
 
 const homeSectionsFile = path.join(env.dataRoot, "home_sections.json");
+let cachedHomeSections: HomeSectionConfig[] | null = null;
+let lastHomeSectionsCacheTime = 0;
 
-function getStoredHomeSections(): HomeSectionConfig[] {
+async function getStoredHomeSections(): Promise<HomeSectionConfig[]> {
+  const now = Date.now();
+  if (cachedHomeSections && cachedHomeSections.length > 0 && now - lastHomeSectionsCacheTime < 10_000) {
+    return cachedHomeSections;
+  }
+
+  // 1. Try PostgreSQL first
+  try {
+    const col = await prisma.editorialCollection.findUnique({
+      where: { slug: "__cyanflix_home_sections__" },
+    });
+    if (col && Array.isArray(col.metadata) && col.metadata.length > 0) {
+      const parsed = col.metadata as unknown as HomeSectionConfig[];
+      const existingIds = new Set(parsed.map((s) => s.id));
+      const merged = [...parsed];
+      for (const def of DEFAULT_HOME_SECTIONS) {
+        if (!existingIds.has(def.id)) {
+          merged.push({ ...def, sortOrder: merged.length });
+        }
+      }
+      cachedHomeSections = merged.sort((a, b) => a.sortOrder - b.sortOrder);
+      lastHomeSectionsCacheTime = now;
+      return cachedHomeSections;
+    }
+  } catch (err) {
+    app.log.warn({ err }, "Erro ao carregar seções da home do PostgreSQL");
+  }
+
+  // 2. Try disk file fallback
   try {
     if (fs.existsSync(homeSectionsFile)) {
       const parsed = JSON.parse(fs.readFileSync(homeSectionsFile, "utf-8")) as HomeSectionConfig[];
@@ -249,22 +279,52 @@ function getStoredHomeSections(): HomeSectionConfig[] {
             merged.push({ ...def, sortOrder: merged.length });
           }
         }
-        return merged.sort((a, b) => a.sortOrder - b.sortOrder);
+        cachedHomeSections = merged.sort((a, b) => a.sortOrder - b.sortOrder);
+        lastHomeSectionsCacheTime = now;
+        return cachedHomeSections;
       }
     }
   } catch (err) {
     app.log.warn({ err }, "Erro ao ler home_sections.json");
   }
-  return [...DEFAULT_HOME_SECTIONS];
+
+  cachedHomeSections = [...DEFAULT_HOME_SECTIONS];
+  lastHomeSectionsCacheTime = now;
+  return cachedHomeSections;
 }
 
-function saveStoredHomeSections(sections: HomeSectionConfig[]): void {
+async function saveStoredHomeSections(sections: HomeSectionConfig[]): Promise<void> {
+  cachedHomeSections = sections;
+  lastHomeSectionsCacheTime = Date.now();
+
+  // 1. Save to PostgreSQL
+  try {
+    await prisma.editorialCollection.upsert({
+      where: { slug: "__cyanflix_home_sections__" },
+      create: {
+        slug: "__cyanflix_home_sections__",
+        title: "Configuração de Seções da Home",
+        state: "system",
+        active: false,
+        metadata: jsonValue(sections),
+        createdByAccountId: "system",
+        updatedByAccountId: "system",
+      },
+      update: {
+        metadata: jsonValue(sections),
+        updatedAt: new Date(),
+      },
+    });
+  } catch (err) {
+    app.log.error({ err }, "Erro ao salvar seções da home no PostgreSQL");
+  }
+
+  // 2. Save to file fallback (non-blocking if permission denied)
   try {
     fs.mkdirSync(env.dataRoot, { recursive: true });
     fs.writeFileSync(homeSectionsFile, JSON.stringify(sections, null, 2), "utf-8");
   } catch (err) {
-    app.log.error({ err }, "Erro ao salvar home_sections.json");
-    throw err;
+    app.log.warn({ err }, "Aviso: não foi possível gravar home_sections.json no disco (usando PostgreSQL)");
   }
 }
 
@@ -273,7 +333,7 @@ app.get("/api/home", async (request, reply) => {
   if (!profile) return;
   const kind = parseContentKind((request.query as { kind?: string }).kind);
   const [works, collections, favorites, history, popularProgress] = await Promise.all([
-    prisma.work.findMany({ where: { hidden: false, AND: [catalogAvailabilityWhere, catalogVisibilityWhere], ...(kind ? { contentKind: kind } : {}) }, include: workCardInclude, orderBy: [{ editorialOverride: { featured: "desc" } }, { createdAt: "desc" }], take: 80 }),
+    prisma.work.findMany({ where: { hidden: false, AND: [catalogAvailabilityWhere, catalogVisibilityWhere], ...(kind ? { contentKind: kind } : {}) }, include: workCardInclude, orderBy: [{ editorialOverride: { featured: "desc" } }, { createdAt: "desc" }], take: 100 }),
     prisma.editorialCollection.findMany({
       where: { state: "published", active: true },
       orderBy: [{ featured: "desc" }, { sortOrder: "asc" }, { publishedAt: "desc" }],
@@ -294,35 +354,38 @@ app.get("/api/home", async (request, reply) => {
       take: 30,
     }),
   ]);
-  const cards = works.filter((work) => profileAllowsWork(profile.maxAgeRating, work)).slice(0, 40).map(toWorkCardDto);
-  const collectionRows = collections.map((collection) => ({
-    id: `collection:${collection.slug}`,
-    title: collection.title,
-    items: collection.items.map((item) => item.work).filter((work) => profileAllowsWork(profile.maxAgeRating, work)).map(toWorkCardDto),
-  })).filter((row) => row.items.length > 0);
-  const genreRows = catalogGenreRows(cards);
-  const dubbed = cards.filter((item) => catalogAvailability(item).includes("DUB"));
-  const subtitled = cards.filter((item) => catalogAvailability(item).includes("LEG"));
+  const allCards = works.filter((work) => profileAllowsWork(profile.maxAgeRating, work)).map(toWorkCardDto);
+  const cards = allCards.slice(0, 40);
+  const collectionRows = collections
+    .filter((col) => col.slug !== "__cyanflix_home_sections__")
+    .map((collection) => ({
+      id: `collection:${collection.slug}`,
+      title: collection.title,
+      items: collection.items.map((item) => item.work).filter((work) => profileAllowsWork(profile.maxAgeRating, work)).map(toWorkCardDto),
+    })).filter((row) => row.items.length > 0);
+  const genreRows = catalogGenreRows(allCards);
+  const dubbed = allCards.filter((item) => catalogAvailability(item).includes("DUB"));
+  const subtitled = allCards.filter((item) => catalogAvailability(item).includes("LEG"));
   const recommendationSeeds = [...favorites.map((row) => ({ id: row.workId, ...row.work })), ...history.map((row) => row.work ? ({ id: row.workId!, ...row.work }) : row.episode ? ({ id: row.episode.workId, ...row.episode.work }) : null).filter((row): row is { id: string; metadata: Prisma.JsonValue; contentKind: "movie" | "series" | "anime" } => Boolean(row))];
   const seedIds = new Set(recommendationSeeds.map((seed) => seed.id));
   const taste = recommendationSeeds.flatMap((seed) => recommendationTokens(seed.metadata));
   const seedKinds = recommendationSeeds.map((seed) => seed.contentKind);
-  const recommendations = cards.filter((card) => !seedIds.has(card.id)).map((card) => ({ card, score: recommendationScore(card, taste, seedKinds) })).filter((entry) => entry.score > 0).sort((a, b) => b.score - a.score).slice(0, 20).map((entry) => entry.card);
+  const recommendations = allCards.filter((card) => !seedIds.has(card.id)).map((card) => ({ card, score: recommendationScore(card, taste, seedKinds) })).filter((entry) => entry.score > 0).sort((a, b) => b.score - a.score).slice(0, 20).map((entry) => entry.card);
 
   // Mais assistidos
   const popularWorkIds = new Set(popularProgress.map((p) => p.workId).filter(Boolean));
   const popularCards = [
-    ...cards.filter((c) => popularWorkIds.has(c.id)),
-    ...cards.filter((c) => !popularWorkIds.has(c.id)),
+    ...allCards.filter((c) => popularWorkIds.has(c.id)),
+    ...allCards.filter((c) => !popularWorkIds.has(c.id)),
   ];
 
-  const rowMap = new Map<string, { id: string; defaultTitle: string; items: typeof cards }>();
-  rowMap.set("featured", { id: "featured", defaultTitle: "Destaques", items: cards.filter((item) => item.featured) });
+  const rowMap = new Map<string, { id: string; defaultTitle: string; items: typeof allCards }>();
+  rowMap.set("featured", { id: "featured", defaultTitle: "Destaques", items: allCards.filter((item) => item.featured) });
   rowMap.set("popular", { id: "popular", defaultTitle: "Mais assistidos", items: popularCards });
-  rowMap.set("recent", { id: "recent", defaultTitle: "Adicionados recentemente", items: cards });
-  rowMap.set("anime", { id: "anime", defaultTitle: "Animes", items: cards.filter((item) => item.contentKind === "anime") });
-  rowMap.set("movies", { id: "movies", defaultTitle: "Filmes", items: cards.filter((item) => item.contentKind === "movie") });
-  rowMap.set("series", { id: "series", defaultTitle: "Séries", items: cards.filter((item) => item.contentKind === "series") });
+  rowMap.set("recent", { id: "recent", defaultTitle: "Adicionados recentemente", items: allCards });
+  rowMap.set("anime", { id: "anime", defaultTitle: "Animes", items: allCards.filter((item) => item.contentKind === "anime") });
+  rowMap.set("movies", { id: "movies", defaultTitle: "Filmes", items: allCards.filter((item) => item.contentKind === "movie") });
+  rowMap.set("series", { id: "series", defaultTitle: "Séries", items: allCards.filter((item) => item.contentKind === "series") });
   rowMap.set("dubbed", { id: "dubbed", defaultTitle: "Dublado", items: dubbed });
   rowMap.set("subtitled", { id: "subtitled", defaultTitle: "Legendado", items: subtitled });
   rowMap.set("recommended", { id: "recommended", defaultTitle: "Para você", items: recommendations });
@@ -336,7 +399,7 @@ app.get("/api/home", async (request, reply) => {
 
   function matchGenreWorks(genreKey: string) {
     const term = genreKey.toLowerCase();
-    return cards.filter((card) => {
+    return allCards.filter((card) => {
       const meta = readObject(card.metadata);
       const direct = Array.isArray(meta.genres) ? meta.genres : [];
       const anilist = readObject(meta.anilist);
@@ -352,8 +415,8 @@ app.get("/api/home", async (request, reply) => {
     });
   }
 
-  const storedSections = getStoredHomeSections();
-  const configuredRows: Array<{ id: string; title: string; items: typeof cards }> = [];
+  const storedSections = await getStoredHomeSections();
+  const configuredRows: Array<{ id: string; title: string; items: typeof allCards }> = [];
 
   for (const sec of storedSections) {
     if (!sec.enabled) continue;
@@ -369,25 +432,25 @@ app.get("/api/home", async (request, reply) => {
       configuredRows.push({
         id: found.id,
         title: sec.title.trim() || found.defaultTitle,
-        items: found.items,
+        items: found.items.slice(0, 24),
       });
     }
   }
 
   const finalRows = configuredRows.length > 0 ? configuredRows : [
-    { id: "featured", title: "Destaques", items: cards.filter((item) => item.featured) },
-    { id: "recommended", title: "Para você", items: recommendations },
-    { id: "recent", title: "Adicionados recentemente", items: cards },
-    { id: "dubbed", title: "Dublado", items: dubbed },
-    { id: "subtitled", title: "Legendado", items: subtitled },
+    { id: "featured", title: "Destaques", items: allCards.filter((item) => item.featured).slice(0, 24) },
+    { id: "recommended", title: "Para você", items: recommendations.slice(0, 24) },
+    { id: "recent", title: "Adicionados recentemente", items: allCards.slice(0, 24) },
+    { id: "dubbed", title: "Dublado", items: dubbed.slice(0, 24) },
+    { id: "subtitled", title: "Legendado", items: subtitled.slice(0, 24) },
     ...collectionRows,
-    { id: "movies", title: "Filmes", items: cards.filter((item) => item.contentKind === "movie") },
-    { id: "series", title: "Séries", items: cards.filter((item) => item.contentKind === "series") },
-    { id: "anime", title: "Animes", items: cards.filter((item) => item.contentKind === "anime") },
+    { id: "movies", title: "Filmes", items: allCards.filter((item) => item.contentKind === "movie").slice(0, 24) },
+    { id: "series", title: "Séries", items: allCards.filter((item) => item.contentKind === "series").slice(0, 24) },
+    { id: "anime", title: "Animes", items: allCards.filter((item) => item.contentKind === "anime").slice(0, 24) },
     ...genreRows,
   ];
 
-  return toJson({ hero: cards.find((item) => item.featured) ?? cards[0] ?? null, rows: finalRows });
+  return toJson({ hero: allCards.find((item) => item.featured) ?? allCards[0] ?? null, rows: finalRows });
 });
 app.get("/api/search", async (request, reply) => {
   const profile = await requireActiveProfile(request, reply);
@@ -1577,7 +1640,7 @@ app.delete("/api/admin/accounts/:id", async (request, reply) => {
   return { ok: true };
 });
 app.get("/api/admin/home-sections", async (request, reply) => {
-  const sections = getStoredHomeSections();
+  const sections = await getStoredHomeSections();
   const collections = await prisma.editorialCollection.findMany({
     where: { state: "published", active: true },
     select: { id: true, slug: true, title: true }
@@ -1585,6 +1648,7 @@ app.get("/api/admin/home-sections", async (request, reply) => {
   const existingIds = new Set(sections.map((s) => s.id));
   const result = [...sections];
   for (const col of collections) {
+    if (col.slug === "__cyanflix_home_sections__") continue;
     const colId = `collection:${col.slug}`;
     if (!existingIds.has(colId)) {
       result.push({
@@ -1612,7 +1676,7 @@ app.put("/api/admin/home-sections", async (request, reply) => {
     type: (sec.type === "genre" || sec.type === "collection" ? sec.type : "system") as "system" | "genre" | "collection",
     sortOrder: typeof sec.sortOrder === "number" ? sec.sortOrder : index,
   }));
-  saveStoredHomeSections(sanitized);
+  await saveStoredHomeSections(sanitized);
 
   return toJson({ success: true, sections: sanitized });
 });
@@ -2528,9 +2592,10 @@ type AdminEventSnapshot = {
   integrity: string;
   catalog: string;
   cleanup: string;
+  home_sections: string;
 };
 async function readAdminEventSnapshot(): Promise<AdminEventSnapshot> {
-  const [publications, transcodes, revisions, accounts, integrity, catalog, collections, cleanup] = await Promise.all([
+  const [publications, transcodes, revisions, accounts, integrity, catalog, collections, cleanup, homeSections] = await Promise.all([
     prisma.publication.aggregate({ _max: { updatedAt: true }, _count: { _all: true } }),
     prisma.transcodeJob.aggregate({ _max: { updatedAt: true }, _count: { _all: true } }),
     prisma.revision.findMany({ select: { id: true, active: true }, orderBy: { id: "asc" } }),
@@ -2539,6 +2604,7 @@ async function readAdminEventSnapshot(): Promise<AdminEventSnapshot> {
     prisma.editorialOverride.aggregate({ _max: { updatedAt: true }, _count: { _all: true } }),
     prisma.editorialCollection.aggregate({ _max: { updatedAt: true }, _count: { _all: true } }),
     prisma.revisionCleanupJob.aggregate({ _max: { updatedAt: true }, _count: { _all: true } }),
+    getStoredHomeSections(),
   ]);
   return {
     publications: `${publications._count._all}:${publications._max.updatedAt?.toISOString() ?? "-"}`,
@@ -2548,6 +2614,7 @@ async function readAdminEventSnapshot(): Promise<AdminEventSnapshot> {
     integrity: `${integrity._count._all}:${integrity._max.startedAt?.toISOString() ?? "-"}:${integrity._max.completedAt?.toISOString() ?? "-"}`,
     catalog: `${catalog._count._all}:${catalog._max.updatedAt?.toISOString() ?? "-"}:${collections._count._all}:${collections._max.updatedAt?.toISOString() ?? "-"}`,
     cleanup: `${cleanup._count._all}:${cleanup._max.updatedAt?.toISOString() ?? "-"}`,
+    home_sections: homeSections.map((s) => `${s.id}:${s.enabled ? 1 : 0}:${s.sortOrder}:${s.title}`).join("|"),
   };
 }
 function sessionIdentity(request: FastifyRequest) {

@@ -42,6 +42,8 @@ export function BrowsePage() {
     queryKey: ['home', profileId, kind],
     queryFn: () => api.getHome(kind),
     enabled: Boolean(profileId),
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always',
   });
   const continueWatching = useQuery({
     queryKey: ['continue-watching', profileId],

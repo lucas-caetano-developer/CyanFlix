@@ -112,7 +112,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
       if (changed.has('transcodes')) void queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
       if (changed.has('revisions')) void queryClient.invalidateQueries({ queryKey: ['admin', 'revisions'] });
       if (changed.has('accounts')) void queryClient.invalidateQueries({ queryKey: ['admin', 'accounts'] });
-      if (changed.has('home_sections')) void queryClient.invalidateQueries({ queryKey: ['admin', 'home-sections'] });
+      if (changed.has('home_sections')) {
+        void queryClient.invalidateQueries({ queryKey: ['admin', 'home-sections'] });
+        void queryClient.invalidateQueries({ queryKey: ['home'] });
+      }
       if (changed.has('catalog')) {
         void queryClient.invalidateQueries({ queryKey: ['admin', 'catalog'] });
         void queryClient.invalidateQueries({ queryKey: ['home'] });
