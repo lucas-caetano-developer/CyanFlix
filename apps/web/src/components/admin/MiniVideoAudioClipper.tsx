@@ -592,6 +592,17 @@ export function MiniVideoAudioClipper({ workId, currentVoiceAudioUrl, onVoiceAud
                 ))}
               </div>
 
+              {errorMessage && (
+                <div className="admin-alert admin-alert--danger" style={{ marginTop: "0.75rem", marginBottom: "0.5rem" }}>
+                  ⚠️ {errorMessage}
+                </div>
+              )}
+              {successMessage && (
+                <div className="admin-alert admin-alert--success" style={{ marginTop: "0.75rem", marginBottom: "0.5rem" }}>
+                  {successMessage}
+                </div>
+              )}
+
               <div style={{ marginTop: "0.85rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
                 <button
                   type="button"

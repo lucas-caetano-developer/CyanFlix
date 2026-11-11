@@ -1802,7 +1802,7 @@ async function resolveAudioSource(sourceDiskPath: string): Promise<string> {
     if (audioLines.length > 0) {
       // Prioritize Portuguese dub track if available, else default/first
       const preferred = audioLines.find((l) =>
-        /LANGUAGE="por"|NAME=".*portug[uê]s.*"|NAME=".*dub.*"/i.test(l)
+        /LANGUAGE="por"|LANGUAGE="pt.*"|NAME=".*portug[uê]s.*"|NAME=".*dub.*"/i.test(l)
       ) || audioLines.find((l) => /DEFAULT=YES/i.test(l)) || audioLines[0];
 
       const match = preferred.match(/URI="([^"]+)"/);
@@ -1892,12 +1892,14 @@ function extractAudioSegment(inputPath: string, outputPath: string, startSeconds
       "-y",
       "-protocol_whitelist", "file,http,https,tcp,tls,crypto,data",
       "-allowed_extensions", "ALL",
+      "-i", inputPath,
       "-ss", String(Math.max(0, startSeconds)),
       "-t", String(Math.max(0.5, durationSeconds)),
-      "-i", inputPath,
       "-vn",
       "-c:a", "aac",
       "-b:a", "192k",
+      "-ar", "48000",
+      "-ac", "2",
       outputPath
     ]);
     let stderr = "";
@@ -1907,10 +1909,10 @@ function extractAudioSegment(inputPath: string, outputPath: string, startSeconds
     });
     child.on("error", (err) => reject(err));
     child.on("close", (code) => {
-      if (code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 100) {
+      if (code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000) {
         resolve();
       } else {
-        reject(new Error(`FFmpeg falhou ao extrair áudio (${code}): ${stderr || "arquivo de saída vazio"}`));
+        reject(new Error(`FFmpeg falhou ao extrair áudio (${code}): ${stderr || "arquivo de saída vazio ou sem áudio"}`));
       }
     });
   });
@@ -1929,8 +1931,9 @@ function concatAudioSegments(inputPaths: string[], outputPath: string): Promise<
     for (const p of inputPaths) {
       args.push("-i", p);
     }
-    const filterInputs = inputPaths.map((_, i) => `[${i}:a]`).join("");
-    const filterComplex = `${filterInputs}concat=n=${inputPaths.length}:v=0:a=1[out]`;
+    const filterInputs = inputPaths.map((_, i) => `[${i}:a]aformat=channel_layouts=stereo:sample_rates=48000[a${i}];`).join("");
+    const concatInput = inputPaths.map((_, i) => `[a${i}]`).join("");
+    const filterComplex = `${filterInputs}${concatInput}concat=n=${inputPaths.length}:v=0:a=1[out]`;
     args.push("-filter_complex", filterComplex, "-map", "[out]", "-c:a", "aac", "-b:a", "192k", outputPath);
 
     const child = spawn("ffmpeg", args);
@@ -1941,7 +1944,7 @@ function concatAudioSegments(inputPaths: string[], outputPath: string): Promise<
     });
     child.on("error", (err) => reject(err));
     child.on("close", (code) => {
-      if (code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 100) {
+      if (code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000) {
         resolve();
       } else {
         reject(new Error(`FFmpeg concat falhou (${code}): ${stderr || "arquivo final vazio"}`));
@@ -1998,6 +2001,10 @@ app.post("/api/admin/characters/extract-voice", async (request, reply) => {
 
     const publicPath = `/media/custom/characters/${finalFileName}`;
     return toJson({ voiceAudioUrl: publicPath });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    request.log.error({ err }, "falha ao extrair áudio do personagem");
+    return reply.code(400).send({ error: message });
   } finally {
     // cleanup tempDir
     await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
