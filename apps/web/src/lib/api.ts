@@ -1,4 +1,4 @@
-import type { Profile, ProfilePreferences, HomeData, SearchResult, Work, PlaybackData, FallbackJob, AdminDashboard, Publication, PublicationDetail, Revision, RevisionCleanup, Session, Account, IntegrityCheck, AdminCatalogWork, AdminWorkDetail, AuditEntry, EditorialCollection, EditorialCollectionPreview, StorageMetrics, WorkDeletionPreview, WorkRating, HomeSectionConfig, Asset, Episode, VoiceActor, Character, WorkPlayableSources } from './types';
+import type { Profile, ProfilePreferences, AvatarGroup, HomeData, SearchResult, Work, PlaybackData, FallbackJob, AdminDashboard, Publication, PublicationDetail, Revision, RevisionCleanup, Session, Account, IntegrityCheck, AdminCatalogWork, AdminWorkDetail, AuditEntry, EditorialCollection, EditorialCollectionPreview, StorageMetrics, WorkDeletionPreview, WorkRating, HomeSectionConfig, Asset, Episode, VoiceActor, Character, WorkPlayableSources } from './types';
 
 export async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { credentials: 'same-origin', ...init });
@@ -16,10 +16,11 @@ export const api = {
   login: (username: string, password: string) => fetchApi<Session>('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) }),
   logout: () => fetchApi<void>('/api/auth/logout', { method: 'POST' }),
   getProfiles: () => fetchApi<Profile[]>('/api/profiles'),
-  createProfile: (data: { name: string; avatar?: string }) =>
+  createProfile: (data: { name: string; avatar?: string | null; pin?: string | null; maxAgeRating?: number | null }) =>
     fetchApi<Profile>('/api/profiles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
   deleteProfile: (id: string) => fetchApi<void>(`/api/profiles/${id}`, { method: 'DELETE' }),
   updateProfile: (id: string, data: { name: string; avatar?: string | null; pin?: string | null; maxAgeRating?: number | null }) => fetchApi<Profile>(`/api/profiles/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
+  getAvatarGroups: () => fetchApi<AvatarGroup[]>('/api/profiles/avatars'),
   unlockProfile: (id: string, pin?: string) => fetchApi<Profile>(`/api/profiles/${encodeURIComponent(id)}/unlock`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pin ? { pin } : {}) }),
   getActiveProfile: () => fetchApi<Profile>('/api/profiles/active'),
   getProfilePreferences: (id: string) => fetchApi<ProfilePreferences>(`/api/profiles/${encodeURIComponent(id)}/preferences`),

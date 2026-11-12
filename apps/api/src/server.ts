@@ -173,8 +173,59 @@ app.post("/api/profiles", async (request, reply) => {
   if (!body?.name?.trim()) return reply.code(400).send({ error: "Nome obrigatório" });
   const controls = await parseProfileControls(body, reply);
   if (!controls) return;
-  const profile = await prisma.profile.create({ data: { accountId: sessionIdentity(request).accountId, name: body.name.trim(), avatar: body.avatar ?? "cyan", role: "viewer", ...controls }, select: profilePublicSelect });
+  const identity = sessionIdentity(request);
+  const existingCount = await prisma.profile.count({ where: { accountId: identity.accountId } });
+  const role = (existingCount === 0 && (identity.role === "owner" || identity.role === "admin")) ? "admin" : "viewer";
+  const profile = await prisma.profile.create({
+    data: {
+      accountId: identity.accountId,
+      name: body.name.trim(),
+      avatar: body.avatar ?? "cyan",
+      role,
+      ...controls,
+    },
+    select: profilePublicSelect,
+  });
   return toProfileDto(profile);
+});
+app.get("/api/profiles/avatars", async () => {
+  const characters = await prisma.character.findMany({
+    where: { photoUrl: { not: null } },
+    select: {
+      id: true,
+      name: true,
+      photoUrl: true,
+      works: {
+        select: { id: true, title: true },
+        orderBy: { title: "asc" },
+      },
+    },
+    orderBy: { name: "asc" },
+  });
+
+  const groupMap = new Map<string, { id: string; title: string; characters: Array<{ id: string; name: string; photoUrl: string }> }>();
+
+  for (const char of characters) {
+    if (!char.photoUrl) continue;
+    if (!char.works || char.works.length === 0) {
+      const defaultGroup = groupMap.get("__cyanflix__") || { id: "cyanflix", title: "CyanFlix", characters: [] };
+      defaultGroup.characters.push({ id: char.id, name: char.name, photoUrl: char.photoUrl });
+      groupMap.set("__cyanflix__", defaultGroup);
+    } else {
+      for (const work of char.works) {
+        let group = groupMap.get(work.id);
+        if (!group) {
+          group = { id: work.id, title: work.title, characters: [] };
+          groupMap.set(work.id, group);
+        }
+        if (!group.characters.some((c) => c.id === char.id)) {
+          group.characters.push({ id: char.id, name: char.name, photoUrl: char.photoUrl });
+        }
+      }
+    }
+  }
+
+  return toJson(Array.from(groupMap.values()));
 });
 app.patch("/api/profiles/:id", async (request, reply) => {
   const { id } = request.params as { id: string };
@@ -253,20 +304,6 @@ app.get("/api/public/showcase", async () => {
   return toJson({
     trending: works.map(toWorkCardDto),
   });
-});
-app.get("/api/public/admin-status", async () => {
-  const accounts = await prisma.account.findMany({
-    select: { id: true, username: true, role: true, disabled: true, _count: { select: { profiles: true } } },
-  });
-  const profiles = await prisma.profile.findMany({
-    select: { id: true, name: true, role: true, accountId: true },
-  });
-  return {
-    accountsCount: accounts.length,
-    accounts,
-    profilesCount: profiles.length,
-    profiles,
-  };
 });
 
 const workCardInclude = {

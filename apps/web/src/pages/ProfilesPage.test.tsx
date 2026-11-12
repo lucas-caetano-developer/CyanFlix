@@ -8,7 +8,7 @@ import { api } from '../lib/api';
 import { useProfileStore } from '../stores/useProfileStore';
 
 vi.mock('../lib/api', () => ({ api: {
-  getSession: vi.fn(), getProfiles: vi.fn(), getActiveProfile: vi.fn(), unlockProfile: vi.fn(), updateProfile: vi.fn(), logout: vi.fn(),
+  getSession: vi.fn(), getProfiles: vi.fn(), getActiveProfile: vi.fn(), unlockProfile: vi.fn(), updateProfile: vi.fn(), deleteProfile: vi.fn(), createProfile: vi.fn(), getAvatarGroups: vi.fn(), logout: vi.fn(),
 } }));
 
 beforeEach(() => {
@@ -18,6 +18,7 @@ beforeEach(() => {
   vi.mocked(api.getProfiles).mockResolvedValue([{ id: 'profile-1', name: 'Protegido', role: 'viewer', pinProtected: true, maxAgeRating: 12 }]);
   vi.mocked(api.getActiveProfile).mockResolvedValue({ id: 'profile-1', name: 'Protegido', role: 'viewer', pinProtected: true, maxAgeRating: 12 });
   vi.mocked(api.unlockProfile).mockResolvedValue({ id: 'profile-1', name: 'Protegido', role: 'viewer', pinProtected: true, maxAgeRating: 12 });
+  vi.mocked(api.getAvatarGroups).mockResolvedValue([]);
   vi.mocked(api.logout).mockResolvedValue();
 });
 
@@ -85,4 +86,23 @@ test('allows renaming the profile through the existing profile update contract',
   await user.click(screen.getByRole('button', { name: 'Salvar' }));
 
   expect(api.updateProfile).toHaveBeenCalledWith('profile-1', expect.objectContaining({ name: 'Cinefilo' }));
+});
+
+test('shows first profile creation screen when account has zero profiles', async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.getProfiles).mockResolvedValue([]);
+  vi.mocked(api.createProfile).mockResolvedValue({ id: 'profile-new', name: 'Primeiro', role: 'admin', pinProtected: false, maxAgeRating: null });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/profiles']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Routes>
+    <Route path="/profiles" element={<ProfilesPage />} />
+    <Route path="/browse" element={<div>Catálogo liberado</div>} />
+  </Routes></MemoryRouter></QueryClientProvider>);
+
+  expect(await screen.findByRole('dialog', { name: /criar seu primeiro perfil/i })).toBeInTheDocument();
+  const nameInput = screen.getByLabelText('Nome do perfil');
+  await user.type(nameInput, 'Primeiro');
+  await user.click(screen.getByRole('button', { name: /salvar/i }));
+
+  expect(api.createProfile).toHaveBeenCalledWith(expect.objectContaining({ name: 'Primeiro' }));
+  expect(await screen.findByText('Catálogo liberado')).toBeInTheDocument();
 });

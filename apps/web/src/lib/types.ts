@@ -1,5 +1,7 @@
 export type ProfilePreferences = { autoplayNextEpisode: boolean; subtitleStyle: "small" | "medium" | "large" };
 export type Profile = { id: string; name: string; avatar?: string | null; role: string; preferences?: Partial<ProfilePreferences>; pinProtected: boolean; maxAgeRating?: number | null; createdAt?: string };
+export type AvatarCharacter = { id: string; name: string; photoUrl: string };
+export type AvatarGroup = { id: string; title: string; characters: AvatarCharacter[] };
 export type Session = { authenticated: boolean; accountId: string; username: string; role: "owner" | "admin" | "viewer" };
 export type Account = { id: string; username: string; role: "owner" | "admin" | "viewer"; disabled: boolean; createdAt: string; updatedAt?: string; _count?: { profiles: number } };
 export type IntegrityCheck = { id: string; state: "running" | "passed" | "failed"; checkedAssets: number; hashedAssets: number; missingAssets: number; corruptAssets: number; startedAt: string; completedAt?: string | null };

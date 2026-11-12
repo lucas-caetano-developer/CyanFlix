@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
@@ -7,7 +7,7 @@ import { useDialogFocus } from "../hooks/useDialogFocus";
 import { clearScrollRestoration } from "../hooks/useScrollRestoration";
 import { CatalogMessage } from "../components/catalog/CatalogMessage";
 import { ProfileAvatar } from "../components/profile/ProfileAvatar";
-import { AvatarPicker } from "../components/profile/AvatarPicker";
+import { ProfileFormDialog } from "../components/profile/ProfileFormDialog";
 import { Footer } from "../components/layout/Footer";
 import { Icon } from "../components/ui/Icon";
 import { Spinner } from "../components/ui/Spinner";
@@ -40,20 +40,17 @@ export function ProfilesPage() {
     enabled: Boolean(profileId),
     retry: false,
   });
+
   const [lockedProfile, setLockedProfile] = useState<Profile | null>(null);
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
   const [adminPinProfile, setAdminPinProfile] = useState<Profile | null>(null);
   const [pin, setPin] = useState("");
   const [newPin, setNewPin] = useState("");
-  const [removePin, setRemovePin] = useState(false);
-  const [maxAgeRating, setMaxAgeRating] = useState("");
-  const [profileName, setProfileName] = useState("");
-  const [newProfileName, setNewProfileName] = useState("");
-  const [newProfileAvatar, setNewProfileAvatar] = useState("cyan");
   const [creatingProfile, setCreatingProfile] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [createError, setCreateError] = useState("");
+  const lastTriggerRef = useRef<HTMLElement | null>(null);
 
   const clearPersonalCaches = () => {
     for (const prefix of personalQueryPrefixes) {
@@ -110,19 +107,18 @@ export function ProfilesPage() {
     }
   };
 
-  const openSettings = (profile: Profile) => {
+  const openSettings = (profile: Profile, trigger?: HTMLElement) => {
+    lastTriggerRef.current = trigger || (document.activeElement as HTMLElement | null);
     setEditingProfile(profile);
-    setProfileName(profile.name);
-    setNewProfileAvatar(profile.avatar || "cyan");
-    setNewPin("");
-    setRemovePin(false);
-    setMaxAgeRating(profile.maxAgeRating == null ? "" : String(profile.maxAgeRating));
     setError("");
   };
 
   const closeSettings = () => {
     setEditingProfile(null);
     setError("");
+    requestAnimationFrame(() => {
+      lastTriggerRef.current?.focus();
+    });
   };
 
   const closePinDialog = () => {
@@ -137,29 +133,89 @@ export function ProfilesPage() {
   };
 
   const pinDialogRef = useDialogFocus<HTMLFormElement>(Boolean(lockedProfile), closePinDialog);
-  const settingsDialogRef = useDialogFocus<HTMLFormElement>(Boolean(editingProfile), closeSettings);
   const adminPinDialogRef = useDialogFocus<HTMLFormElement>(Boolean(adminPinProfile), closeAdminPinDialog);
 
-  const saveSettings = async () => {
-    if (!editingProfile || !profileName.trim()) return;
+  const handleSaveSettings = async (data: {
+    name: string;
+    avatar: string;
+    pin: string | null;
+    maxAgeRating: number | null;
+  }) => {
+    if (!editingProfile || !data.name.trim()) return;
     setBusy(true);
     setError("");
     try {
       const updated = await api.updateProfile(editingProfile.id, {
-        name: profileName.trim(),
-        avatar: newProfileAvatar || undefined,
-        ...(removePin ? { pin: null } : newPin ? { pin: newPin } : {}),
-        maxAgeRating: maxAgeRating === "" ? null : Number(maxAgeRating),
+        name: data.name.trim(),
+        avatar: data.avatar || undefined,
+        ...(data.pin !== undefined ? { pin: data.pin } : {}),
+        maxAgeRating: data.maxAgeRating,
       });
       queryClient.setQueryData<Profile[]>(["profiles"], (current) => (
-        current ? current.map((profile) => profile.id === updated.id ? updated : profile) : current
+        current ? current.map((p) => p.id === updated.id ? updated : p) : current
       ));
       if (activeProfile.data?.id === updated.id) {
         queryClient.setQueryData(["profiles", "active"], updated);
       }
-      setEditingProfile(null);
+      closeSettings();
     } catch {
-      setError("Não foi possível salvar. Use um nome e um PIN de 4 a 8 dígitos.");
+      setError("Não foi possível salvar o perfil. Verifique os dados.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDeleteProfile = async () => {
+    if (!editingProfile) return;
+    if (!window.confirm(`Tem certeza que deseja excluir o perfil "${editingProfile.name}"?`)) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api.deleteProfile(editingProfile.id);
+      queryClient.setQueryData<Profile[]>(["profiles"], (current) => (
+        current ? current.filter((p) => p.id !== editingProfile.id) : []
+      ));
+      if (activeProfile.data?.id === editingProfile.id) {
+        clearProfile();
+        queryClient.removeQueries({ queryKey: ["profiles", "active"] });
+      }
+      closeSettings();
+    } catch {
+      setError("Não foi possível excluir o perfil.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCreateProfile = async (
+    data: { name: string; avatar: string; pin: string | null; maxAgeRating: number | null },
+    isFirst = false,
+  ) => {
+    if (!data.name.trim()) return;
+    setBusy(true);
+    setCreateError("");
+    try {
+      const created = await api.createProfile({
+        name: data.name.trim(),
+        avatar: data.avatar || undefined,
+        pin: data.pin,
+        maxAgeRating: data.maxAgeRating,
+      });
+      queryClient.setQueryData<Profile[]>(["profiles"], (current) => (
+        current ? [...current, created] : [created]
+      ));
+      setCreatingProfile(false);
+      if (isFirst) {
+        setProfile(created.id);
+        queryClient.setQueryData(["profiles", "active"], created);
+        clearPersonalCaches();
+        navigate(destinationFor(created));
+      }
+    } catch (reason) {
+      const detail = reason instanceof Error ? reason.message : "";
+      setCreateError(/Muitas tentativas/i.test(detail)
+        ? "Muitas tentativas. Aguarde alguns minutos antes de tentar novamente."
+        : "Não foi possível criar o perfil.");
     } finally {
       setBusy(false);
     }
@@ -175,7 +231,7 @@ export function ProfilesPage() {
         pin: newPin,
       });
       queryClient.setQueryData<Profile[]>(["profiles"], (current) => (
-        current ? current.map((profile) => profile.id === updated.id ? updated : profile) : current
+        current ? current.map((p) => p.id === updated.id ? updated : p) : current
       ));
       setAdminPinProfile(null);
       setNewPin("");
@@ -189,26 +245,11 @@ export function ProfilesPage() {
     }
   };
 
-  const createNewProfile = async () => {
-    if (!newProfileName.trim()) return;
-    setBusy(true);
-    setCreateError("");
-    try {
-      const created = await api.createProfile({ name: newProfileName.trim(), avatar: newProfileAvatar || undefined });
-      queryClient.setQueryData<Profile[]>(["profiles"], (current) => (
-        current ? [...current, created] : [created]
-      ));
-      setNewProfileName("");
-      setNewProfileAvatar("cyan");
-      setCreatingProfile(false);
-    } catch (reason) {
-      const detail = reason instanceof Error ? reason.message : "";
-      setCreateError(/Muitas tentativas/i.test(detail)
-        ? "Muitas tentativas. Aguarde alguns minutos antes de tentar novamente."
-        : "Não foi possível criar o perfil.");
-    } finally {
-      setBusy(false);
-    }
+  const handleLogout = async () => {
+    await api.logout();
+    clearProfile();
+    queryClient.clear();
+    navigate("/profiles", { replace: true });
   };
 
   if (profiles.isLoading) return <Spinner fullScreen />;
@@ -218,37 +259,51 @@ export function ProfilesPage() {
   return (
     <div className="profiles-page premium" aria-busy={busy} data-spatial-scope="profiles">
       <div className="premium__glow" />
-      <div className="premium__header">
-        <div className="premium__logo">
-          <CyanFlixLogo className="premium__logo-svg" />
-          <span className="sr-only">CyanFlix</span>
-        </div>
-        <h1 className="premium__heading">Quem está assistindo?</h1>
-        <p className="premium__subheading">Escolha um perfil para continuar</p>
-      </div>
 
       {profiles.isError && (
-        <CatalogMessage
-          tone="error"
-          icon="info"
-          title="Não foi possível carregar os perfis"
-          description="Verifique a conexão e tente novamente."
-          actions={<button type="button" className="btn btn--primary" onClick={() => { void profiles.refetch(); }}>Tentar novamente</button>}
-        />
-      )}
-
-      {!profiles.isError && !hasProfiles && (
-        <div className="premium__empty">
+        <div style={{ marginTop: "4rem" }}>
           <CatalogMessage
-            icon="user"
-            title="Nenhum perfil disponível"
-            description="Esta biblioteca ainda não possui perfis. Crie um abaixo para começar."
+            tone="error"
+            icon="info"
+            title="Não foi possível carregar os perfis"
+            description="Verifique a conexão e tente novamente."
+            actions={<button type="button" className="btn btn--primary" onClick={() => { void profiles.refetch(); }}>Tentar novamente</button>}
           />
         </div>
       )}
 
+      {/* First-time Profile Creation Flow: when user logs in and account has 0 profiles */}
+      {!profiles.isError && !hasProfiles && (
+        <div className="premium__first-profile-wrap">
+          <div className="premium__logo" style={{ marginBottom: "1.5rem" }}>
+            <CyanFlixLogo className="premium__logo-svg" />
+            <span className="sr-only">CyanFlix</span>
+          </div>
+          <div className="premium__dialog" style={{ width: "min(460px, 92vw)" }}>
+            <ProfileFormDialog
+              title="Criar seu primeiro perfil"
+              isFirstProfile={true}
+              busy={busy}
+              error={createError}
+              onSave={(data) => void handleCreateProfile(data, true)}
+              onCancel={() => void handleLogout()}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Normal Profiles Screen: When account has profiles */}
       {!profiles.isError && hasProfiles && (
         <>
+          <div className="premium__header">
+            <div className="premium__logo">
+              <CyanFlixLogo className="premium__logo-svg" />
+              <span className="sr-only">CyanFlix</span>
+            </div>
+            <h1 className="premium__heading">Quem está assistindo?</h1>
+            <p className="premium__subheading">Escolha um perfil para continuar</p>
+          </div>
+
           <div className="premium__grid">
             {profiles.data?.map((profile, index) => {
               const isActive = activeProfile.data?.id === profile.id;
@@ -290,13 +345,14 @@ export function ProfilesPage() {
                     type="button"
                     disabled={busy}
                     aria-label={`Ajustar perfil ${profile.name}`}
-                    onClick={() => openSettings(profile)}
+                    onClick={(e) => openSettings(profile, e.currentTarget)}
                   >
                     <Icon name="settings" />
                   </button>
                 </div>
               );
             })}
+
             <div className="premium__card premium__card--add">
               <button
                 className="premium__select premium__select--add"
@@ -304,7 +360,7 @@ export function ProfilesPage() {
                 disabled={busy}
                 aria-label="Criar novo perfil"
                 data-spatial-initial={false}
-                onClick={() => { setCreatingProfile(true); setError(""); }}
+                onClick={() => { setCreatingProfile(true); setCreateError(""); }}
               >
                 <div className="premium__avatar-wrap">
                   <ProfileAvatar
@@ -323,8 +379,8 @@ export function ProfilesPage() {
             <button
               type="button"
               className="premium__logout"
-              disabled={false}
-              onClick={() => { void api.logout(); clearProfile(); queryClient.clear(); navigate("/profiles", { replace: true }); }}
+              disabled={busy}
+              onClick={() => void handleLogout()}
             >
               <Icon name="logout" />
               Sair da conta
@@ -335,6 +391,7 @@ export function ProfilesPage() {
 
       <Footer className="site-footer--profiles" />
 
+      {/* Unlock PIN Dialog */}
       {lockedProfile && (
         <div
           className="premium__overlay"
@@ -358,6 +415,7 @@ export function ProfilesPage() {
         </div>
       )}
 
+      {/* Admin PIN setup dialog */}
       {adminPinProfile && (
         <div
           className="premium__overlay"
@@ -382,73 +440,41 @@ export function ProfilesPage() {
         </div>
       )}
 
+      {/* Edit Profile Dialog */}
       {editingProfile && (
         <div
           className="premium__overlay"
           data-spatial-scope="profile-settings-dialog"
           data-spatial-overlay="true"
         >
-          <div className="premium__dialog" role="dialog" aria-modal="true" aria-labelledby="profile-settings-title">
-            <form ref={settingsDialogRef} className="premium__dialog-card" onSubmit={(event) => { event.preventDefault(); void saveSettings(); }}>
-              <h2 id="profile-settings-title">Ajustar perfil de {editingProfile.name}</h2>
-              <label className="premium__field">
-                <span>Nome do perfil</span>
-                <input data-autofocus autoComplete="off" value={profileName} maxLength={60} onChange={(event) => setProfileName(event.target.value)} />
-              </label>
-              <label className="premium__field">
-                <span>Avatar</span>
-                <AvatarPicker value={editingProfile.avatar ?? "cyan"} onChange={setNewProfileAvatar} />
-              </label>
-              <label className="premium__field">
-                <span>Nova senha opcional</span>
-                <input inputMode="numeric" autoComplete="new-password" value={newPin} disabled={removePin} aria-invalid={newPin.length > 0 && newPin.length < 4} onChange={(event) => setNewPin(event.target.value.replace(/\D/g, "").slice(0, 8))} placeholder={editingProfile.pinProtected ? "Manter senha atual" : "4 a 8 dígitos"} type="password" />
-              </label>
-              {editingProfile.pinProtected && <label className="premium__check"><input type="checkbox" checked={removePin} onChange={(event) => setRemovePin(event.target.checked)} /> Remover senha atual</label>}
-              <label className="premium__field">
-                <span>Classificação etária máxima</span>
-                <select value={maxAgeRating} onChange={(event) => setMaxAgeRating(event.target.value)}>
-                  <option value="">Sem limite</option>
-                  <option value="0">Livre</option>
-                  <option value="10">10 anos</option>
-                  <option value="12">12 anos</option>
-                  <option value="14">14 anos</option>
-                  <option value="16">16 anos</option>
-                  <option value="18">18 anos</option>
-                </select>
-              </label>
-              {error && <p className="premium__error">{error}</p>}
-              <div className="premium__actions">
-                <button className="btn btn--primary premium__btn" disabled={busy || !profileName.trim() || (newPin.length > 0 && newPin.length < 4)}>Salvar</button>
-                <button className="btn btn--secondary premium__btn" type="button" onClick={closeSettings}>Cancelar</button>
-              </div>
-            </form>
+          <div className="premium__dialog" style={{ width: "min(460px, 92vw)" }}>
+            <ProfileFormDialog
+              initialProfile={editingProfile}
+              busy={busy}
+              error={error}
+              onSave={(data) => void handleSaveSettings(data)}
+              onCancel={closeSettings}
+              onDelete={() => void handleDeleteProfile()}
+            />
           </div>
         </div>
       )}
 
+      {/* Create New Profile Dialog */}
       {creatingProfile && (
         <div
           className="premium__overlay"
           data-spatial-scope="profile-create-dialog"
           data-spatial-overlay="true"
         >
-          <div className="premium__dialog" role="dialog" aria-modal="true" aria-labelledby="profile-create-title">
-            <form className="premium__dialog-card" onSubmit={(event) => { event.preventDefault(); void createNewProfile(); }}>
-              <h2 id="profile-create-title">Criar perfil</h2>
-              <label className="premium__field">
-                <span>Nome do perfil</span>
-                <input data-autofocus autoComplete="off" value={newProfileName} maxLength={60} onChange={(event) => setNewProfileName(event.target.value)} placeholder="Ex: João" />
-              </label>
-              <label className="premium__field">
-                <span>Avatar</span>
-                <AvatarPicker value={newProfileAvatar} onChange={setNewProfileAvatar} />
-              </label>
-              {createError && <p className="premium__error">{createError}</p>}
-              <div className="premium__actions">
-                <button className="btn btn--primary premium__btn" disabled={busy || !newProfileName.trim()}>Criar</button>
-                <button className="btn btn--secondary premium__btn" type="button" onClick={() => setCreatingProfile(false)}>Cancelar</button>
-              </div>
-            </form>
+          <div className="premium__dialog" style={{ width: "min(460px, 92vw)" }}>
+            <ProfileFormDialog
+              title="Criar perfil"
+              busy={busy}
+              error={createError}
+              onSave={(data) => void handleCreateProfile(data, false)}
+              onCancel={() => setCreatingProfile(false)}
+            />
           </div>
         </div>
       )}

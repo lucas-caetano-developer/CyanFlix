@@ -15,10 +15,13 @@ export function ProfileAvatar({
   const safeName = name?.trim() || "Perfil";
   const initial = safeName.charAt(0).toLocaleUpperCase("pt-BR") || "?";
   const avatarDef = avatar ? findAvatar(String(avatar)) : undefined;
-  const imageSource =
-    typeof avatar === "string" && avatar.startsWith("/") && !avatar.startsWith("//")
-      ? avatar
-      : null;
+  const isUrl =
+    typeof avatar === "string" &&
+    (avatar.startsWith("/") ||
+      avatar.startsWith("http://") ||
+      avatar.startsWith("https://") ||
+      avatar.startsWith("data:"));
+  const imageSource = isUrl ? avatar : null;
   const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {

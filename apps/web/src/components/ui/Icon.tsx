@@ -1,4 +1,4 @@
-export type IconName = 'back' | 'play' | 'pause' | 'volume' | 'muted' | 'pip' | 'fullscreen' | 'exit-fullscreen' | 'settings' | 'info' | 'chevron-left' | 'chevron-right' | 'rotate' | 'search' | 'menu' | 'close' | 'logout' | 'filter' | 'check' | 'user' | 'trash' | 'plus' | 'thumbs-up' | 'thumbs-down' | 'share' | 'link' | 'replay-10' | 'forward-10' | 'next-episode' | 'captions';
+export type IconName = 'back' | 'play' | 'pause' | 'volume' | 'muted' | 'pip' | 'fullscreen' | 'exit-fullscreen' | 'settings' | 'info' | 'chevron-left' | 'chevron-right' | 'rotate' | 'search' | 'menu' | 'close' | 'logout' | 'filter' | 'check' | 'user' | 'trash' | 'plus' | 'thumbs-up' | 'thumbs-down' | 'share' | 'link' | 'replay-10' | 'forward-10' | 'next-episode' | 'captions' | 'pencil';
 
 export function Icon({ name }: { name: IconName }) {
   return <svg className="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -32,5 +32,6 @@ export function Icon({ name }: { name: IconName }) {
     {name === 'forward-10' && <><path d="M12 5V2l4 4-4 4V7C8.7 7 6 9.7 6 13s2.7 6 6 6 6-2.7 6-6h2c0 4.4-3.6 8-8 8s-8-3.6-8-8 3.6-8 8-8z" /><text x="12" y="15.5" textAnchor="middle" fontSize="5.5" fontWeight="800" fill="currentColor">10</text></>}
     {name === 'next-episode' && <path d="M6 6v12l8.5-6zm9 0h2v12h-2z" />}
     {name === 'captions' && <><rect x="3" y="6" width="18" height="12" rx="2" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M7 12h4m-4 3h8M15 12h2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></>}
+    {name === 'pencil' && <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />}
   </svg>;
 }
