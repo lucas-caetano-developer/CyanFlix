@@ -4,6 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Shell } from './components/layout/Shell';
 import { AdminShell } from './components/layout/AdminShell';
+import { WelcomePage } from './pages/WelcomePage';
+import { LoginPage } from './pages/LoginPage';
 import { ProfilesPage } from './pages/ProfilesPage';
 import { BrowsePage } from './pages/BrowsePage';
 import { SearchPage } from './pages/SearchPage';
@@ -44,8 +46,12 @@ export function App() {
       <BrowserRouter>
         <SpatialNavigation />
         <Routes>
+          {/* Public Home / Welcome Page (Netflix + Crunchyroll fusion) */}
+          <Route path="/" element={<WelcomePage />} />
+          <Route path="/login" element={<LoginPage />} />
+
+          {/* Authenticated Streaming & Profiles Routes */}
           <Route element={<AuthenticatedRoutes />}>
-            <Route path="/" element={<Navigate to="/profiles" replace />} />
             <Route path="/profiles" element={<ProfilesPage />} />
             <Route path="/browse" element={<Shell><BrowsePage /></Shell>} />
             <Route path="/search" element={<Shell><SearchPage /></Shell>} />
@@ -67,7 +73,6 @@ export function App() {
             <Route path="/admin/characters/work/:workId" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminWorkCharactersPage /></Suspense></AdminShell></AdminRoute>} />
             <Route path="/admin/characters/:id" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminCharacterDetailPage /></Suspense></AdminShell></AdminRoute>} />
           </Route>
-          <Route path="/login" element={<Navigate to="/profiles" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
@@ -78,7 +83,7 @@ export function App() {
 function AuthenticatedRoutes() {
   const session = useQuery({ queryKey: ['auth', 'session'], queryFn: api.getSession, retry: false });
   if (session.isLoading) return <Spinner fullScreen />;
-  if (session.isError || !session.data?.authenticated) return <Navigate to="/profiles" replace />;
+  if (session.isError || !session.data?.authenticated) return <Navigate to="/" replace />;
   return <Outlet />;
 }
 

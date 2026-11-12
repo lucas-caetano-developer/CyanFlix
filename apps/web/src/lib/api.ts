@@ -12,6 +12,7 @@ export async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> 
 
 export const api = {
   getSession: () => fetchApi<Session>('/api/auth/session'),
+  getPublicShowcase: () => fetchApi<{ trending: Work[] }>('/api/public/showcase'),
   login: (username: string, password: string) => fetchApi<Session>('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) }),
   logout: () => fetchApi<void>('/api/auth/logout', { method: 'POST' }),
   getProfiles: () => fetchApi<Profile[]>('/api/profiles'),

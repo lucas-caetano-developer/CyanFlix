@@ -41,16 +41,28 @@ app.addHook("onRequest", async (request, reply) => {
     return;
   }
   if (pathname.startsWith("/api/")) {
-    let tokenIdentity = auth.session(request);
+    if (pathname === "/api/auth/session") {
+      const tokenIdentity = auth.session(request);
+      if (tokenIdentity) {
+        const account = await prisma.account.findFirst({ where: { id: tokenIdentity.accountId, disabled: false }, select: { id: true, role: true } });
+        if (account) {
+          requestSessions.set(request, { accountId: account.id, role: account.role });
+        }
+      }
+      return;
+    }
+    if (pathname.startsWith("/api/public/")) {
+      return;
+    }
+    const tokenIdentity = auth.session(request);
     if (!tokenIdentity) {
-      // Entrada livre: não há tela de login. Cria uma sessão implícita para a
-      // conta do sistema (owner), criada no bootstrap, de modo que perfis e
-      // catálogo estejam disponíveis sem exigir credenciais do usuário.
-      tokenIdentity = { accountId: bootstrapAccount.id, role: bootstrapAccount.role };
-      auth.setSession(reply, tokenIdentity);
+      return reply.code(401).send({ error: "Authentication required" });
     }
     const account = await prisma.account.findFirst({ where: { id: tokenIdentity.accountId, disabled: false }, select: { id: true, role: true } });
-    if (!account) { auth.clearSession(reply); return reply.code(401).send({ error: "Authentication required" }); }
+    if (!account) {
+      auth.clearSession(reply);
+      return reply.code(401).send({ error: "Authentication required" });
+    }
     const identity = { accountId: account.id, role: account.role };
     requestSessions.set(request, identity);
     if (pathname.startsWith("/api/admin/") && identity.role !== "owner" && identity.role !== "admin") {
@@ -89,9 +101,15 @@ app.post("/api/auth/login", async (request, reply) => {
 });
 app.post("/api/auth/logout", async (_request, reply) => { auth.clearSession(reply); return reply.code(204).send(); });
 app.get("/api/auth/session", async (request, reply) => {
-  const identity = sessionIdentity(request);
+  const identity = requestSessions.get(request);
+  if (!identity) {
+    return { authenticated: false };
+  }
   const account = await prisma.account.findFirst({ where: { id: identity.accountId, disabled: false }, select: { id: true, username: true, role: true } });
-  if (!account) { auth.clearSession(reply); return reply.code(401).send({ error: "Session account unavailable" }); }
+  if (!account) {
+    auth.clearSession(reply);
+    return { authenticated: false };
+  }
   return { authenticated: true, accountId: account.id, username: account.username, role: account.role };
 });
 app.get("/api/auth/verify", async (request, reply) => {
@@ -194,6 +212,18 @@ app.patch("/api/profiles/:id/preferences", async (request, reply) => {
 const workPresentationAssetTypes = ["poster", "poster_card", "poster-card", "backdrop", "backdrop_card", "backdrop-card", "hero", "logo", "logo_webp", "trailer", "motion_preview"];
 const seasonPresentationAssetTypes = ["poster", "poster_card", "poster-card", "trailer", "motion_preview", "season_presentation"];
 const episodePresentationAssetTypes = ["episode_thumbnail", "thumbnail", "thumbnail_webp"];
+app.get("/api/public/showcase", async () => {
+  const works = await prisma.work.findMany({
+    where: { hidden: false },
+    take: 12,
+    orderBy: { createdAt: "desc" },
+    include: workCardInclude,
+  });
+  return toJson({
+    trending: works.map(toWorkCardDto),
+  });
+});
+
 const workCardInclude = {
   assets: { where: { seasonId: null, episodeId: null, type: { in: workPresentationAssetTypes }, publication: { state: "confirmed" as const, revisions: { some: { active: true } } } }, orderBy: { createdAt: "desc" as const }, select: { id: true, type: true, publicPath: true, metadata: true } },
   seasons: { where: { hidden: false }, orderBy: { number: "asc" as const }, select: { id: true, number: true, title: true, metadata: true } },
