@@ -132,6 +132,7 @@ export function WelcomePage() {
       {/* 4. Trending Rail (Netflix-style numbered cards) */}
       <TrendingTopList
         works={showcase.data?.trending}
+        isLoading={showcase.isLoading}
         onItemClick={handleAction}
       />
 

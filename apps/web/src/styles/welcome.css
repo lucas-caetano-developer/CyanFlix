@@ -651,6 +651,51 @@
   border-radius: 12px;
 }
 
+/* Skeleton Shimmer Loading ("cor de sombra carregando") */
+.welcome-rank-card--skeleton {
+  pointer-events: none;
+  cursor: default;
+}
+
+.welcome-rank-card__number--skeleton {
+  opacity: 0.35;
+  -webkit-text-stroke: 3px #334155;
+  color: #070c14;
+  text-shadow: none;
+}
+
+.welcome-rank-card__poster-box--skeleton {
+  background: linear-gradient(180deg, #101928 0%, #080d16 100%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+.welcome-skeleton-shimmer {
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.02) 20%,
+    rgba(0, 212, 255, 0.09) 50%,
+    rgba(255, 255, 255, 0.02) 80%,
+    transparent 100%
+  );
+  animation: welcome-skeleton-wave 1.6s infinite ease-in-out;
+}
+
+@keyframes welcome-skeleton-wave {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 /* Giant Number Glyph (Netflix signature look: anchored bottom-left, cleanly scaled so it doesn't cover titles) */
 .welcome-rank-card__number {
   position: absolute;
