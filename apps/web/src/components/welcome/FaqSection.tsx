@@ -40,7 +40,7 @@ const FAQ_ITEMS: FaqItem[] = [
 ];
 
 export function FaqSection() {
-  const [openIds, setOpenIds] = useState<Set<string>>(new Set(['faq-1', 'faq-2']));
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set());
 
   const toggle = (id: string) => {
     setOpenIds((prev) => {

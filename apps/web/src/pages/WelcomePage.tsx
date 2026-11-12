@@ -40,19 +40,12 @@ export function WelcomePage() {
 
   return (
     <div className="welcome-root">
-      {/* 1. Header / Navbar */}
+      {/* 1. Header (Logo + Botão de Entrar) */}
       <header className="welcome-header">
         <div className="welcome-header__inner">
           <Link to="/" className="welcome-header__logo" aria-label="CyanFlix Início">
             <CyanFlixLogo className="welcome-header__logo-svg" />
           </Link>
-
-          <nav className="welcome-header__nav" aria-label="Navegação institucional">
-            <a href="#destaques" className="welcome-header__nav-link">Destaques</a>
-            <a href="#em-alta" className="welcome-header__nav-link">Em alta</a>
-            <a href="#recursos" className="welcome-header__nav-link">Vantagens</a>
-            <a href="#faq" className="welcome-header__nav-link">Dúvidas</a>
-          </nav>
 
           <div className="welcome-header__actions">
             {isAuthenticated ? (

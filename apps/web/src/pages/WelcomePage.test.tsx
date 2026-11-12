@@ -41,6 +41,6 @@ test('renders welcome page with hero, showcase banner and FAQ for unauthenticate
 
   expect(screen.getByRole('heading', { name: /Filmes, séries e animes sem limites/i })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /Acessar Minha Conta/i })).toBeInTheDocument();
-  expect(screen.getByRole('heading', { name: /Em alta no CyanFlix/i })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: /Em alta/i })).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: /Perguntas frequentes/i })).toBeInTheDocument();
 });

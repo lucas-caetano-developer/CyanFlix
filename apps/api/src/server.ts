@@ -1,5 +1,6 @@
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
+import fastifyStatic from "@fastify/static";
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -29,9 +30,27 @@ const uploadDirectories = new Map<string, Promise<void>>();
 await app.register(cors, { origin: allowedOrigin, credentials: true });
 app.addContentTypeParser("application/octet-stream", (_request, payload, done) => done(null, payload));
 
+const libraryStaticPath = safeDataPath("library");
+if (!fs.existsSync(libraryStaticPath)) {
+  fs.mkdirSync(libraryStaticPath, { recursive: true });
+}
+await app.register(fastifyStatic, {
+  root: libraryStaticPath,
+  prefix: "/media/",
+  decorateReply: false,
+});
+
 app.addHook("onRequest", async (request, reply) => {
   const pathname = request.url.split("?", 1)[0];
-  if (pathname === "/health" || pathname === "/api/health" || pathname === "/api/auth/login" || pathname === "/v1/auth/token") return;
+  if (pathname === "/health" || pathname === "/api/health" || pathname === "/api/auth/login" || pathname === "/v1/auth/token" || pathname === "/api/auth/verify") return;
+  if (pathname.startsWith("/media/")) {
+    const isImage = /\.(webp|jpg|jpeg|png|svg|avif|gif)($|\?)/i.test(pathname);
+    if (!isImage) {
+      const tokenIdentity = auth.session(request);
+      if (!tokenIdentity) return reply.code(401).send({ error: "Unauthorized" });
+    }
+    return;
+  }
   if (pathname.startsWith("/v1/")) {
     const identity = auth.session(request);
     if (identity) {
@@ -114,6 +133,18 @@ app.get("/api/auth/session", async (request, reply) => {
 });
 app.get("/api/auth/verify", async (request, reply) => {
   const originalUri = String(request.headers["x-original-uri"] ?? "");
+  // Imagens estáticas (pôsteres, backdrops, logos, avatares) são sempre públicas
+  const isImage = /\.(webp|jpg|jpeg|png|svg|avif|gif)($|\?)/i.test(originalUri);
+  if (isImage) {
+    return reply.code(204).send();
+  }
+
+  // Mídias de reprodução (streams HLS m3u8, mp4, m4s) exigem sessão ativa
+  const tokenIdentity = auth.session(request);
+  if (!tokenIdentity) {
+    return reply.code(401).send();
+  }
+
   const cacheKey = originalUri.match(/^\/transcode\/([a-f0-9]{64})(?:\/|$)/)?.[1];
   if (cacheKey) {
     const now = new Date();
