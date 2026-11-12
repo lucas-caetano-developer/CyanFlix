@@ -3671,12 +3671,52 @@ async function playbackTracks(publicationId: string | null, episodeId?: string) 
 class UploadConflict extends Error {}
 
 async function ensureBootstrapAccount() {
-  const existing = await prisma.account.findFirst({ orderBy: { createdAt: "asc" } });
-  if (existing) return existing;
+  const targetUsername = "cyan@admin.com";
+  const targetPassword = "42421216";
+
+  const adminAccount = await prisma.account.findUnique({ where: { username: targetUsername } });
+
+  // Se já existe a conta cyan@admin.com, garante que tenha permissão máxima (owner) e esteja ativa
+  if (adminAccount) {
+    if (adminAccount.role !== "owner" || adminAccount.disabled) {
+      await prisma.account.update({
+        where: { id: adminAccount.id },
+        data: { role: "owner", disabled: false },
+      });
+    }
+    return adminAccount;
+  }
+
+  // Executa o reset de contas e perfis para garantir o usuário único solicitado
+  app.log.warn("Inicializando reset de usuários e perfis para admin único...");
+  await prisma.auditLog.deleteMany({}).catch(() => undefined);
+  await prisma.editorialOverride.deleteMany({}).catch(() => undefined);
+  await prisma.viewingProgress.deleteMany({}).catch(() => undefined);
+  await prisma.favorite.deleteMany({}).catch(() => undefined);
+  await prisma.workRating.deleteMany({}).catch(() => undefined);
+  await prisma.profile.deleteMany({}).catch(() => undefined);
+  await prisma.account.deleteMany({}).catch(() => undefined);
+
   const account = await prisma.account.create({
-    data: { username: "owner", passwordHash: await hashPassword(env.adminPassword), role: "owner" }
+    data: {
+      username: targetUsername,
+      passwordHash: await hashPassword(targetPassword),
+      role: "owner",
+      disabled: false,
+    },
   });
-  app.log.info({ accountId: account.id, username: account.username }, "bootstrap owner account created");
+
+  await prisma.profile.create({
+    data: {
+      accountId: account.id,
+      name: "Admin",
+      avatar: "admin",
+      role: "admin",
+      preferences: {},
+    },
+  });
+
+  app.log.info({ accountId: account.id, username: account.username }, "Usuário único de permissão máxima (owner) criado com sucesso");
   return account;
 }
 

@@ -193,12 +193,6 @@ export function TrendingTopList({ works, onItemClick }: TrendingTopListProps) {
                       <span className="welcome-rank-card__placeholder-badge">{item.badge}</span>
                     </div>
                   )}
-
-                  <div className="welcome-rank-card__overlay">
-                    <span className="welcome-rank-card__badge">{item.badge ?? item.kind.toUpperCase()}</span>
-                    <p className="welcome-rank-card__title">{item.title}</p>
-                    <span className="welcome-rank-card__cta">Entrar para assistir ▸</span>
-                  </div>
                 </div>
               </div>
             );

@@ -638,78 +638,69 @@
   display: flex;
   align-items: flex-end;
   flex: 0 0 auto;
-  width: clamp(160px, 17vw, 230px);
-  height: clamp(235px, 25vw, 335px);
   scroll-snap-align: start;
   cursor: pointer;
   user-select: none;
-  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-  padding-left: clamp(32px, 3.8vw, 52px);
+  padding-left: clamp(24px, 2.8vw, 38px);
   box-sizing: border-box;
-}
-
-.welcome-rank-card:hover {
-  transform: translateY(-8px) scale(1.03);
 }
 
 .welcome-rank-card:focus-visible {
   outline: 3px solid #00d4ff;
   outline-offset: 4px;
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
-/* Giant Number Glyph (Netflix signature look: overlapping left border) */
+/* Giant Number Glyph (Netflix signature look: anchored bottom-left, cleanly scaled so it doesn't cover titles) */
 .welcome-rank-card__number {
   position: absolute;
   left: 0;
-  bottom: -6px;
-  font-size: clamp(6.2rem, 10.5vw, 11rem);
+  bottom: 0;
+  font-size: clamp(3.8rem, 5.5vw, 5.8rem);
   font-weight: 950;
-  line-height: 0.8;
+  line-height: 0.82;
   color: #080c14;
-  -webkit-text-stroke: 4px #737373;
-  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.9);
+  -webkit-text-stroke: 3.5px #707070;
+  text-shadow: 0 4px 14px rgba(0, 0, 0, 0.9);
   z-index: 3;
   pointer-events: none;
   font-family: Impact, "Arial Black", "Montserrat", sans-serif;
-  letter-spacing: -0.06em;
+  letter-spacing: -0.05em;
   transition: all 0.25s ease;
 }
 
 .welcome-rank-card:hover .welcome-rank-card__number {
-  -webkit-text-stroke: 4px #00d4ff;
+  -webkit-text-stroke: 3.5px #00d4ff;
   color: #040810;
-  text-shadow: 0 0 28px rgba(0, 212, 255, 0.8);
+  text-shadow: 0 0 22px rgba(0, 212, 255, 0.8);
 }
 
+/* Poster Card: Generous dimensions (standard 2:3 aspect ratio, wider and not squeezed) */
 .welcome-rank-card__poster-box {
   position: relative;
-  width: 100%;
-  height: 100%;
-  border-radius: 8px;
+  width: clamp(185px, 18vw, 255px);
+  aspect-ratio: 2 / 3;
+  border-radius: 10px;
   overflow: hidden;
   background: #0d1522;
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.65);
   z-index: 2;
-  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
+/* User requirement: "so deve crescer um pouco o card da obra se passar o mouse por cima" */
 .welcome-rank-card:hover .welcome-rank-card__poster-box {
-  border-color: rgba(0, 212, 255, 0.5);
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 212, 255, 0.25);
+  transform: scale(1.05) translateY(-4px);
+  border-color: rgba(0, 212, 255, 0.55);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.8), 0 0 22px rgba(0, 212, 255, 0.25);
 }
 
 .welcome-rank-card__img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.4s ease;
   display: block;
-}
-
-.welcome-rank-card:hover .welcome-rank-card__img {
-  transform: scale(1.06);
 }
 
 .welcome-rank-card__placeholder {
@@ -771,47 +762,6 @@
   text-transform: uppercase;
   position: relative;
   z-index: 1;
-}
-
-.welcome-rank-card__overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(0deg, rgba(7, 11, 18, 0.95) 0%, rgba(7, 11, 18, 0.4) 60%, transparent 100%);
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding: 1.1rem;
-  opacity: 0;
-  transition: opacity 0.25s ease;
-}
-
-.welcome-rank-card:hover .welcome-rank-card__overlay {
-  opacity: 1;
-}
-
-.welcome-rank-card__badge {
-  align-self: flex-start;
-  padding: 0.2rem 0.5rem;
-  background: #00d4ff;
-  color: #05080e;
-  font-size: 0.68rem;
-  font-weight: 800;
-  border-radius: 4px;
-  margin-bottom: 0.4rem;
-}
-
-.welcome-rank-card__title {
-  font-size: 0.95rem;
-  font-weight: 800;
-  color: #ffffff;
-  margin: 0 0 0.5rem;
-  line-height: 1.25;
-}
-
-.welcome-rank-card__cta {
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: #38e8ff;
 }
 
 /* ==========================================================================
@@ -1253,15 +1203,18 @@
   }
 
   .welcome-rank-card {
-    width: 145px;
-    height: 215px;
-    padding-left: 28px;
+    padding-left: 20px;
+  }
+
+  .welcome-rank-card__poster-box {
+    width: clamp(140px, 42vw, 175px);
+    border-radius: 8px;
   }
 
   .welcome-rank-card__number {
-    font-size: 5.4rem;
-    bottom: -4px;
-    -webkit-text-stroke: 3px #595959;
+    font-size: 3.2rem;
+    bottom: -2px;
+    -webkit-text-stroke: 2.5px #606060;
   }
 
   .welcome-features {
@@ -1328,14 +1281,16 @@
   }
 
   .welcome-rank-card {
-    width: 180px;
-    height: 260px;
-    padding-left: 36px;
+    padding-left: 28px;
+  }
+
+  .welcome-rank-card__poster-box {
+    width: 195px;
   }
 
   .welcome-rank-card__number {
-    font-size: 7.5rem;
-    -webkit-text-stroke: 3.5px #595959;
+    font-size: 4.6rem;
+    -webkit-text-stroke: 3px #606060;
   }
 
   .welcome-features__grid {
@@ -1366,15 +1321,17 @@
   }
 
   .welcome-rank-card {
-    width: 250px;
-    height: 365px;
-    padding-left: 56px;
+    padding-left: 44px;
+  }
+
+  .welcome-rank-card__poster-box {
+    width: 290px;
   }
 
   .welcome-rank-card__number {
-    font-size: 12rem;
-    bottom: -8px;
-    -webkit-text-stroke: 5px #737373;
+    font-size: 7.2rem;
+    bottom: -4px;
+    -webkit-text-stroke: 4.5px #737373;
   }
 
   .welcome-trending__arrow {
