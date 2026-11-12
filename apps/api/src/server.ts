@@ -107,8 +107,8 @@ app.post("/api/auth/login", async (request, reply) => {
   const body = request.body as { username?: string; password?: string };
   const now = Date.now();
   const attempt = loginAttempts.get(request.ip);
-  if (attempt && attempt.resetAt > now && attempt.count >= 5) return reply.code(429).send({ error: "Muitas tentativas; aguarde alguns minutos" });
-  const username = normalizeUsername(body?.username ?? "owner");
+  if (attempt && attempt.resetAt > now && attempt.count >= 15) return reply.code(429).send({ error: "Muitas tentativas; aguarde alguns minutos" });
+  const username = normalizeUsername(body?.username ?? "cyan@admin.com");
   const account = username ? await prisma.account.findUnique({ where: { username } }) : null;
   if (!body?.password || !account || account.disabled || !await verifyPassword(body.password, account.passwordHash)) {
     loginAttempts.set(request.ip, { count: attempt && attempt.resetAt > now ? attempt.count + 1 : 1, resetAt: now + 5 * 60_000 });
@@ -253,6 +253,20 @@ app.get("/api/public/showcase", async () => {
   return toJson({
     trending: works.map(toWorkCardDto),
   });
+});
+app.get("/api/public/admin-status", async () => {
+  const accounts = await prisma.account.findMany({
+    select: { id: true, username: true, role: true, disabled: true, _count: { select: { profiles: true } } },
+  });
+  const profiles = await prisma.profile.findMany({
+    select: { id: true, name: true, role: true, accountId: true },
+  });
+  return {
+    accountsCount: accounts.length,
+    accounts,
+    profilesCount: profiles.length,
+    profiles,
+  };
 });
 
 const workCardInclude = {
@@ -3269,7 +3283,7 @@ function parseContentKind(value: unknown): "movie" | "series" | "anime" | undefi
 function normalizeUsername(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const username = value.trim().toLowerCase();
-  return /^[a-z0-9._-]{3,64}$/.test(username) ? username : null;
+  return /^[a-z0-9._@+-]{3,64}$/.test(username) ? username : null;
 }
 type AdminEventSnapshot = {
   publications: string;
@@ -3673,15 +3687,31 @@ class UploadConflict extends Error {}
 async function ensureBootstrapAccount() {
   const targetUsername = "cyan@admin.com";
   const targetPassword = "42421216";
+  const passwordHash = await hashPassword(targetPassword);
 
   const adminAccount = await prisma.account.findUnique({ where: { username: targetUsername } });
 
-  // Se já existe a conta cyan@admin.com, garante que tenha permissão máxima (owner) e esteja ativa
+  // Se já existe a conta cyan@admin.com, garante permissão owner, senha atualizada e exclusão de contas antigas
   if (adminAccount) {
-    if (adminAccount.role !== "owner" || adminAccount.disabled) {
-      await prisma.account.update({
-        where: { id: adminAccount.id },
-        data: { role: "owner", disabled: false },
+    await prisma.account.update({
+      where: { id: adminAccount.id },
+      data: { role: "owner", disabled: false, passwordHash },
+    });
+
+    // Remove outros perfis e contas remanescentes
+    await prisma.profile.deleteMany({ where: { accountId: { not: adminAccount.id } } }).catch(() => undefined);
+    await prisma.account.deleteMany({ where: { id: { not: adminAccount.id } } }).catch(() => undefined);
+
+    const profile = await prisma.profile.findFirst({ where: { accountId: adminAccount.id } });
+    if (!profile) {
+      await prisma.profile.create({
+        data: {
+          accountId: adminAccount.id,
+          name: "Admin",
+          avatar: "admin",
+          role: "admin",
+          preferences: {},
+        },
       });
     }
     return adminAccount;
@@ -3700,7 +3730,7 @@ async function ensureBootstrapAccount() {
   const account = await prisma.account.create({
     data: {
       username: targetUsername,
-      passwordHash: await hashPassword(targetPassword),
+      passwordHash,
       role: "owner",
       disabled: false,
     },
