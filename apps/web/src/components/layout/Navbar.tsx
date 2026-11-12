@@ -9,6 +9,7 @@ import { api } from '../../lib/api';
 import { parseContentKind } from '../../lib/catalog';
 import { ProfileAvatar } from '../profile/ProfileAvatar';
 import { Icon } from '../ui/Icon';
+import { CyanFlixLogo } from '../ui/CyanFlixLogo';
 
 export function Navbar({ children }: { children?: React.ReactNode }) {
   const isScrolled = useScrolled(20);
@@ -231,7 +232,8 @@ export function Navbar({ children }: { children?: React.ReactNode }) {
           <Icon name={menuOpen ? 'close' : 'menu'} />
         </button>
         <Link to="/browse" className="navbar__logo" aria-label="CyanFlix, início">
-          <span className="navbar__logo-text">CyanFlix</span>
+          <CyanFlixLogo className="navbar__logo-svg" />
+          <span className="sr-only">CyanFlix</span>
         </Link>
         <div className="navbar__links">
           {navItems.map((item) => (

@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { useQueryClient } from "@tanstack/react-query";
+import { CyanFlixLogo } from "../components/ui/CyanFlixLogo";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -29,7 +30,10 @@ export function LoginPage() {
   return (
     <div className="profiles-page" data-spatial-scope="login">
       <form className="login-form" onSubmit={submit} data-spatial-initial="true">
-        <div className="profiles-page__logo">CyanFlix</div>
+        <div className="profiles-page__logo">
+          <CyanFlixLogo className="profiles-page__logo-svg" />
+          <span className="sr-only">CyanFlix</span>
+        </div>
         <h1 className="profiles-page__heading">Acesso privado</h1>
         <p className="profiles-page__subheading">Entre para acessar sua biblioteca.</p>
         <input

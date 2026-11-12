@@ -11,6 +11,7 @@ import { AvatarPicker } from "../components/profile/AvatarPicker";
 import { Footer } from "../components/layout/Footer";
 import { Icon } from "../components/ui/Icon";
 import { Spinner } from "../components/ui/Spinner";
+import { CyanFlixLogo } from "../components/ui/CyanFlixLogo";
 import type { Profile } from "../lib/types";
 
 const personalQueryPrefixes = [
@@ -218,7 +219,10 @@ export function ProfilesPage() {
     <div className="profiles-page premium" aria-busy={busy} data-spatial-scope="profiles">
       <div className="premium__glow" />
       <div className="premium__header">
-        <div className="premium__logo">CyanFlix</div>
+        <div className="premium__logo">
+          <CyanFlixLogo className="premium__logo-svg" />
+          <span className="sr-only">CyanFlix</span>
+        </div>
         <h1 className="premium__heading">Quem está assistindo?</h1>
         <p className="premium__subheading">Escolha um perfil para continuar</p>
       </div>

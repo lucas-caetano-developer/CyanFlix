@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 120" width="100%" height="100%" fill="none" role="img" aria-label="CyanFlix">
+  <defs>
+    <!-- CyanFlix Electric Gradient -->
+    <linearGradient id="cf-wordmark-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4ae3ff" />
+      <stop offset="35%" stop-color="#00d4ff" />
+      <stop offset="85%" stop-color="#009fe3" />
+      <stop offset="100%" stop-color="#007cb8" />
+    </linearGradient>
+
+    <!-- Subtle cinematic glow -->
+    <filter id="cf-wordmark-glow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3.5" flood-color="#00d4ff" flood-opacity="0.32" />
+    </filter>
+
+    <!-- Netflix signature cinema screen arc: curved bottom edge -->
+    <clipPath id="cf-bottom-arc">
+      <path d="M 0 0 L 540 0 L 540 114 Q 270 90 0 114 Z" />
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#cf-bottom-arc)" fill="url(#cf-wordmark-grad)" filter="url(#cf-wordmark-glow)">
+    <!-- C: bold condensed Netflix-style arch -->
+    <path d="M 88 12 L 88 32 L 64 32 C 55 32 51 38 51 50 L 51 76 C 51 88 55 94 64 94 L 88 94 L 88 114 L 62 114 C 42 114 34 100 34 80 L 34 46 C 34 26 42 12 62 12 Z" />
+
+    <!-- Y: angled upper arms + straight center stem -->
+    <polygon points="99,12 117,12 125,54 133,12 151,12 134,64 134,114 116,114 116,64" />
+
+    <!-- A: flat apex + angled legs + crisp crossbar -->
+    <path d="M 177 12 L 193 12 L 214 114 L 195 114 L 191 84 L 179 84 L 175 114 L 156 114 Z M 185 38 L 178 69 L 192 69 Z" />
+
+    <!-- N: left stem, diagonal slash, right stem -->
+    <polygon points="225,12 243,12 258,74 258,12 276,12 276,114 258,114 243,52 243,114 225,114" />
+
+    <!-- F: stem + top bar + mid bar -->
+    <polygon points="288,12 332,12 332,30 306,30 306,54 328,54 328,70 306,70 306,114 288,114" />
+
+    <!-- L: stem + bottom bar -->
+    <polygon points="344,12 362,12 362,96 388,96 388,114 344,114" />
+
+    <!-- I: single vertical stem -->
+    <polygon points="400,12 418,12 418,114 400,114" />
+
+    <!-- X: crossing diagonals -->
+    <polygon points="430,12 449,12 485,114 466,114" />
+    <polygon points="466,12 485,12 449,114 430,114" />
+  </g>
+</svg>

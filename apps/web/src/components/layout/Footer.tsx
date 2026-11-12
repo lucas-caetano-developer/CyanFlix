@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { CyanFlixLogo } from '../ui/CyanFlixLogo';
 
 const exploreLinks = [
   { to: '/browse', label: 'Início' },
@@ -26,7 +27,8 @@ export function Footer({ className = '' }: { className?: string }) {
       <div className="site-footer__inner">
         <div className="site-footer__identity">
           <Link to="/browse" className="site-footer__logo" aria-label="CyanFlix, início">
-            CyanFlix
+            <CyanFlixLogo className="site-footer__logo-svg" />
+            <span className="sr-only">CyanFlix</span>
           </Link>
           <p className="site-footer__description">
             Sua biblioteca de filmes, séries e animes em um só lugar, com reprodução contínua e

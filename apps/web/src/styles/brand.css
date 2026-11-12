@@ -1,0 +1,127 @@
+/* CyanFlix Brand Identity Styles (Netflix-inspired aesthetics) */
+
+.cyanflix-logo {
+  display: block;
+  height: auto;
+  overflow: visible;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1),
+              filter 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.cyanflix-icon {
+  display: inline-block;
+  vertical-align: middle;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1),
+              filter 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Header Navbar Logo */
+.navbar__logo {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.navbar__logo-svg {
+  height: clamp(1.85rem, 3.2vw, 2.35rem);
+  width: auto;
+  max-width: 8.8rem;
+  display: block;
+}
+
+.navbar__logo:hover .navbar__logo-svg,
+.navbar__logo:focus-visible .navbar__logo-svg {
+  transform: scale(1.04);
+  filter: drop-shadow(0 0 16px rgba(0, 212, 255, 0.65));
+}
+
+/* Login Page Logo */
+.profiles-page__logo {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.profiles-page__logo-svg {
+  height: clamp(3rem, 7vw, 4.2rem);
+  width: auto;
+  max-width: 17rem;
+  display: block;
+  filter: drop-shadow(0 4px 28px rgba(0, 212, 255, 0.42));
+}
+
+/* Profiles Selector Page (Premium) */
+.premium__logo {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.premium__logo-svg {
+  height: clamp(3.2rem, 7.5vw, 4.6rem);
+  width: auto;
+  max-width: 18rem;
+  display: block;
+  filter: drop-shadow(0 6px 32px rgba(0, 212, 255, 0.48));
+}
+
+/* Institutional Footer Logo */
+.site-footer__logo {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.site-footer__logo-svg {
+  height: clamp(1.9rem, 3vw, 2.3rem);
+  width: auto;
+  max-width: 9rem;
+  display: block;
+}
+
+.site-footer__logo:hover .site-footer__logo-svg,
+.site-footer__logo:focus-visible .site-footer__logo-svg {
+  transform: scale(1.04);
+  filter: drop-shadow(0 0 18px rgba(0, 212, 255, 0.6));
+}
+
+/* Admin Sidebar Brand Mark */
+.admin-sidebar__brand-mark {
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-sidebar__brand-mark svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 2px 10px rgba(0, 212, 255, 0.35));
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.admin-sidebar__brand:hover .admin-sidebar__brand-mark svg {
+  transform: scale(1.08);
+  filter: drop-shadow(0 2px 16px rgba(0, 212, 255, 0.6));
+}
+
+/* Accessibility utility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

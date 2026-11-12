@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { useProfileStore } from '../../stores/useProfileStore';
+import { CyanFlixIcon } from '../ui/CyanFlixLogo';
 import '../../styles/admin.css';
 
 const navItems = [
@@ -168,7 +169,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <aside className={`admin-sidebar ${mobileMenuOpen ? 'admin-sidebar--open' : ''}`}>
         <div className="admin-sidebar__top-row">
           <Link to="/admin" className="admin-sidebar__brand">
-            <span className="admin-sidebar__brand-mark">C</span>
+            <span className="admin-sidebar__brand-mark" aria-hidden="true">
+              <CyanFlixIcon size={26} variant="transparent" />
+            </span>
             <span>
               <strong>CyanFlix</strong>
               <small>Administração</small>

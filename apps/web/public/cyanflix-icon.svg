@@ -1,4 +1,71 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#070b12"/>
-  <path d="M374 148c-31-35-70-52-117-52-91 0-161 68-161 160s70 160 161 160c48 0 90-18 121-54l-60-55c-16 18-35 27-59 27-43 0-75-33-75-78s32-78 75-78c22 0 41 8 56 24z" fill="#00d4ff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%" role="img" aria-label="CyanFlix">
+  <defs>
+    <!-- Dark obsidian gradient background -->
+    <linearGradient id="cf-icon-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0c131d" />
+      <stop offset="100%" stop-color="#04070c" />
+    </linearGradient>
+
+    <!-- Spine ribbon gradient (deep foundation layer) -->
+    <linearGradient id="cf-icon-spine" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#007fae" />
+      <stop offset="45%" stop-color="#00a3dc" />
+      <stop offset="100%" stop-color="#005d82" />
+    </linearGradient>
+
+    <!-- Top folded ribbon arm (vibrant highlight) -->
+    <linearGradient id="cf-icon-top" x1="0%" y1="0%" x2="100%" y2="20%">
+      <stop offset="0%" stop-color="#45e6ff" />
+      <stop offset="50%" stop-color="#00d4ff" />
+      <stop offset="100%" stop-color="#008ec9" />
+    </linearGradient>
+
+    <!-- Bottom folded ribbon arm (electric cyan with depth) -->
+    <linearGradient id="cf-icon-btm" x1="0%" y1="80%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00c8fa" />
+      <stop offset="50%" stop-color="#00a3dc" />
+      <stop offset="100%" stop-color="#006692" />
+    </linearGradient>
+
+    <!-- 3D ribbon fold drop shadow for top arm -->
+    <filter id="cf-fold-shadow-top" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="-2" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.85" />
+    </filter>
+
+    <!-- 3D ribbon fold drop shadow for bottom arm -->
+    <filter id="cf-fold-shadow-btm" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="-2" dy="-8" stdDeviation="10" flood-color="#000000" flood-opacity="0.85" />
+    </filter>
+
+    <!-- Ambient neon glow -->
+    <filter id="cf-icon-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="0" stdDeviation="16" flood-color="#00d4ff" flood-opacity="0.25" />
+    </filter>
+
+    <!-- Cinema arc for the bottom ribbon -->
+    <clipPath id="cf-icon-arc">
+      <path d="M 0 0 L 512 0 L 512 436 Q 256 414 0 436 Z" />
+    </clipPath>
+  </defs>
+
+  <!-- Dark rounded container -->
+  <rect width="512" height="512" rx="116" fill="url(#cf-icon-bg)" stroke="rgba(0, 212, 255, 0.22)" stroke-width="4" />
+  
+  <!-- Subtle inner radial glow -->
+  <circle cx="256" cy="256" r="170" fill="#00d4ff" opacity="0.07" />
+
+  <g clip-path="url(#cf-icon-arc)" filter="url(#cf-icon-glow)">
+    <!-- 1. Left Vertical Spine (Back Layer) -->
+    <rect x="124" y="80" width="86" height="356" fill="url(#cf-icon-spine)" />
+
+    <!-- 2. Top Ribbon Arm (Overlapping with 45-deg fold and shadow) -->
+    <g filter="url(#cf-fold-shadow-top)">
+      <path d="M 124 80 L 388 80 L 388 168 L 210 168 L 124 80 Z" fill="url(#cf-icon-top)" />
+    </g>
+
+    <!-- 3. Bottom Ribbon Arm (Overlapping with 45-deg fold and shadow) -->
+    <g filter="url(#cf-fold-shadow-btm)">
+      <path d="M 124 436 L 210 348 L 388 348 L 388 436 Z" fill="url(#cf-icon-btm)" />
+    </g>
+  </g>
 </svg>

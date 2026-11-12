@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%" fill="none" role="img" aria-label="CyanFlix">
+  <defs>
+    <linearGradient id="cf-t-spine" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#007fae" />
+      <stop offset="45%" stop-color="#00a3dc" />
+      <stop offset="100%" stop-color="#005d82" />
+    </linearGradient>
+    <linearGradient id="cf-t-top" x1="0%" y1="0%" x2="100%" y2="20%">
+      <stop offset="0%" stop-color="#45e6ff" />
+      <stop offset="50%" stop-color="#00d4ff" />
+      <stop offset="100%" stop-color="#008ec9" />
+    </linearGradient>
+    <linearGradient id="cf-t-btm" x1="0%" y1="80%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00c8fa" />
+      <stop offset="50%" stop-color="#00a3dc" />
+      <stop offset="100%" stop-color="#006692" />
+    </linearGradient>
+    <filter id="cf-t-shadow-top" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="-2" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.85" />
+    </filter>
+    <filter id="cf-t-shadow-btm" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="-2" dy="-8" stdDeviation="10" flood-color="#000000" flood-opacity="0.85" />
+    </filter>
+    <filter id="cf-t-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="0" stdDeviation="16" flood-color="#00d4ff" flood-opacity="0.25" />
+    </filter>
+    <clipPath id="cf-t-arc">
+      <path d="M 0 0 L 512 0 L 512 436 Q 256 414 0 436 Z" />
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#cf-t-arc)" filter="url(#cf-t-glow)">
+    <rect x="124" y="80" width="86" height="356" fill="url(#cf-t-spine)" />
+    <g filter="url(#cf-t-shadow-top)">
+      <path d="M 124 80 L 388 80 L 388 168 L 210 168 L 124 80 Z" fill="url(#cf-t-top)" />
+    </g>
+    <g filter="url(#cf-t-shadow-btm)">
+      <path d="M 124 436 L 210 348 L 388 348 L 388 436 Z" fill="url(#cf-t-btm)" />
+    </g>
+  </g>
+</svg>
