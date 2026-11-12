@@ -24,7 +24,7 @@ export function useLogout() {
     } finally {
       // Commit the public route before the profile store update. Otherwise
       // ProfileGate can race this redirect and send the user back to /profiles.
-      flushSync(() => navigate('/login', { replace: true }));
+      flushSync(() => navigate('/', { replace: true }));
       // Personal data must not survive a logout in the browser cache.
       queryClient.clear();
       clearScrollRestoration();

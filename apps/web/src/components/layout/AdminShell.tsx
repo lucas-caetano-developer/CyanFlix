@@ -149,10 +149,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const handleLogout = async () => {
-    await api.logout();
-    queryClient.clear();
-    clearProfile();
-    navigate('/profiles', { replace: true });
+    try {
+      await api.logout();
+    } finally {
+      queryClient.clear();
+      clearProfile();
+      window.location.href = '/';
+    }
   };
 
   return (

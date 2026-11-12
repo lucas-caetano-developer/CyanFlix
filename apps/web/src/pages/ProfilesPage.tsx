@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useRef, useEffect } from "react";
+import { useNavigate, Navigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useProfileStore } from "../stores/useProfileStore";
@@ -245,12 +245,25 @@ export function ProfilesPage() {
     }
   };
 
+  useEffect(() => {
+    if (session && !session.authenticated) {
+      window.location.href = "/";
+    }
+  }, [session]);
+
   const handleLogout = async () => {
-    await api.logout();
-    clearProfile();
-    queryClient.clear();
-    navigate("/profiles", { replace: true });
+    try {
+      await api.logout();
+    } finally {
+      clearProfile();
+      queryClient.clear();
+      window.location.href = "/";
+    }
   };
+
+  if (profiles.isError && (!session?.authenticated || String(profiles.error).includes("401") || String(profiles.error).includes("Unauthorized"))) {
+    return <Navigate to="/" replace />;
+  }
 
   if (profiles.isLoading) return <Spinner fullScreen />;
 

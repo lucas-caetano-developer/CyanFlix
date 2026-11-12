@@ -3790,4 +3790,5 @@ async function ensureBootstrapAccount() {
 const bootstrapAccount = await ensureBootstrapAccount();
 await cleanupUploadTemporaries();
 await ensureDefaultProfile(bootstrapAccount.id, bootstrapAccount.role);
+await prisma.profile.deleteMany({ where: { name: "Assistir", role: "viewer", avatar: "play" } }).catch(() => {});
 await app.listen({ host: "0.0.0.0", port: env.port });

@@ -91,15 +91,22 @@ export async function ensureDefaultProfile(accountId: string, accountRole: "owne
   await profile.updateMany({ where: { accountId: null }, data: { accountId } });
 
   // Contas de administração (owner/admin) recebem apenas o perfil de administração.
-  // Perfis comuns (viewer) recebem o perfil "Assistir".
   if (accountRole === "owner" || accountRole === "admin") {
     const admin = await profile.findFirst({ where: { accountId, role: "admin" } });
     if (!admin) await profile.create({ data: { accountId, name: "Admin", avatar: "admin", role: "admin" } });
     return;
   }
 
-  const viewer = await profile.findFirst({ where: { accountId, role: "viewer" } });
-  if (!viewer) await profile.create({ data: { accountId, name: "Assistir", avatar: "play", role: "viewer" } });
+  // Contas de clientes (viewer) NÃO devem receber perfil automático. O primeiro perfil deve ser criado diretamente pelo cliente!
+  // Remove qualquer perfil legado dummy "Assistir"
+  await profile.deleteMany({
+    where: {
+      accountId,
+      name: "Assistir",
+      role: "viewer",
+      avatar: "play",
+    },
+  });
 }
 
 export async function cleanCreditsInDatabase(client = prisma): Promise<void> {

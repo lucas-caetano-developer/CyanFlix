@@ -7007,9 +7007,9 @@ img, video {
 
 .premium__avatar {
   position: relative;
-  width: clamp(130px, 19vw, 170px);
-  height: clamp(130px, 19vw, 170px);
-  border-radius: 2rem;
+  width: clamp(155px, 22vw, 195px);
+  height: clamp(155px, 22vw, 195px);
+  border-radius: 50%;
   overflow: hidden;
   border: 4px solid transparent;
   background: #0f172a;
@@ -8143,8 +8143,8 @@ img, video {
 }
 
 .profile-form__avatar {
-  width: 108px !important;
-  height: 108px !important;
+  width: 124px !important;
+  height: 124px !important;
   border-radius: 50% !important;
   border: 3px solid rgba(0, 212, 255, 0.4) !important;
   box-shadow: 0 0 24px rgba(0, 212, 255, 0.25);
@@ -8430,8 +8430,8 @@ img, video {
 }
 
 .avatar-modal__preview-wrap {
-  width: 76px;
-  height: 76px;
+  width: 96px;
+  height: 96px;
   border-radius: 50%;
   border: 3px solid #00d4ff;
   box-shadow: 0 0 16px rgba(0, 212, 255, 0.35);
@@ -8516,16 +8516,28 @@ img, video {
   position: absolute;
   top: 1.25rem;
   right: 1.25rem;
-  background: transparent;
-  border: none;
+  width: 34px;
+  height: 34px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
   color: #94a3b8;
-  font-size: 1.25rem;
   cursor: pointer;
-  padding: 0.25rem;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.15s ease;
+  transition: all 0.15s ease;
+  z-index: 10;
+}
+
+.avatar-modal__close-btn svg,
+.avatar-modal__close-btn .icon {
+  width: 16px !important;
+  height: 16px !important;
+  max-width: 16px !important;
+  max-height: 16px !important;
+  display: block;
 }
 
 .avatar-modal__close-btn:hover {
@@ -8615,8 +8627,8 @@ img, video {
 
 .avatar-modal__item {
   position: relative;
-  width: 72px;
-  height: 72px;
+  width: 92px;
+  height: 92px;
   border-radius: 50%;
   border: 2px solid transparent;
   padding: 0;

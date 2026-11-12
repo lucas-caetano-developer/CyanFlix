@@ -1,7 +1,6 @@
 import { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
-import { AVATARS } from "./avatars";
 import { ProfileAvatar } from "./ProfileAvatar";
 import { Icon } from "../ui/Icon";
 import { Spinner } from "../ui/Spinner";
@@ -109,20 +108,6 @@ export function AvatarModal({ isOpen, currentAvatar, onSave, onClose }: AvatarMo
               onSelect={setSelected}
             />
           ))}
-
-          {/* CyanFlix Built-in Avatars */}
-          <AvatarRow
-            title="CyanFlix Clássicos"
-            items={AVATARS.map((a) => ({
-              id: a.id,
-              value: a.id,
-              name: a.label,
-              svg: a.svg,
-              color: a.color,
-            }))}
-            selected={selected}
-            onSelect={setSelected}
-          />
         </div>
       </div>
     </div>
