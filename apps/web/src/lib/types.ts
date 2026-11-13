@@ -5,7 +5,7 @@ export type AvatarGroup = { id: string; title: string; characters: AvatarCharact
 export type Session = { authenticated: boolean; accountId: string; username: string; role: "owner" | "admin" | "viewer" };
 export type Account = { id: string; username: string; role: "owner" | "admin" | "viewer"; disabled: boolean; createdAt: string; updatedAt?: string; _count?: { profiles: number } };
 export type IntegrityCheck = { id: string; state: "running" | "passed" | "failed"; checkedAssets: number; hashedAssets: number; missingAssets: number; corruptAssets: number; startedAt: string; completedAt?: string | null };
-export type AdminCatalogWork = { id: string; canonicalTitle: string; canonicalSynopsis?: string | null; title: string; synopsis?: string | null; contentKind: "movie" | "series" | "anime"; year?: number | null; hidden: boolean; featured: boolean; seasonCount: number; episodeCount: number; override?: { title?: string | null; synopsis?: string | null; hidden?: boolean | null; featured?: boolean | null; updatedAt: string } | null };
+export type AdminCatalogWork = { id: string; canonicalTitle: string; canonicalSynopsis?: string | null; title: string; synopsis?: string | null; contentKind: "movie" | "series" | "anime"; year?: number | null; hidden: boolean; featured: boolean; seasonCount: number; episodeCount: number; override?: { title?: string | null; synopsis?: string | null; hidden?: boolean | null; featured?: boolean | null; updatedAt: string } | null; assets?: Asset[] };
 export type AdminWorkDetail = {
   id: string;
   stableId?: string;
@@ -159,6 +159,7 @@ export type Character = {
     contentKind: "movie" | "series" | "anime";
     year?: number | null;
     synopsis?: string | null;
+    assets?: Asset[];
   } | null;
   workIds?: string[];
   works?: Array<{
@@ -167,6 +168,7 @@ export type Character = {
     contentKind: "movie" | "series" | "anime";
     year?: number | null;
     synopsis?: string | null;
+    assets?: Asset[];
   }>;
   createdAt: string;
   updatedAt: string;

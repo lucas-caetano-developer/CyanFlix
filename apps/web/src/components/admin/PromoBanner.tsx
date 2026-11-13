@@ -9,32 +9,29 @@ export interface PromoBannerProps {
   categorySubtitle?: string;
   logoPosition?: "left" | "right";
   customColor?: string;
-  preferredPhoto?: "body" | "avatar" | "auto";
   ctaText?: string;
   className?: string;
   onClickCta?: () => void;
 }
 
-export function getDefaultCategoryTitles(role?: string | null): { title: string; subtitle: string } {
-  const cleanRole = (role || "").toLowerCase();
-  if (cleanRole.includes("vil") || cleanRole.includes("antagonista")) {
-    return { title: "VILÕES", subtitle: "ICÔNICOS" };
+export function getDefaultCategoryTitles(
+  role?: string | null,
+  archetype?: string | null,
+): { title: string; subtitle: string } {
+  const cleanRole = (role || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  let title = "PROTAGONISTA";
+  if (cleanRole.includes("vil") || cleanRole.includes("antag")) {
+    title = "ANTAGONISTA";
+  } else if (cleanRole.includes("coadj") || cleanRole.includes("apoio")) {
+    title = "COADJUVANTE";
+  } else if (cleanRole.includes("protag")) {
+    title = "PROTAGONISTA";
+  } else if (role) {
+    title = role.toUpperCase();
   }
-  if (
-    cleanRole.includes("coadj") ||
-    cleanRole.includes("apoio") ||
-    cleanRole.includes("secund") ||
-    cleanRole.includes("recorr") ||
-    cleanRole.includes("convidado") ||
-    cleanRole.includes("participa") ||
-    cleanRole.includes("narrador") ||
-    cleanRole.includes("figuran") ||
-    cleanRole.includes("extra") ||
-    cleanRole.includes("ponta")
-  ) {
-    return { title: "COADJUVANTES", subtitle: "MARCANTES" };
-  }
-  return { title: "PROTAGONISTAS", subtitle: "LENDÁRIOS" };
+
+  const subtitle = archetype ? archetype.trim().toUpperCase() : "";
+  return { title, subtitle };
 }
 
 export const PromoBanner: React.FC<PromoBannerProps> = ({
@@ -44,28 +41,19 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
   categorySubtitle,
   logoPosition = "right",
   customColor,
-  preferredPhoto = "auto",
   ctaText = "ASSISTA JÁ",
   className = "",
   onClickCta,
 }) => {
   const themeColor = customColor || character.themeColor || "#0284C7";
 
-  // Resolve Category Titles
-  const defaultCats = getDefaultCategoryTitles(character.role);
+  // Resolve Category Titles (Role + Archetype)
+  const defaultCats = getDefaultCategoryTitles(character.role, character.archetype);
   const displayTitle = categoryTitle !== undefined ? categoryTitle : defaultCats.title;
   const displaySubtitle = categorySubtitle !== undefined ? categorySubtitle : defaultCats.subtitle;
 
-  // Resolve Cutout Image
-  let charPhoto: string | null = null;
-  if (preferredPhoto === "body") {
-    charPhoto = character.bodyPhotoUrl || character.photoUrl || null;
-  } else if (preferredPhoto === "avatar") {
-    charPhoto = character.photoUrl || character.bodyPhotoUrl || null;
-  } else {
-    // Auto: prioritize body photo
-    charPhoto = character.bodyPhotoUrl || character.photoUrl || null;
-  }
+  // Resolve Cutout Image - ONLY body photo
+  const charPhoto = character.bodyPhotoUrl || null;
 
   // Obra Logo
   const logoUrl = work ? getLogoUrl(work) : null;
@@ -154,7 +142,7 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
         </span>
       </div>
 
-      {/* Role / Category Title Section */}
+      {/* Role / Category Title Section (Role + Archetype) */}
       <div
         style={{
           zIndex: 3,
@@ -163,14 +151,14 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
-          maxWidth: "28%",
+          maxWidth: "32%",
         }}
       >
         <div
           style={{
             display: "flex",
             flexDirection: "column",
-            lineHeight: 0.88,
+            lineHeight: 0.9,
             fontFamily: "'Impact', 'Arial Black', sans-serif",
             textTransform: "uppercase",
             color: "#ffffff",
@@ -180,7 +168,7 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
         >
           <span
             style={{
-              fontSize: "clamp(1.8rem, 4.2vw, 3.8rem)",
+              fontSize: "clamp(1.8rem, 3.8vw, 3.4rem)",
               fontWeight: 900,
             }}
           >
@@ -189,9 +177,12 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
           {displaySubtitle && (
             <span
               style={{
-                fontSize: "clamp(1.6rem, 3.8vw, 3.4rem)",
-                fontWeight: 900,
-                color: "#f1f5f9",
+                fontSize: "clamp(1.3rem, 2.6vw, 2.4rem)",
+                fontWeight: 800,
+                color: themeColor,
+                textShadow: `0 0 16px ${themeColor}66`,
+                marginTop: "0.2rem",
+                wordBreak: "break-word",
               }}
             >
               {displaySubtitle}
@@ -200,7 +191,7 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
         </div>
       </div>
 
-      {/* Center Character Cutout */}
+      {/* Center Character Cutout - ONLY body photo */}
       <div
         style={{
           position: "absolute",
@@ -267,37 +258,37 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
           flexDirection: "column",
           alignItems: logoPosition === "right" ? "flex-end" : "flex-start",
           justifyContent: "center",
-          maxWidth: "32%",
+          maxWidth: "34%",
           gap: "0.9rem",
           textAlign: logoPosition === "right" ? "right" : "left",
         }}
       >
-        {/* Logo / Obra Title */}
+        {/* Logo da Obra */}
         {logoUrl ? (
           <img
             src={logoUrl}
             alt={workTitle}
             style={{
-              maxHeight: "clamp(45px, 6vw, 75px)",
-              maxWidth: "230px",
+              maxHeight: "clamp(50px, 7vw, 90px)",
+              maxWidth: "260px",
               objectFit: "contain",
-              filter: "drop-shadow(0 4px 12px rgba(0, 0, 0, 0.8))",
+              filter: "drop-shadow(0 4px 14px rgba(0, 0, 0, 0.85))",
             }}
           />
         ) : (
           <div
             style={{
-              fontFamily: "'Impact', 'Arial Black', sans-serif",
-              fontSize: "clamp(1.4rem, 2.5vw, 2.2rem)",
-              fontWeight: 900,
+              padding: "0.4rem 0.8rem",
+              borderRadius: "8px",
+              border: "1px dashed rgba(255, 255, 255, 0.2)",
+              color: "rgba(255, 255, 255, 0.4)",
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              letterSpacing: "0.05em",
               textTransform: "uppercase",
-              letterSpacing: "-0.01em",
-              color: "#ffffff",
-              textShadow: `0 2px 10px rgba(0,0,0,0.8), 0 0 15px ${themeColor}66`,
-              lineHeight: 1.1,
             }}
           >
-            {workTitle}
+            Sem logo cadastrada
           </div>
         )}
 

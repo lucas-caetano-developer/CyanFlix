@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { MiniVideoAudioClipper } from "../../components/admin/MiniVideoAudioClipper";
 import { CharacterArchetypeSelector } from "../../components/admin/CharacterArchetypeSelector";
-import { CHARACTER_ROLES, parseArchetypes, resolveCharacterRole } from "../../lib/characterConstants";
+import { CHARACTER_ROLES, parseArchetypes } from "../../lib/characterConstants";
 import type { Character, VoiceActor } from "../../lib/types";
 
 export function AdminCharacterDetailPage() {
@@ -75,7 +75,7 @@ export function AdminCharacterDetailPage() {
     setFormName(character.name || "");
     setFormPhotoUrl(character.photoUrl || "");
     setFormBodyPhotoUrl(character.bodyPhotoUrl || "");
-    setFormRole(resolveCharacterRole(character.role));
+    setFormRole(character.role || "Protagonista");
     setFormArchetypes(parseArchetypes(character.archetype));
     setFormProfileSentiments(character.profileSentiments || "");
     setFormVoiceActorId(character.voiceActorId || "");

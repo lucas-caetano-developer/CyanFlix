@@ -52,6 +52,18 @@ app.get("/api/admin/catalog", async (request) => {
       : undefined,
     include: {
       editorialOverride: true,
+      assets: {
+        where: { type: { in: workPresentationAssetTypes } },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          type: true,
+          publicPath: true,
+          sizeBytes: true,
+          metadata: true,
+          relativePath: true,
+        },
+      },
       _count: { select: { seasons: true, episodes: true } },
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -82,6 +94,7 @@ app.get("/api/admin/catalog", async (request) => {
         : null,
       seasonCount: work._count.seasons,
       episodeCount: work._count.episodes,
+      assets: work.assets.map(toPresentationAssetDto),
     })),
     nextCursor: hasMore ? (page.at(-1)?.id ?? null) : null,
   });

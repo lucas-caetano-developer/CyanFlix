@@ -16,16 +16,6 @@ export const CHARACTER_ROLES = [
 
 export type CharacterRole = typeof CHARACTER_ROLES[number]["value"];
 
-export function resolveCharacterRole(role?: string | null): string {
-  if (!role) return "Protagonista";
-  const trimmed = role.trim();
-  const normalized = trimmed.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  const found = CHARACTER_ROLES.find(
-    (r) => r.value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === normalized
-  );
-  return found ? found.value : trimmed;
-}
-
 export const ARCHETYPE_CATEGORIES = [
   {
     name: "Heróis e protagonistas",

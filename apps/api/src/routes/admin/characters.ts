@@ -31,7 +31,23 @@ app.get("/api/admin/characters", async (request) => {
     where,
     include: {
       works: {
-        select: { id: true, title: true, contentKind: true, year: true },
+        select: {
+          id: true,
+          title: true,
+          contentKind: true,
+          year: true,
+          assets: {
+            where: { type: { in: ["logo", "logo_webp", "logo-webp"] } },
+            select: {
+              id: true,
+              type: true,
+              publicPath: true,
+              sizeBytes: true,
+              metadata: true,
+              relativePath: true,
+            },
+          },
+        },
       },
       voiceActor: { select: { id: true, name: true, photoUrl: true } },
     },

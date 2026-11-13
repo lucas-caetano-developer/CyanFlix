@@ -18,8 +18,9 @@ export function getBackdropUrl(work: Work): string | null {
   return getAssetUrl(work.assets, 'hero', 'backdrop-card', 'backdrop_card', 'backdrop');
 }
 
-export function getLogoUrl(work: Work): string | null {
-  return getAssetUrl(work.assets, 'logo');
+export function getLogoUrl(work?: { assets?: Asset[] } | null): string | null {
+  if (!work) return null;
+  return getAssetUrl(work.assets, 'logo', 'logo_webp', 'logo-webp', 'title_logo');
 }
 
 export function getEpisodeThumbnail(episode: Episode): string | null {
