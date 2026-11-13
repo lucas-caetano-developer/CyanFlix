@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface PlayerRatingBannerProps {
   rating: { ageLabel: string; tone: string; descriptors: string[] } | null | undefined;

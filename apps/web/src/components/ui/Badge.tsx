@@ -1,4 +1,3 @@
-import React from 'react';
 
 export function Badge({ variant, label }: { variant: string; label: string }) {
   let className = 'badge';

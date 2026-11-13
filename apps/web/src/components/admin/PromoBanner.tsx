@@ -20,7 +20,18 @@ export function getDefaultCategoryTitles(role?: string | null): { title: string;
   if (cleanRole.includes("vil") || cleanRole.includes("antagonista")) {
     return { title: "VILÕES", subtitle: "ICÔNICOS" };
   }
-  if (cleanRole.includes("coadj") || cleanRole.includes("apoio") || cleanRole.includes("secund")) {
+  if (
+    cleanRole.includes("coadj") ||
+    cleanRole.includes("apoio") ||
+    cleanRole.includes("secund") ||
+    cleanRole.includes("recorr") ||
+    cleanRole.includes("convidado") ||
+    cleanRole.includes("participa") ||
+    cleanRole.includes("narrador") ||
+    cleanRole.includes("figuran") ||
+    cleanRole.includes("extra") ||
+    cleanRole.includes("ponta")
+  ) {
     return { title: "COADJUVANTES", subtitle: "MARCANTES" };
   }
   return { title: "PROTAGONISTAS", subtitle: "LENDÁRIOS" };

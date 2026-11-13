@@ -8,7 +8,6 @@ import React, {
   type CSSProperties,
 } from "react";
 import { formatMs } from "../../lib/utils";
-import { markerLabel, markerTone } from "../../lib/player";
 import type { Marker } from "../../lib/types";
 import { Icon } from "../ui/Icon";
 
@@ -374,13 +373,6 @@ export const PlayerControls = memo(function PlayerControls({
     if (restoreFocus) settingsButtonRef.current?.focus();
   };
 
-  const currentAudioLabel =
-    audioTracks.find((t) => t.id === selectedAudioTrack)?.label ?? "—";
-  const currentSubtitleLabel =
-    selectedSubtitleTrack < 0
-      ? "Desligadas"
-      : (subtitleTracks.find((t) => t.id === selectedSubtitleTrack)?.label ??
-        "—");
   const currentSubtitleSizeLabel =
     SUBTITLE_SIZE_LABELS[subtitleStyle] ?? subtitleStyle;
   const currentQualityLabel =

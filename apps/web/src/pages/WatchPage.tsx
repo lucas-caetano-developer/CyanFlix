@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import Hls from 'hls.js';
@@ -12,7 +12,7 @@ import { Footer } from '../components/layout/Footer';
 import { useProfileStore } from '../stores/useProfileStore';
 
 export function WatchPage() {
-  const { kind, id } = useParams<{ kind: string; id: string }>();
+  const { id } = useParams<{ kind: string; id: string }>();
   const navigate = useNavigate();
   const profileId = useProfileStore((state) => state.profileId);
 

@@ -65,7 +65,7 @@ export function AdminBannersPage() {
         const role = (char.role || "").toLowerCase();
         if (selectedRole === "villain" && !role.includes("vil") && !role.includes("antag")) continue;
         if (selectedRole === "protagonist" && !role.includes("protag")) continue;
-        if (selectedRole === "supporting" && !role.includes("coadj") && !role.includes("apoio") && !role.includes("secund")) continue;
+        if (selectedRole === "supporting" && !role.includes("coadj") && !role.includes("apoio") && !role.includes("secund") && !role.includes("recorr") && !role.includes("deuterag") && !role.includes("tritag")) continue;
       }
 
       // Search query filter

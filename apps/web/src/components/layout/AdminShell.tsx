@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { useProfileStore } from '../../stores/useProfileStore';
@@ -119,7 +119,6 @@ const navItems = [
 
 export function AdminShell({ children }: { children: ReactNode }) {
   const location = useLocation();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const session = useQuery({ queryKey: ['auth', 'session'], queryFn: api.getSession });
   const clearProfile = useProfileStore((state) => state.clearProfile);

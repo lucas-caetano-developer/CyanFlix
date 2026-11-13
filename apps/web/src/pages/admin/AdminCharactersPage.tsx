@@ -488,6 +488,11 @@ export function AdminCharactersPage() {
                   value={newRole}
                   onChange={(e) => setNewRole(e.target.value)}
                 >
+                  {!CHARACTER_ROLES.some((r) => r.value === newRole) && newRole && (
+                    <option value={newRole}>
+                      {newRole} (Atual)
+                    </option>
+                  )}
                   {CHARACTER_ROLES.map((role) => (
                     <option key={role.value} value={role.value}>
                       {role.label} — {role.description}

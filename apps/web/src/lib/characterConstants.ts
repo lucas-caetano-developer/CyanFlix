@@ -5,11 +5,26 @@ export const CHARACTER_ROLES = [
   { value: "Tritagonista", label: "Tritagonista", description: "Terceiro personagem mais importante da história." },
   { value: "Antagonista", label: "Antagonista", description: "Principal força de oposição ao protagonista." },
   { value: "Coadjuvante", label: "Coadjuvante", description: "Personagem de apoio com participação relevante na trama." },
-  { value: "Figurante", label: "Figurante", description: "Personagem sem importância narrativa significativa." },
+  { value: "Secundário", label: "Secundário", description: "Personagem secundário com participação na trama." },
+  { value: "Recorrente", label: "Recorrente", description: "Personagem recorrente que surge em múltiplos episódios ou arcos." },
   { value: "Participação Especial", label: "Participação Especial", description: "Personagem que aparece pontualmente, geralmente em uma participação limitada." },
+  { value: "Convidado", label: "Convidado", description: "Personagem convidado com aparição específica na história." },
+  { value: "Narrador", label: "Narrador", description: "Voz condutora da narrativa ou narrador da história." },
+  { value: "Figurante", label: "Figurante", description: "Personagem sem importância narrativa significativa." },
+  { value: "Ponta / Extra", label: "Ponta / Extra", description: "Aparição breve ou elenco de apoio pontual." },
 ] as const;
 
 export type CharacterRole = typeof CHARACTER_ROLES[number]["value"];
+
+export function resolveCharacterRole(role?: string | null): string {
+  if (!role) return "Protagonista";
+  const trimmed = role.trim();
+  const normalized = trimmed.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const found = CHARACTER_ROLES.find(
+    (r) => r.value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === normalized
+  );
+  return found ? found.value : trimmed;
+}
 
 export const ARCHETYPE_CATEGORIES = [
   {

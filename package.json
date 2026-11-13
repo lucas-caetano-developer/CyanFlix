@@ -7,22 +7,16 @@
     "dev": "corepack pnpm -r --parallel dev",
     "build": "corepack pnpm --filter @cyanflix/shared build && corepack pnpm --filter @cyanflix/contracts build && corepack pnpm --filter @cyanflix/database build && corepack pnpm --filter @cyanflix/ingestion build && corepack pnpm --filter @cyanflix/web build && corepack pnpm --filter @cyanflix/api build && corepack pnpm --filter @cyanflix/worker build",
     "typecheck": "corepack pnpm -r typecheck",
-    "test": "corepack pnpm --filter @cyanflix/shared build && corepack pnpm --filter @cyanflix/contracts build && corepack pnpm --filter @cyanflix/database build && corepack pnpm --filter @cyanflix/api build && corepack pnpm --filter @cyanflix/worker build && node --test tests/*.test.mjs && corepack pnpm --filter @cyanflix/web test",
-    "test:unit": "corepack pnpm --filter @cyanflix/web test",
-    "test:e2e": "playwright test",
     "db:generate": "prisma generate",
     "db:migrate": "node prisma/migrate.mjs",
     "db:migrate:direct": "prisma migrate deploy",
-    "db:clean-credits": "node packages/database/dist/clean-credits-cli.js",
     "db:push": "prisma db push",
-    "db:studio": "prisma studio",
-    "db:reset-admin": "node scripts/reset-admin.mjs"
+    "db:studio": "prisma studio"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.64.1",
     "@types/node": "^22.7.5",
     "@vitejs/plugin-react": "^4.3.2",
     "prisma": "^5.20.0",

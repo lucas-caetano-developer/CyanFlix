@@ -67,10 +67,6 @@ export function labelKind(kind: Work['contentKind']): string {
   }
 }
 
-export function labelKindTag(kind: Work["contentKind"]): string {
-  return labelKind(kind);
-}
-
 export function getMetaField<T>(metadata: Record<string, unknown> | undefined, ...path: string[]): T | undefined {
   if (!metadata) return undefined;
   let current: any = metadata;

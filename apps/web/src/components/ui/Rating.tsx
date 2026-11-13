@@ -1,4 +1,3 @@
-import React from 'react';
 
 export function Rating({ value, source, votes, scale }: { value: number; source: string; votes?: number; scale?: number }) {
   const voteLabel = votes !== undefined && votes > 0 ? votes.toLocaleString('pt-BR') : null;

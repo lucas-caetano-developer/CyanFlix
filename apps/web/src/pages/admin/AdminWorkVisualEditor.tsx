@@ -9,7 +9,6 @@ import {
   getGenres,
   getCertification,
 } from "../../lib/utils";
-import type { AdminWorkDetail, Episode, Season } from "../../lib/types";
 
 interface AdminWorkVisualEditorProps {
   workId: string;
@@ -47,7 +46,6 @@ export function AdminWorkVisualEditor({ workId, onBack }: AdminWorkVisualEditorP
 
   // Seasons / Episodes state
   const [selectedSeasonNumber, setSelectedSeasonNumber] = useState<number>(1);
-  const [editingEpisodeId, setEditingEpisodeId] = useState<string | null>(null);
   const [episodeTitles, setEpisodeTitles] = useState<Record<string, string>>({});
   const [episodeSynopses, setEpisodeSynopses] = useState<Record<string, string>>({});
 
@@ -121,7 +119,7 @@ export function AdminWorkVisualEditor({ workId, onBack }: AdminWorkVisualEditorP
       certification?: string | null;
       trailerUrl?: string | null;
     }) => api.updateAdminWorkMetadata(workId, data),
-    onSuccess: (updated) => {
+    onSuccess: () => {
       setSaveSuccessMessage("Metadados da obra salvos com sucesso!");
       setTimeout(() => setSaveSuccessMessage(null), 4000);
       void Promise.all([

@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { MiniVideoAudioClipper } from "../../components/admin/MiniVideoAudioClipper";
 import { CharacterArchetypeSelector } from "../../components/admin/CharacterArchetypeSelector";
-import { CHARACTER_ROLES, parseArchetypes } from "../../lib/characterConstants";
+import { CHARACTER_ROLES, parseArchetypes, resolveCharacterRole } from "../../lib/characterConstants";
 import type { Character, VoiceActor } from "../../lib/types";
 
 export function AdminWorkCharactersPage() {
@@ -37,7 +37,7 @@ export function AdminWorkCharactersPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Query work details
-  const { data: workDetail, isLoading: isLoadingWork } = useQuery({
+  const { data: workDetail } = useQuery({
     queryKey: ["admin", "work-detail", workId],
     queryFn: () => (workId ? api.getAdminWork(workId) : null),
     enabled: Boolean(workId),
@@ -127,7 +127,7 @@ export function AdminWorkCharactersPage() {
     setFormName(char.name || "");
     setFormPhotoUrl(char.photoUrl || "");
     setFormBodyPhotoUrl(char.bodyPhotoUrl || "");
-    setFormRole(char.role || "Protagonista");
+    setFormRole(resolveCharacterRole(char.role));
     setFormArchetypes(parseArchetypes(char.archetype));
     setFormProfileSentiments(char.profileSentiments || "");
     setFormVoiceActorId(char.voiceActorId || "");
@@ -620,6 +620,11 @@ export function AdminWorkCharactersPage() {
                   value={formRole}
                   onChange={(e) => setFormRole(e.target.value)}
                 >
+                  {!CHARACTER_ROLES.some((r) => r.value === formRole) && formRole && (
+                    <option value={formRole}>
+                      {formRole} (Atual)
+                    </option>
+                  )}
                   {CHARACTER_ROLES.map((role) => (
                     <option key={role.value} value={role.value}>
                       {role.label} — {role.description}

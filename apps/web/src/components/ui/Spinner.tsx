@@ -1,4 +1,3 @@
-import React from 'react';
 
 export function Spinner({ size = 'md', fullScreen }: { size?: 'sm' | 'md'; fullScreen?: boolean }) {
   const spinnerClass = `spinner ${size === 'sm' ? 'spinner--sm' : ''}`;
