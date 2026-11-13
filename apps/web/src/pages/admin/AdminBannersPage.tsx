@@ -11,6 +11,7 @@ type RoleFilter = "all" | "protagonist" | "supporting" | "villain";
 interface BannerCustomState {
   logoPosition: "left" | "right";
   customColor?: string;
+  flipHorizontal?: boolean;
   characterOffsetX: number;
   characterOffsetY: number;
   characterScale: number;
@@ -44,12 +45,13 @@ export function AdminBannersPage() {
     tagline?: string;
     logoPosition?: "left" | "right";
     customColor?: string;
+    flipHorizontal?: boolean;
     characterOffsetX?: number;
     characterOffsetY?: number;
     characterScale?: number;
   } | null>(null);
 
-  // Per-character custom override state (position, scale, color, logoPosition)
+  // Per-character custom override state (position, scale, color, logoPosition, flip)
   const [customStates, setCustomStates] = useState<Record<string, BannerCustomState>>({});
 
   // Fetch Catalog & Characters
@@ -202,6 +204,7 @@ export function AdminBannersPage() {
       characterOffsetX: 0,
       characterOffsetY: 0,
       characterScale: 1.25,
+      flipHorizontal: undefined,
     });
   };
 
@@ -217,7 +220,7 @@ export function AdminBannersPage() {
           <p className="admin-page__desc" style={{ maxWidth: "750px", marginTop: "0.25rem" }}>
             Banners gerados automaticamente para protagonistas, coadjuvantes e antagonistas, com um banner exclusivo
             para cada arquétipo. Fundo imersivo com a cor tema e degradê com preto no topo, tipografia ultra-condensada,
-            recortes ampliados com controle total de posição (cima, baixo e lados), logo oficial da obra e botão em branco clássico.
+            recortes ampliados com espelhamento inteligente e controle de posição, logo oficial centralizada com o botão branco.
           </p>
         </div>
       </div>
@@ -370,6 +373,10 @@ export function AdminBannersPage() {
                 {group.banners.map((b) => {
                   const state = getCharState(b.character.id);
                   const activeColor = state.customColor || b.character.themeColor || "#2b1854";
+                  const isFlipped =
+                    state.flipHorizontal !== undefined
+                      ? state.flipHorizontal
+                      : state.logoPosition === "left";
 
                   return (
                     <div
@@ -392,6 +399,7 @@ export function AdminBannersPage() {
                         categoryTitle={b.categoryTitle}
                         categorySubtitle={b.categorySubtitle}
                         customColor={activeColor}
+                        flipHorizontal={state.flipHorizontal}
                         characterOffsetX={state.characterOffsetX}
                         characterOffsetY={state.characterOffsetY}
                         characterScale={state.characterScale}
@@ -541,8 +549,21 @@ export function AdminBannersPage() {
                           </span>
                         </div>
 
-                        {/* Right: Logo Position & Fullscreen */}
+                        {/* Right: Flip, Logo Position & Fullscreen */}
                         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          <button
+                            type="button"
+                            className={`btn btn--xs ${isFlipped ? "btn--primary" : "btn--secondary"}`}
+                            onClick={() =>
+                              updateCustomState(b.character.id, {
+                                flipHorizontal: !isFlipped,
+                              })
+                            }
+                            title="Inverter/espelhar orientação do personagem horizontalmente"
+                          >
+                            Espelhar: {isFlipped ? "Sim" : "Não"}
+                          </button>
+
                           <button
                             type="button"
                             className="btn btn--secondary btn--xs"
@@ -567,6 +588,7 @@ export function AdminBannersPage() {
                                 categorySubtitle: b.categorySubtitle,
                                 logoPosition: state.logoPosition,
                                 customColor: activeColor,
+                                flipHorizontal: state.flipHorizontal,
                                 characterOffsetX: state.characterOffsetX,
                                 characterOffsetY: state.characterOffsetY,
                                 characterScale: state.characterScale,
@@ -640,6 +662,7 @@ export function AdminBannersPage() {
               categoryTitle={fullscreenBanner.categoryTitle}
               categorySubtitle={fullscreenBanner.categorySubtitle}
               customColor={fullscreenBanner.customColor}
+              flipHorizontal={fullscreenBanner.flipHorizontal}
               characterOffsetX={fullscreenBanner.characterOffsetX}
               characterOffsetY={fullscreenBanner.characterOffsetY}
               characterScale={fullscreenBanner.characterScale}

@@ -10,6 +10,7 @@ export interface PromoBannerProps {
   tagline?: string;
   logoPosition?: "left" | "right";
   customColor?: string;
+  flipHorizontal?: boolean;
   characterOffsetX?: number;
   characterOffsetY?: number;
   characterScale?: number;
@@ -38,6 +39,15 @@ export function getDefaultCategoryTitles(
   return { title, subtitle };
 }
 
+// Helper to scale font size based on text length so single line never overflows
+function calculateFontSize(text: string, isSubtitle = false): string {
+  const len = text.length;
+  if (len > 24) return "clamp(1.3rem, 2.7vw, 2.5rem)";
+  if (len > 18) return "clamp(1.6rem, 3.3vw, 3.1rem)";
+  if (len > 13) return "clamp(1.9rem, 4.1vw, 3.8rem)";
+  return isSubtitle ? "clamp(2.3rem, 4.9vw, 4.6rem)" : "clamp(2.6rem, 5.6vw, 5.2rem)";
+}
+
 export const PromoBanner: React.FC<PromoBannerProps> = ({
   character,
   work,
@@ -46,6 +56,7 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
   tagline,
   logoPosition = "right",
   customColor,
+  flipHorizontal,
   characterOffsetX = 0,
   characterOffsetY = 0,
   characterScale = 1.25,
@@ -71,23 +82,22 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
   const bgName = character.name.trim().toUpperCase();
 
   // Dynamic font sizing for Role and Archetype to guarantee single line without clipping
-  const titleFontSize =
-    displayTitle.length > 13
-      ? "clamp(2rem, 4.4vw, 4.2rem)"
-      : "clamp(2.5rem, 5.5vw, 5.2rem)";
-
-  const subtitleFontSize =
-    displaySubtitle.length > 13
-      ? "clamp(1.8rem, 3.8vw, 3.6rem)"
-      : "clamp(2.2rem, 4.8vw, 4.5rem)";
+  const titleFontSize = calculateFontSize(displayTitle, false);
+  const subtitleFontSize = calculateFontSize(displaySubtitle, true);
 
   // Background Name sizing based on length to prevent horizontal cut off
   const bgNameFontSize =
     bgName.length <= 4
-      ? "clamp(7rem, 20vw, 15rem)"
+      ? "clamp(8.5rem, 24vw, 19rem)"
       : bgName.length <= 7
-      ? "clamp(5rem, 14vw, 11rem)"
-      : "clamp(3.8rem, 10vw, 8rem)";
+      ? "clamp(6.5rem, 18vw, 15rem)"
+      : "clamp(4.8rem, 13vw, 11rem)";
+
+  // Flip & Mirrored X calculations
+  const shouldFlip = flipHorizontal !== undefined ? flipHorizontal : (logoPosition === "left");
+  const effectiveScaleX = (shouldFlip ? -1 : 1) * characterScale;
+  const effectiveScaleY = characterScale;
+  const effectiveOffsetX = logoPosition === "left" ? -characterOffsetX : characterOffsetX;
 
   return (
     <div
@@ -108,7 +118,7 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "0 2.8rem",
+        padding: "0 clamp(2.5rem, 4vw, 4.5rem)",
         boxSizing: "border-box",
         userSelect: "none",
         fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
@@ -120,8 +130,8 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
           position: "absolute",
           top: 0,
           bottom: 0,
-          left: logoPosition === "right" ? "12%" : "22%",
-          right: logoPosition === "right" ? "22%" : "12%",
+          left: logoPosition === "right" ? "10%" : "22%",
+          right: logoPosition === "right" ? "22%" : "10%",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -142,7 +152,7 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
             textAlign: "center",
             whiteSpace: "nowrap",
             display: "inline-block",
-            transform: "scale(1, 1.35)",
+            transform: "scale(1, 1.4)",
             transformOrigin: "center center",
             textShadow: "0 0 35px rgba(255, 255, 255, 0.12)",
           }}
@@ -151,7 +161,7 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
         </span>
       </div>
 
-      {/* Role + Archetype Section (Tall condensed Teko font, white, single lines, never cut off) */}
+      {/* Role + Archetype Section (Tall condensed Teko font, white, single lines, safe margins) */}
       <div
         style={{
           zIndex: 3,
@@ -160,7 +170,9 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
-          maxWidth: "38%",
+          maxWidth: "40%",
+          marginRight: logoPosition === "left" ? "1.5rem" : "0",
+          marginLeft: logoPosition === "right" ? "1.5rem" : "0",
           overflow: "visible",
         }}
       >
@@ -175,6 +187,7 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
             textShadow: "0 4px 18px rgba(0, 0, 0, 0.95)",
             transform: "scale(1, 1.15)",
             transformOrigin: logoPosition === "right" ? "left center" : "right center",
+            textAlign: logoPosition === "left" ? "right" : "left",
           }}
         >
           {/* Tipo / Papel */}
@@ -189,7 +202,7 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
           >
             {displayTitle}
           </span>
-          {/* Arquétipo (Single line, complete) */}
+          {/* Arquétipo (Single line, complete, with spacing gap) */}
           {displaySubtitle && (
             <span
               style={{
@@ -198,7 +211,7 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
                 color: "#ffffff",
                 whiteSpace: "nowrap",
                 display: "block",
-                marginTop: "0.05rem",
+                marginTop: "0.45rem",
               }}
             >
               {displaySubtitle}
@@ -207,7 +220,7 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
         </div>
       </div>
 
-      {/* Center Character Cutout (Adjustable position and scale) */}
+      {/* Center Character Cutout (Adjustable position, scale, and auto/manual flip) */}
       <div
         style={{
           position: "absolute",
@@ -236,7 +249,7 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
                 drop-shadow(0 18px 36px rgba(0, 0, 0, 0.85))
                 drop-shadow(0 0 25px rgba(0, 0, 0, 0.5))
               `,
-              transform: `translate(${characterOffsetX}px, ${characterOffsetY}px) scale(${characterScale})`,
+              transform: `translate(${effectiveOffsetX}px, ${characterOffsetY}px) scale(${effectiveScaleX}, ${effectiveScaleY})`,
               transformOrigin: "bottom center",
               transition: "transform 0.12s ease-out",
             }}
@@ -266,7 +279,7 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
         )}
       </div>
 
-      {/* Obra Logo & Call To Action Section (Enlarged, White Button) */}
+      {/* Obra Logo & Call To Action Section (Centered Column with Button) */}
       <div
         style={{
           zIndex: 3,
@@ -274,11 +287,11 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
           flex: "0 0 auto",
           display: "flex",
           flexDirection: "column",
-          alignItems: logoPosition === "right" ? "flex-end" : "flex-start",
+          alignItems: "center",
           justifyContent: "center",
-          maxWidth: "36%",
-          gap: "1rem",
-          textAlign: logoPosition === "right" ? "right" : "left",
+          maxWidth: "34%",
+          gap: "0.9rem",
+          textAlign: "center",
         }}
       >
         {/* Optional Tagline above logo (like 'Junte-se à invasão') */}
@@ -298,14 +311,14 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
           </span>
         )}
 
-        {/* Logo da Obra Oficial (Maior) */}
+        {/* Logo da Obra Oficial (Centered) */}
         {logoUrl ? (
           <img
             src={logoUrl}
             alt={workTitle}
             style={{
               maxHeight: "clamp(65px, 9.5vw, 120px)",
-              maxWidth: "300px",
+              maxWidth: "280px",
               objectFit: "contain",
               filter: "drop-shadow(0 6px 18px rgba(0, 0, 0, 0.9))",
             }}
@@ -327,7 +340,7 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
           </div>
         )}
 
-        {/* CTA Button (Branco com texto escuro) */}
+        {/* CTA Button (Branco com texto escuro, centralizado com a logo) */}
         <button
           type="button"
           onClick={onClickCta}
@@ -363,7 +376,7 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
           {ctaText}
         </button>
 
-        {/* Studio / Copyright Footnote */}
+        {/* Studio / Copyright Footnote (Centered with button) */}
         <div
           style={{
             fontSize: "0.68rem",
