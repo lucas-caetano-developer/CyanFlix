@@ -549,7 +549,7 @@ export function AdminBannersPage() {
                           </span>
                         </div>
 
-                        {/* Right: Flip, Logo Position & Fullscreen */}
+                        {/* Right: Flip/Virar, Logo Position & Fullscreen */}
                         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                           <button
                             type="button"
@@ -559,20 +559,22 @@ export function AdminBannersPage() {
                                 flipHorizontal: !isFlipped,
                               })
                             }
-                            title="Inverter/espelhar orientação do personagem horizontalmente"
+                            title="Virar/inverter orientação do personagem horizontalmente"
                           >
-                            Espelhar: {isFlipped ? "Sim" : "Não"}
+                            Virar: {isFlipped ? "Sim" : "Não"}
                           </button>
 
                           <button
                             type="button"
                             className="btn btn--secondary btn--xs"
-                            onClick={() =>
+                            onClick={() => {
+                              const nextLogo = state.logoPosition === "right" ? "left" : "right";
                               updateCustomState(b.character.id, {
-                                logoPosition: state.logoPosition === "right" ? "left" : "right",
-                              })
-                            }
-                            title="Alternar posição do logotipo entre esquerda e direita"
+                                logoPosition: nextLogo,
+                                flipHorizontal: nextLogo === "left",
+                              });
+                            }}
+                            title="Alternar posição do logotipo entre esquerda e direita (com virada automática do personagem)"
                           >
                             Logo: {state.logoPosition === "right" ? "Direita" : "Esquerda"}
                           </button>
@@ -588,7 +590,7 @@ export function AdminBannersPage() {
                                 categorySubtitle: b.categorySubtitle,
                                 logoPosition: state.logoPosition,
                                 customColor: activeColor,
-                                flipHorizontal: state.flipHorizontal,
+                                flipHorizontal: isFlipped,
                                 characterOffsetX: state.characterOffsetX,
                                 characterOffsetY: state.characterOffsetY,
                                 characterScale: state.characterScale,

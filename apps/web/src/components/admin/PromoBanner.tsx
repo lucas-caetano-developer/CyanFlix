@@ -88,16 +88,16 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
   // Background Name sizing based on length to prevent horizontal cut off
   const bgNameFontSize =
     bgName.length <= 4
-      ? "clamp(8.5rem, 24vw, 19rem)"
+      ? "clamp(8rem, 23vw, 18rem)"
       : bgName.length <= 7
-      ? "clamp(6.5rem, 18vw, 15rem)"
-      : "clamp(4.8rem, 13vw, 11rem)";
+      ? "clamp(6.2rem, 17vw, 14.5rem)"
+      : "clamp(4.5rem, 12vw, 10.5rem)";
 
   // Flip & Mirrored X calculations
   const shouldFlip = flipHorizontal !== undefined ? flipHorizontal : (logoPosition === "left");
   const effectiveScaleX = (shouldFlip ? -1 : 1) * characterScale;
   const effectiveScaleY = characterScale;
-  const effectiveOffsetX = logoPosition === "left" ? -characterOffsetX : characterOffsetX;
+  const effectiveOffsetX = shouldFlip ? -characterOffsetX : characterOffsetX;
 
   return (
     <div
@@ -145,14 +145,14 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
             fontSize: bgNameFontSize,
             fontWeight: 700,
             lineHeight: 0.8,
-            letterSpacing: "-0.01em",
+            letterSpacing: "0.06em",
             textTransform: "uppercase",
             color: "rgba(255, 255, 255, 0.22)",
             fontFamily: "'Teko', 'Bebas Neue', 'Impact', sans-serif",
             textAlign: "center",
             whiteSpace: "nowrap",
             display: "inline-block",
-            transform: "scale(1, 1.4)",
+            transform: "scale(1, 1.35)",
             transformOrigin: "center center",
             textShadow: "0 0 35px rgba(255, 255, 255, 0.12)",
           }}
