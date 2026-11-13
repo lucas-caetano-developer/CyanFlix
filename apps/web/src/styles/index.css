@@ -7028,22 +7028,34 @@ img, video {
 }
 
 .premium__avatar--add {
-  background: #1e293b;
-  color: #94a3b8;
-  font-size: 3.5rem;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: #151c28;
+  border: 3px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 50% !important;
+  transition: transform 0.22s ease, border-color 0.22s ease, background 0.22s ease, box-shadow 0.22s ease;
 }
 
-.premium__avatar .profile-avatar__svg,
-.premium__avatar .profile-avatar__initial {
-  width: 72%;
-  height: 72%;
+.premium__avatar--add .icon {
+  width: 52px !important;
+  height: 52px !important;
+  color: #8da2bc;
+  display: block;
+  transition: transform 0.22s ease, color 0.22s ease;
 }
 
-.premium__avatar--add .profile-avatar__svg,
-.premium__avatar--add .profile-avatar__initial {
-  width: 52%;
-  height: 52%;
-  color: #64748b;
+.premium__select--add:hover .premium__avatar--add {
+  border-color: #00d4ff;
+  border-style: solid;
+  background: #1a2538;
+  transform: scale(1.04);
+  box-shadow: 0 0 28px rgba(0, 212, 255, 0.35);
+}
+
+.premium__select--add:hover .premium__avatar--add .icon {
+  transform: scale(1.15);
+  color: #00d4ff;
 }
 
 .premium__card--active .premium__avatar {

@@ -82,21 +82,21 @@ export function createAuth(env: AppEnv) {
   function setSession(reply: FastifyReply, identity: SessionIdentity): void {
     const token = sign("session", env.sessionTtlHours * 3600, identity);
     const secure = env.appUrl.startsWith("https://");
-    reply.header("Set-Cookie", `${cookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${env.sessionTtlHours * 3600}${secure ? "; Secure" : ""}`);
+    reply.header("Set-Cookie", `${cookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${env.sessionTtlHours * 3600}${secure ? "; Secure" : ""}`);
   }
 
   function clearSession(reply: FastifyReply): void {
     const secure = env.appUrl.startsWith("https://");
     reply.header("Set-Cookie", [
-      `${cookieName}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure ? "; Secure" : ""}`,
-      `cyanflix_profile=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure ? "; Secure" : ""}`,
+      `${cookieName}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure ? "; Secure" : ""}`,
+      `cyanflix_profile=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure ? "; Secure" : ""}`,
     ]);
   }
 
   function setProfileSession(reply: FastifyReply, identity: SessionIdentity, profileId: string): void {
     const token = sign("profile", env.sessionTtlHours * 3600, { ...identity, profileId });
     const secure = env.appUrl.startsWith("https://");
-    reply.header("Set-Cookie", `cyanflix_profile=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${env.sessionTtlHours * 3600}${secure ? "; Secure" : ""}`);
+    reply.header("Set-Cookie", `cyanflix_profile=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${env.sessionTtlHours * 3600}${secure ? "; Secure" : ""}`);
   }
 
   function publisherAccessToken(): { access_token: string; token_type: "Bearer"; expires_in: number } {

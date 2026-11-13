@@ -186,6 +186,9 @@ app.post("/api/profiles", async (request, reply) => {
     },
     select: profilePublicSelect,
   });
+  if (!controls.pinHash) {
+    auth.setProfileSession(reply, identity, profile.id);
+  }
   return toProfileDto(profile);
 });
 app.get("/api/profiles/avatars", async () => {

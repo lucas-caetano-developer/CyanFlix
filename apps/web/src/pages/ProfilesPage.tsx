@@ -68,7 +68,7 @@ export function ProfilesPage() {
   const enterProfile = async (profile: Profile, candidatePin?: string) => {
     if (busy) return;
 
-    if (activeProfile.data?.id === profile.id) {
+    if (activeProfile.data?.id === profile.id && activeProfile.data.pinProtected) {
       setProfile(profile.id);
       navigate(destinationFor(profile));
       return;
@@ -206,10 +206,11 @@ export function ProfilesPage() {
       ));
       setCreatingProfile(false);
       if (isFirst) {
-        setProfile(created.id);
-        queryClient.setQueryData(["profiles", "active"], created);
+        const unlocked = await api.unlockProfile(created.id, data.pin || undefined).catch(() => created);
+        queryClient.setQueryData(["profiles", "active"], unlocked);
+        setProfile(unlocked.id);
         clearPersonalCaches();
-        navigate(destinationFor(created));
+        navigate(destinationFor(unlocked));
       }
     } catch (reason) {
       const detail = reason instanceof Error ? reason.message : "";
@@ -376,11 +377,9 @@ export function ProfilesPage() {
                 onClick={() => { setCreatingProfile(true); setCreateError(""); }}
               >
                 <div className="premium__avatar-wrap">
-                  <ProfileAvatar
-                    name="+"
-                    avatar="plus"
-                    className="premium__avatar premium__avatar--add"
-                  />
+                  <div className="premium__avatar premium__avatar--add" aria-hidden="true">
+                    <Icon name="plus" />
+                  </div>
                 </div>
                 <span className="premium__name">Novo perfil</span>
               </button>
