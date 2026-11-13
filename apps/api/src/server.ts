@@ -1681,8 +1681,149 @@ app.post("/api/admin/voice-actors/upload-photo", { bodyLimit: 25 * 1024 * 1024 }
 });
 
 /* ==========================================================================
-   Characters (Personagens) API Endpoints
+   Characters (Personagens) API Endpoints & Theme Colors
    ========================================================================== */
+
+const CHARACTER_COLOR_PALETTES: Record<string, string> = {
+  pomni: "#E11D48",
+  jax: "#9333EA",
+  ragatha: "#EA580C",
+  gangle: "#F43F5E",
+  kinger: "#3B82F6",
+  zooble: "#F59E0B",
+  caine: "#EF4444",
+  bubble: "#06B6D4",
+  vi: "#E11D48",
+  jinx: "#06B6D4",
+  caitlyn: "#2563EB",
+  silco: "#7C3AED",
+  viktor: "#D97706",
+  jayce: "#3B82F6",
+  ekko: "#10B981",
+  mel: "#CA8A04",
+  heimerdinger: "#F59E0B",
+  vander: "#78350F",
+  warwick: "#991B1B",
+  sevika: "#475569",
+  singed: "#059669",
+  tanjiro: "#10B981",
+  "tanjiro kamado": "#10B981",
+  nezuko: "#F472B6",
+  "nezuko kamado": "#F472B6",
+  zenitsu: "#FBBF24",
+  "zenitsu agatsuma": "#FBBF24",
+  inosuke: "#0284C7",
+  "inosuke hashibira": "#0284C7",
+  rengoku: "#EA580C",
+  "kyojuro rengoku": "#EA580C",
+  giyu: "#2563EB",
+  "giyu tomioka": "#2563EB",
+  shinobu: "#A855F7",
+  "shinobu kocho": "#A855F7",
+  tengen: "#EC4899",
+  "tengen uzui": "#EC4899",
+  muichiro: "#14B8A6",
+  "muichiro tokito": "#14B8A6",
+  mitsuri: "#FB7185",
+  "mitsuri kanroji": "#FB7185",
+  sanemi: "#84CC16",
+  "sanemi shinazugawa": "#84CC16",
+  gyomei: "#78716C",
+  "gyomei himejima": "#78716C",
+  obanai: "#475569",
+  "obanai iguro": "#475569",
+  muzan: "#DC2626",
+  "muzan kibutsuji": "#DC2626",
+  akaza: "#DB2777",
+  doma: "#F87171",
+  kokushibo: "#7E22CE",
+  frieren: "#38BDF8",
+  fern: "#8B5CF6",
+  stark: "#EF4444",
+  himmel: "#0EA5E9",
+  heiter: "#10B981",
+  eisen: "#78716C",
+  flamme: "#F97316",
+  serie: "#EAB308",
+  aura: "#9333EA",
+  "yuji itadori": "#EF4444",
+  itadori: "#EF4444",
+  "megumi fushiguro": "#1E3A8A",
+  fushiguro: "#1E3A8A",
+  "nobara kugisaki": "#F97316",
+  nobara: "#F97316",
+  "satoru gojo": "#0284C7",
+  gojo: "#0284C7",
+  "suguru geto": "#475569",
+  geto: "#475569",
+  "ryomen sukuna": "#B91C1C",
+  sukuna: "#B91C1C",
+  "yuta okkotsu": "#64748B",
+  yuta: "#64748B",
+  "maki zenin": "#059669",
+  maki: "#059669",
+  "toge inumaki": "#6366F1",
+  inumaki: "#6366F1",
+  panda: "#0F172A",
+  "kento nanami": "#EAB308",
+  nanami: "#EAB308",
+  "aoi todo": "#854D0E",
+  todo: "#854D0E",
+  mahito: "#06B6D4",
+  jogo: "#EA580C",
+  hanami: "#15803D",
+  dagon: "#0284C7",
+  choso: "#991B1B",
+  toji: "#334155",
+  "toji fushiguro": "#334155",
+  shigaraki: "#475569",
+  "tomura shigaraki": "#475569",
+  deku: "#059669",
+  "izuku midoriya": "#059669",
+  bakugo: "#EA580C",
+  "katsuki bakugo": "#EA580C",
+  todoroki: "#EF4444",
+  "shoto todoroki": "#EF4444",
+  "all might": "#2563EB",
+  dabi: "#2563EB",
+  toga: "#F43F5E",
+  "himiko toga": "#F43F5E",
+};
+
+export function resolveCharacterThemeColor(name: string, role?: string | null): string {
+  const cleanName = (name || "").toLowerCase().trim();
+  if (CHARACTER_COLOR_PALETTES[cleanName]) return CHARACTER_COLOR_PALETTES[cleanName];
+  for (const [key, color] of Object.entries(CHARACTER_COLOR_PALETTES)) {
+    if (cleanName.includes(key) || key.includes(cleanName)) return color;
+  }
+  const cleanRole = (role || "").toLowerCase();
+  if (cleanRole.includes("vil") || cleanRole.includes("antagonista")) return "#DC2626";
+  if (cleanRole.includes("protag")) return "#0284C7";
+  if (cleanRole.includes("coadj") || cleanRole.includes("apoio")) return "#8B5CF6";
+  const colors = ["#0284C7", "#059669", "#7C3AED", "#E11D48", "#D97706", "#2563EB", "#DB2777", "#10B981"];
+  let hash = 0;
+  for (let i = 0; i < cleanName.length; i++) hash = cleanName.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
+}
+
+async function ensureCharacterThemeColors() {
+  try {
+    const characters = await prisma.character.findMany({
+      where: { themeColor: null },
+      select: { id: true, name: true, role: true },
+    });
+    if (characters.length === 0) return;
+    for (const char of characters) {
+      const color = resolveCharacterThemeColor(char.name, char.role);
+      await prisma.character.update({
+        where: { id: char.id },
+        data: { themeColor: color },
+      });
+    }
+  } catch (err) {
+    // Non-blocking during early table migrations
+  }
+}
 
 app.get("/api/admin/characters", async (request) => {
   const query = request.query as { workId?: string; voiceActorId?: string; q?: string };
@@ -1746,6 +1887,7 @@ app.post("/api/admin/characters", async (request, reply) => {
     profileSentiments?: string | null;
     voiceAudioUrl?: string | null;
     voiceActorId?: string | null;
+    themeColor?: string | null;
   };
 
   const name = typeof body?.name === "string" ? body.name.trim() : "";
@@ -1780,6 +1922,7 @@ app.post("/api/admin/characters", async (request, reply) => {
       profileSentiments: typeof body.profileSentiments === "string" && body.profileSentiments.trim() ? body.profileSentiments.trim() : null,
       voiceAudioUrl: typeof body.voiceAudioUrl === "string" && body.voiceAudioUrl.trim() ? body.voiceAudioUrl.trim() : null,
       voiceActorId,
+      themeColor: typeof body.themeColor === "string" && body.themeColor.trim() ? body.themeColor.trim() : resolveCharacterThemeColor(name, body.role),
     },
     include: {
       works: { select: { id: true, title: true, contentKind: true, year: true } },
@@ -1809,6 +1952,7 @@ app.patch("/api/admin/characters/:id", async (request, reply) => {
     profileSentiments?: string | null;
     voiceAudioUrl?: string | null;
     voiceActorId?: string | null;
+    themeColor?: string | null;
   };
 
   const character = await prisma.character.findUnique({ where: { id } });
@@ -1858,6 +2002,9 @@ app.patch("/api/admin/characters/:id", async (request, reply) => {
     } else {
       data.voiceActor = { disconnect: true };
     }
+  }
+  if (body.themeColor !== undefined) {
+    data.themeColor = typeof body.themeColor === "string" && body.themeColor.trim() ? body.themeColor.trim() : null;
   }
 
   const updated = await prisma.character.update({
@@ -3729,69 +3876,43 @@ async function ensureBootstrapAccount() {
   const targetPassword = "42421216";
   const passwordHash = await hashPassword(targetPassword);
 
-  const adminAccount = await prisma.account.findUnique({ where: { username: targetUsername } });
+  let adminAccount = await prisma.account.findUnique({ where: { username: targetUsername } });
 
-  // Se já existe a conta cyan@admin.com, garante permissão owner, senha atualizada e exclusão de contas antigas
   if (adminAccount) {
-    await prisma.account.update({
-      where: { id: adminAccount.id },
-      data: { role: "owner", disabled: false, passwordHash },
-    });
-
-    // Remove outros perfis e contas remanescentes
-    await prisma.profile.deleteMany({ where: { accountId: { not: adminAccount.id } } }).catch(() => undefined);
-    await prisma.account.deleteMany({ where: { id: { not: adminAccount.id } } }).catch(() => undefined);
-
-    const profile = await prisma.profile.findFirst({ where: { accountId: adminAccount.id } });
-    if (!profile) {
-      await prisma.profile.create({
-        data: {
-          accountId: adminAccount.id,
-          name: "Admin",
-          avatar: "admin",
-          role: "admin",
-          preferences: {},
-        },
+    if (adminAccount.role !== "owner" || adminAccount.disabled) {
+      adminAccount = await prisma.account.update({
+        where: { id: adminAccount.id },
+        data: { role: "owner", disabled: false },
       });
     }
-    return adminAccount;
+  } else {
+    adminAccount = await prisma.account.create({
+      data: {
+        username: targetUsername,
+        passwordHash,
+        role: "owner",
+        disabled: false,
+      },
+    });
   }
 
-  // Executa o reset de contas e perfis para garantir o usuário único solicitado
-  app.log.warn("Inicializando reset de usuários e perfis para admin único...");
-  await prisma.auditLog.deleteMany({}).catch(() => undefined);
-  await prisma.editorialOverride.deleteMany({}).catch(() => undefined);
-  await prisma.viewingProgress.deleteMany({}).catch(() => undefined);
-  await prisma.favorite.deleteMany({}).catch(() => undefined);
-  await prisma.workRating.deleteMany({}).catch(() => undefined);
-  await prisma.profile.deleteMany({}).catch(() => undefined);
-  await prisma.account.deleteMany({}).catch(() => undefined);
-
-  const account = await prisma.account.create({
-    data: {
-      username: targetUsername,
-      passwordHash,
-      role: "owner",
-      disabled: false,
-    },
-  });
-
-  await prisma.profile.create({
-    data: {
-      accountId: account.id,
-      name: "Admin",
-      avatar: "admin",
-      role: "admin",
-      preferences: {},
-    },
-  });
-
-  app.log.info({ accountId: account.id, username: account.username }, "Usuário único de permissão máxima (owner) criado com sucesso");
-  return account;
+  const profile = await prisma.profile.findFirst({ where: { accountId: adminAccount.id } });
+  if (!profile) {
+    await prisma.profile.create({
+      data: {
+        accountId: adminAccount.id,
+        name: "Admin",
+        avatar: "admin",
+        role: "admin",
+        preferences: {},
+      },
+    });
+  }
+  return adminAccount;
 }
 
 const bootstrapAccount = await ensureBootstrapAccount();
 await cleanupUploadTemporaries();
 await ensureDefaultProfile(bootstrapAccount.id, bootstrapAccount.role);
-await prisma.profile.deleteMany({ where: { name: "Assistir", role: "viewer", avatar: "play" } }).catch(() => {});
+await ensureCharacterThemeColors();
 await app.listen({ host: "0.0.0.0", port: env.port });

@@ -21,6 +21,7 @@ export function AdminCharacterDetailPage() {
   const [formProfileSentiments, setFormProfileSentiments] = useState("");
   const [formVoiceActorId, setFormVoiceActorId] = useState("");
   const [formVoiceAudioUrl, setFormVoiceAudioUrl] = useState<string | null>(null);
+  const [formThemeColor, setFormThemeColor] = useState("#00d4ff");
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploadingBodyPhoto, setIsUploadingBodyPhoto] = useState(false);
@@ -79,6 +80,7 @@ export function AdminCharacterDetailPage() {
     setFormProfileSentiments(character.profileSentiments || "");
     setFormVoiceActorId(character.voiceActorId || "");
     setFormVoiceAudioUrl(character.voiceAudioUrl || null);
+    setFormThemeColor(character.themeColor || "#00d4ff");
     setFormError(null);
     setIsEditModalOpen(true);
   };
@@ -131,6 +133,7 @@ export function AdminCharacterDetailPage() {
       profileSentiments: formProfileSentiments.trim() || null,
       voiceAudioUrl: formVoiceAudioUrl,
       voiceActorId: formVoiceActorId.trim() || null,
+      themeColor: formThemeColor.trim() || null,
     });
   };
 
@@ -179,8 +182,22 @@ export function AdminCharacterDetailPage() {
       </div>
 
       {/* Hero Showcase Banner */}
-      <div className="admin-profile-hero">
-        <div className="admin-profile-hero__avatar-wrap">
+      <div
+        className="admin-profile-hero"
+        style={{
+          borderLeft: `4px solid ${character.themeColor || "#00d4ff"}`,
+          background: character.themeColor
+            ? `linear-gradient(135deg, ${character.themeColor}15 0%, rgba(15, 23, 42, 0.95) 60%)`
+            : undefined,
+        }}
+      >
+        <div
+          className="admin-profile-hero__avatar-wrap"
+          style={{
+            borderColor: character.themeColor || "#00d4ff",
+            boxShadow: character.themeColor ? `0 0 20px ${character.themeColor}44` : undefined,
+          }}
+        >
           {character.photoUrl ? (
             <img src={character.photoUrl} alt={character.name} className="admin-profile-hero__avatar" />
           ) : character.bodyPhotoUrl ? (
@@ -229,6 +246,34 @@ export function AdminCharacterDetailPage() {
               </Link>
             ))}
             {character.role && <span className="admin-role-badge">{character.role}</span>}
+            {character.themeColor && (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "4px 10px",
+                  borderRadius: "9999px",
+                  background: `${character.themeColor}22`,
+                  border: `1px solid ${character.themeColor}66`,
+                  color: "#fff",
+                  fontSize: "0.8rem",
+                  fontWeight: 600,
+                  letterSpacing: "0.03em",
+                }}
+              >
+                <span
+                  style={{
+                    width: "10px",
+                    height: "10px",
+                    borderRadius: "50%",
+                    backgroundColor: character.themeColor,
+                    boxShadow: `0 0 6px ${character.themeColor}`,
+                  }}
+                />
+                Cor Tema: {character.themeColor.toUpperCase()}
+              </span>
+            )}
             {parseArchetypes(character.archetype).map((arch) => (
               <span key={arch} className="admin-archetype-badge">{arch}</span>
             ))}
@@ -385,6 +430,38 @@ export function AdminCharacterDetailPage() {
               </div>
             </div>
           )}
+
+          <div className="admin-card" style={{ marginTop: "1.5rem" }}>
+            <h3 className="admin-card__title">Paleta de Tema</h3>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", background: "rgba(15, 23, 42, 0.6)", padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div
+                style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "8px",
+                  backgroundColor: character.themeColor || "#00d4ff",
+                  boxShadow: `0 0 12px ${character.themeColor || "#00d4ff"}66`,
+                  border: "2px solid rgba(255,255,255,0.2)",
+                  flexShrink: 0,
+                }}
+              />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#fff", fontFamily: "monospace" }}>
+                  {(character.themeColor || "#00d4ff").toUpperCase()}
+                </div>
+                <div style={{ fontSize: "0.78rem", color: "#94a3b8" }}>
+                  Cor base para banners e destaques visuais
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn--secondary btn--xs"
+                onClick={openEditModal}
+              >
+                Alterar
+              </button>
+            </div>
+          </div>
 
           <div className="admin-card" style={{ marginTop: "1.5rem" }}>
             <h3 className="admin-card__title">Metadados</h3>
@@ -641,6 +718,73 @@ export function AdminCharacterDetailPage() {
                   selected={formArchetypes}
                   onChange={setFormArchetypes}
                 />
+              </div>
+
+              {/* Theme Color Picker */}
+              <div className="admin-form-group">
+                <label htmlFor="char-edit-theme-color" className="admin-label">
+                  Cor de Tema do Personagem
+                </label>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "4px" }}>
+                  <input
+                    type="color"
+                    id="char-edit-theme-color"
+                    value={formThemeColor || "#00d4ff"}
+                    onChange={(e) => setFormThemeColor(e.target.value)}
+                    style={{
+                      width: "44px",
+                      height: "38px",
+                      padding: "2px",
+                      borderRadius: "6px",
+                      border: "1px solid #334155",
+                      background: "transparent",
+                      cursor: "pointer",
+                    }}
+                  />
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={formThemeColor}
+                    onChange={(e) => setFormThemeColor(e.target.value)}
+                    placeholder="#00D4FF"
+                    style={{ width: "120px", textTransform: "uppercase", fontWeight: 600 }}
+                  />
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+                    {[
+                      "#0284C7",
+                      "#059669",
+                      "#9333EA",
+                      "#E11D48",
+                      "#EA580C",
+                      "#DC2626",
+                      "#F43F5E",
+                      "#EAB308",
+                      "#64748B",
+                      "#38BDF8",
+                      "#10B981",
+                      "#7C3AED",
+                    ].map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setFormThemeColor(c)}
+                        style={{
+                          width: "24px",
+                          height: "24px",
+                          borderRadius: "50%",
+                          backgroundColor: c,
+                          border: formThemeColor.toLowerCase() === c.toLowerCase() ? "2px solid #fff" : "1px solid rgba(255,255,255,0.2)",
+                          cursor: "pointer",
+                          transition: "transform 0.15s ease",
+                        }}
+                        title={c}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <span className="admin-form-hint">
+                  Cor de destaque utilizada no banner promocional, página de detalhes e efeitos visuais do personagem.
+                </span>
               </div>
 
               {/* Profile & Sentiments */}

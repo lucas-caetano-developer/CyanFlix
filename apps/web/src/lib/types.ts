@@ -144,6 +144,7 @@ export type Character = {
   archetype?: string | null;
   profileSentiments?: string | null;
   voiceAudioUrl?: string | null;
+  themeColor?: string | null;
   voiceActorId?: string | null;
   voiceActor?: {
     id: string;
@@ -180,6 +181,7 @@ export type CharacterSummary = {
   archetype?: string | null;
   profileSentiments?: string | null;
   voiceAudioUrl?: string | null;
+  themeColor?: string | null;
   workId?: string;
   work?: {
     id: string;

@@ -24,6 +24,7 @@ export function AdminWorkCharactersPage() {
   const [formProfileSentiments, setFormProfileSentiments] = useState("");
   const [formVoiceActorId, setFormVoiceActorId] = useState("");
   const [formVoiceAudioUrl, setFormVoiceAudioUrl] = useState<string | null>(null);
+  const [formThemeColor, setFormThemeColor] = useState("#00d4ff");
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploadingBodyPhoto, setIsUploadingBodyPhoto] = useState(false);
@@ -66,6 +67,7 @@ export function AdminWorkCharactersPage() {
       profileSentiments?: string | null;
       voiceAudioUrl?: string | null;
       voiceActorId?: string | null;
+      themeColor?: string | null;
     }) => api.createAdminCharacter(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "characters"] });
@@ -111,6 +113,7 @@ export function AdminWorkCharactersPage() {
     setFormProfileSentiments("");
     setFormVoiceActorId("");
     setFormVoiceAudioUrl(null);
+    setFormThemeColor("#00d4ff");
     setFormError(null);
   };
 
@@ -129,6 +132,7 @@ export function AdminWorkCharactersPage() {
     setFormProfileSentiments(char.profileSentiments || "");
     setFormVoiceActorId(char.voiceActorId || "");
     setFormVoiceAudioUrl(char.voiceAudioUrl || null);
+    setFormThemeColor(char.themeColor || "#00d4ff");
     setFormError(null);
   };
 
@@ -186,6 +190,7 @@ export function AdminWorkCharactersPage() {
           profileSentiments: formProfileSentiments.trim() || null,
           voiceAudioUrl: formVoiceAudioUrl,
           voiceActorId: formVoiceActorId.trim() || null,
+          themeColor: formThemeColor.trim() || null,
         },
       });
     } else {
@@ -199,6 +204,7 @@ export function AdminWorkCharactersPage() {
         profileSentiments: formProfileSentiments.trim() || null,
         voiceAudioUrl: formVoiceAudioUrl,
         voiceActorId: formVoiceActorId.trim() || null,
+        themeColor: formThemeColor.trim() || null,
       });
     }
   };
@@ -289,7 +295,10 @@ export function AdminWorkCharactersPage() {
           {filteredCharacters.map((char) => (
             <div key={char.id} className="admin-character-card">
               <Link to={`/admin/characters/${char.id}`} className="admin-character-card__link">
-                <div className="admin-character-card__avatar-wrap">
+                <div
+                  className="admin-character-card__avatar-wrap"
+                  style={char.themeColor ? { borderColor: char.themeColor, boxShadow: `0 0 10px ${char.themeColor}33` } : undefined}
+                >
                   {char.photoUrl ? (
                     <img src={char.photoUrl} alt={char.name} className="admin-character-card__avatar" loading="lazy" />
                   ) : char.bodyPhotoUrl ? (
@@ -304,6 +313,20 @@ export function AdminWorkCharactersPage() {
                   <h3 className="admin-character-card__name">{char.name}</h3>
 
                   <div className="admin-character-badges">
+                    {char.themeColor && (
+                      <span
+                        style={{
+                          width: "10px",
+                          height: "10px",
+                          borderRadius: "50%",
+                          backgroundColor: char.themeColor,
+                          boxShadow: `0 0 8px ${char.themeColor}`,
+                          display: "inline-block",
+                          flexShrink: 0,
+                        }}
+                        title={`Cor tema: ${char.themeColor}`}
+                      />
+                    )}
                     {char.role && <span className="admin-role-badge">{char.role}</span>}
                     {parseArchetypes(char.archetype).map((arch) => (
                       <span key={arch} className="admin-archetype-badge">{arch}</span>
@@ -619,6 +642,72 @@ export function AdminWorkCharactersPage() {
                   selected={formArchetypes}
                   onChange={setFormArchetypes}
                 />
+              </div>
+
+              {/* Cor Tema */}
+              <div className="admin-form-group">
+                <label htmlFor="char-modal-theme-color" className="admin-label">
+                  Cor de Tema do Personagem
+                </label>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "4px" }}>
+                  <input
+                    type="color"
+                    id="char-modal-theme-color"
+                    value={formThemeColor || "#00d4ff"}
+                    onChange={(e) => setFormThemeColor(e.target.value)}
+                    style={{
+                      width: "44px",
+                      height: "38px",
+                      padding: "2px",
+                      borderRadius: "6px",
+                      border: "1px solid #334155",
+                      background: "transparent",
+                      cursor: "pointer",
+                    }}
+                  />
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={formThemeColor}
+                    onChange={(e) => setFormThemeColor(e.target.value)}
+                    placeholder="#00D4FF"
+                    style={{ width: "120px", textTransform: "uppercase", fontWeight: 600 }}
+                  />
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+                    {[
+                      "#0284C7",
+                      "#059669",
+                      "#9333EA",
+                      "#E11D48",
+                      "#EA580C",
+                      "#DC2626",
+                      "#F43F5E",
+                      "#EAB308",
+                      "#64748B",
+                      "#38BDF8",
+                      "#10B981",
+                      "#7C3AED",
+                    ].map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setFormThemeColor(c)}
+                        style={{
+                          width: "24px",
+                          height: "24px",
+                          borderRadius: "50%",
+                          backgroundColor: c,
+                          border: formThemeColor.toLowerCase() === c.toLowerCase() ? "2px solid #fff" : "1px solid rgba(255,255,255,0.2)",
+                          cursor: "pointer",
+                        }}
+                        title={c}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <span className="admin-form-hint">
+                  Cor de destaque para banners promocionais e cards do personagem.
+                </span>
               </div>
 
               {/* Profile & Sentiments */}

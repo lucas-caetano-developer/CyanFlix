@@ -443,6 +443,7 @@ model Character {
   name              String
   photoUrl          String?
   bodyPhotoUrl      String?
+  themeColor        String?
   role              String?
   archetype         String?
   profileSentiments String?

@@ -30,6 +30,7 @@ const AdminVoiceActorDetailPage = lazy(() => import('./pages/admin/AdminVoiceAct
 const AdminCharactersPage = lazy(() => import('./pages/admin/AdminCharactersPage').then((module) => ({ default: module.AdminCharactersPage })));
 const AdminWorkCharactersPage = lazy(() => import('./pages/admin/AdminWorkCharactersPage').then((module) => ({ default: module.AdminWorkCharactersPage })));
 const AdminCharacterDetailPage = lazy(() => import('./pages/admin/AdminCharacterDetailPage').then((module) => ({ default: module.AdminCharacterDetailPage })));
+const AdminBannersPage = lazy(() => import('./pages/admin/AdminBannersPage').then((module) => ({ default: module.AdminBannersPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -72,6 +73,7 @@ export function App() {
             <Route path="/admin/characters" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminCharactersPage /></Suspense></AdminShell></AdminRoute>} />
             <Route path="/admin/characters/work/:workId" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminWorkCharactersPage /></Suspense></AdminShell></AdminRoute>} />
             <Route path="/admin/characters/:id" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminCharacterDetailPage /></Suspense></AdminShell></AdminRoute>} />
+            <Route path="/admin/banners" element={<AdminRoute><AdminShell><Suspense fallback={<Spinner fullScreen />}><AdminBannersPage /></Suspense></AdminShell></AdminRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
