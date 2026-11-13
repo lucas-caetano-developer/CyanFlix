@@ -11,7 +11,6 @@ type RoleFilter = "all" | "protagonist" | "supporting" | "villain";
 interface BannerCustomState {
   logoPosition: "left" | "right";
   customColor?: string;
-  buttonColorStyle?: "theme" | "cyan" | "orange";
   characterOffsetX: number;
   characterOffsetY: number;
   characterScale: number;
@@ -45,13 +44,12 @@ export function AdminBannersPage() {
     tagline?: string;
     logoPosition?: "left" | "right";
     customColor?: string;
-    buttonColorStyle?: "theme" | "cyan" | "orange";
     characterOffsetX?: number;
     characterOffsetY?: number;
     characterScale?: number;
   } | null>(null);
 
-  // Per-character custom override state (position, scale, color, logoPosition, buttonColor)
+  // Per-character custom override state (position, scale, color, logoPosition)
   const [customStates, setCustomStates] = useState<Record<string, BannerCustomState>>({});
 
   // Fetch Catalog & Characters
@@ -152,7 +150,6 @@ export function AdminBannersPage() {
     return (
       customStates[charId] || {
         logoPosition: "right",
-        buttonColorStyle: "cyan",
         characterOffsetX: 0,
         characterOffsetY: 0,
         characterScale: 1.25,
@@ -164,7 +161,6 @@ export function AdminBannersPage() {
     setCustomStates((prev) => {
       const existing = prev[charId] || {
         logoPosition: "right",
-        buttonColorStyle: "cyan",
         characterOffsetX: 0,
         characterOffsetY: 0,
         characterScale: 1.25,
@@ -209,17 +205,6 @@ export function AdminBannersPage() {
     });
   };
 
-  const toggleButtonColor = (charId: string) => {
-    const cur = getCharState(charId);
-    const nextStyle =
-      cur.buttonColorStyle === "cyan"
-        ? "theme"
-        : cur.buttonColorStyle === "theme"
-        ? "orange"
-        : "cyan";
-    updateCustomState(charId, { buttonColorStyle: nextStyle });
-  };
-
   const totalBannersCount = groupedWorks.reduce((acc, g) => acc + g.banners.length, 0);
 
   return (
@@ -232,7 +217,7 @@ export function AdminBannersPage() {
           <p className="admin-page__desc" style={{ maxWidth: "750px", marginTop: "0.25rem" }}>
             Banners gerados automaticamente para protagonistas, coadjuvantes e antagonistas, com um banner exclusivo
             para cada arquétipo. Fundo imersivo com a cor tema e degradê com preto no topo, tipografia ultra-condensada,
-            recortes ampliados com controle total de posição (cima, baixo e lados), logo oficial da obra e botão em ciano ou cor do tema.
+            recortes ampliados com controle total de posição (cima, baixo e lados), logo oficial da obra e botão em branco clássico.
           </p>
         </div>
       </div>
@@ -407,7 +392,6 @@ export function AdminBannersPage() {
                         categoryTitle={b.categoryTitle}
                         categorySubtitle={b.categorySubtitle}
                         customColor={activeColor}
-                        buttonColorStyle={state.buttonColorStyle}
                         characterOffsetX={state.characterOffsetX}
                         characterOffsetY={state.characterOffsetY}
                         characterScale={state.characterScale}
@@ -557,17 +541,8 @@ export function AdminBannersPage() {
                           </span>
                         </div>
 
-                        {/* Right: Button Color, Logo Position & Fullscreen */}
+                        {/* Right: Logo Position & Fullscreen */}
                         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                          <button
-                            type="button"
-                            className="btn btn--secondary btn--xs"
-                            onClick={() => toggleButtonColor(b.character.id)}
-                            title="Alternar estilo de cor do botão 'ASSISTA JÁ'"
-                          >
-                            Botão: {state.buttonColorStyle === "cyan" ? "Ciano" : state.buttonColorStyle === "theme" ? "Tema" : "Laranja"}
-                          </button>
-
                           <button
                             type="button"
                             className="btn btn--secondary btn--xs"
@@ -592,7 +567,6 @@ export function AdminBannersPage() {
                                 categorySubtitle: b.categorySubtitle,
                                 logoPosition: state.logoPosition,
                                 customColor: activeColor,
-                                buttonColorStyle: state.buttonColorStyle,
                                 characterOffsetX: state.characterOffsetX,
                                 characterOffsetY: state.characterOffsetY,
                                 characterScale: state.characterScale,
@@ -666,7 +640,6 @@ export function AdminBannersPage() {
               categoryTitle={fullscreenBanner.categoryTitle}
               categorySubtitle={fullscreenBanner.categorySubtitle}
               customColor={fullscreenBanner.customColor}
-              buttonColorStyle={fullscreenBanner.buttonColorStyle}
               characterOffsetX={fullscreenBanner.characterOffsetX}
               characterOffsetY={fullscreenBanner.characterOffsetY}
               characterScale={fullscreenBanner.characterScale}
