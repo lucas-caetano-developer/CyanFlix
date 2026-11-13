@@ -11,6 +11,11 @@ type RoleFilter = "all" | "protagonist" | "supporting" | "villain";
 interface BannerCustomState {
   logoPosition: "left" | "right";
   customColor?: string;
+  buttonColorStyle?: "theme" | "cyan" | "orange";
+  characterOffsetX: number;
+  characterOffsetY: number;
+  characterScale: number;
+  tagline?: string;
 }
 
 interface BannerItem {
@@ -37,11 +42,16 @@ export function AdminBannersPage() {
     work?: AdminCatalogWork | null;
     categoryTitle: string;
     categorySubtitle: string;
+    tagline?: string;
     logoPosition?: "left" | "right";
     customColor?: string;
+    buttonColorStyle?: "theme" | "cyan" | "orange";
+    characterOffsetX?: number;
+    characterOffsetY?: number;
+    characterScale?: number;
   } | null>(null);
 
-  // Per-character custom override state (color, logoPosition)
+  // Per-character custom override state (position, scale, color, logoPosition, buttonColor)
   const [customStates, setCustomStates] = useState<Record<string, BannerCustomState>>({});
 
   // Fetch Catalog & Characters
@@ -138,10 +148,26 @@ export function AdminBannersPage() {
       });
   }, [characters, worksMap, selectedRole, selectedWorkId, searchQuery]);
 
+  const getCharState = (charId: string): BannerCustomState => {
+    return (
+      customStates[charId] || {
+        logoPosition: "right",
+        buttonColorStyle: "cyan",
+        characterOffsetX: 0,
+        characterOffsetY: 0,
+        characterScale: 1.25,
+      }
+    );
+  };
+
   const updateCustomState = (charId: string, partial: Partial<BannerCustomState>) => {
     setCustomStates((prev) => {
       const existing = prev[charId] || {
         logoPosition: "right",
+        buttonColorStyle: "cyan",
+        characterOffsetX: 0,
+        characterOffsetY: 0,
+        characterScale: 1.25,
       };
       return {
         ...prev,
@@ -158,6 +184,42 @@ export function AdminBannersPage() {
     updateCharacterColorMutation.mutate({ id: char.id, themeColor: newColor });
   };
 
+  // Step adjust helpers
+  const adjustOffsetX = (charId: string, delta: number) => {
+    const cur = getCharState(charId);
+    updateCustomState(charId, { characterOffsetX: cur.characterOffsetX + delta });
+  };
+
+  const adjustOffsetY = (charId: string, delta: number) => {
+    const cur = getCharState(charId);
+    updateCustomState(charId, { characterOffsetY: cur.characterOffsetY + delta });
+  };
+
+  const adjustScale = (charId: string, delta: number) => {
+    const cur = getCharState(charId);
+    const nextScale = Math.max(0.6, Math.min(2.5, Number((cur.characterScale + delta).toFixed(2))));
+    updateCustomState(charId, { characterScale: nextScale });
+  };
+
+  const resetPosition = (charId: string) => {
+    updateCustomState(charId, {
+      characterOffsetX: 0,
+      characterOffsetY: 0,
+      characterScale: 1.25,
+    });
+  };
+
+  const toggleButtonColor = (charId: string) => {
+    const cur = getCharState(charId);
+    const nextStyle =
+      cur.buttonColorStyle === "cyan"
+        ? "theme"
+        : cur.buttonColorStyle === "theme"
+        ? "orange"
+        : "cyan";
+    updateCustomState(charId, { buttonColorStyle: nextStyle });
+  };
+
   const totalBannersCount = groupedWorks.reduce((acc, g) => acc + g.banners.length, 0);
 
   return (
@@ -169,7 +231,8 @@ export function AdminBannersPage() {
           <h1 className="admin-page__title">Banners Promocionais de Personagens</h1>
           <p className="admin-page__desc" style={{ maxWidth: "750px", marginTop: "0.25rem" }}>
             Banners gerados automaticamente para protagonistas, coadjuvantes e antagonistas, com um banner exclusivo
-            para cada arquétipo do personagem. Utiliza estritamente a foto de corpo e a logo oficial da obra.
+            para cada arquétipo. Fundo imersivo com a cor tema e degradê com preto no topo, tipografia ultra-condensada,
+            recortes ampliados com controle total de posição (cima, baixo e lados), logo oficial da obra e botão em ciano ou cor do tema.
           </p>
         </div>
       </div>
@@ -274,7 +337,7 @@ export function AdminBannersPage() {
           </p>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "3rem" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "3.5rem" }}>
           {groupedWorks.map((group) => (
             <section key={group.workId} className="admin-banners-work-group">
               {/* Group Title Bar */}
@@ -283,7 +346,7 @@ export function AdminBannersPage() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  marginBottom: "1.25rem",
+                  marginBottom: "1.5rem",
                   paddingBottom: "0.75rem",
                   borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
                 }}
@@ -318,24 +381,22 @@ export function AdminBannersPage() {
               </div>
 
               {/* Banners List for this Work */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "2.5rem" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "2.75rem" }}>
                 {group.banners.map((b) => {
-                  const state = customStates[b.character.id] || {
-                    logoPosition: "right",
-                  };
-                  const activeColor = state.customColor || b.character.themeColor || "#0284C7";
+                  const state = getCharState(b.character.id);
+                  const activeColor = state.customColor || b.character.themeColor || "#2b1854";
 
                   return (
                     <div
                       key={b.id}
                       style={{
-                        background: "rgba(15, 23, 42, 0.45)",
-                        border: "1px solid rgba(255, 255, 255, 0.06)",
+                        background: "rgba(15, 23, 42, 0.55)",
+                        border: "1px solid rgba(255, 255, 255, 0.08)",
                         borderRadius: "18px",
-                        padding: "1.25rem",
+                        padding: "1.4rem",
                         display: "flex",
                         flexDirection: "column",
-                        gap: "1rem",
+                        gap: "1.1rem",
                       }}
                     >
                       {/* Live Banner Canvas */}
@@ -346,6 +407,10 @@ export function AdminBannersPage() {
                         categoryTitle={b.categoryTitle}
                         categorySubtitle={b.categorySubtitle}
                         customColor={activeColor}
+                        buttonColorStyle={state.buttonColorStyle}
+                        characterOffsetX={state.characterOffsetX}
+                        characterOffsetY={state.characterOffsetY}
+                        characterScale={state.characterScale}
                         onClickCta={() => {
                           alert(`Ação do botão 'ASSISTA JÁ' para ${b.character.name} em ${group.title}!`);
                         }}
@@ -358,16 +423,16 @@ export function AdminBannersPage() {
                           flexWrap: "wrap",
                           alignItems: "center",
                           justifyContent: "space-between",
-                          gap: "0.75rem",
-                          padding: "0.6rem 0.8rem",
-                          background: "rgba(10, 14, 23, 0.6)",
-                          borderRadius: "10px",
-                          border: "1px solid rgba(255, 255, 255, 0.04)",
+                          gap: "0.85rem",
+                          padding: "0.75rem 1rem",
+                          background: "rgba(10, 14, 23, 0.75)",
+                          borderRadius: "12px",
+                          border: "1px solid rgba(255, 255, 255, 0.06)",
                         }}
                       >
-                        {/* Left: Info & Color Swatch */}
+                        {/* Left: Info, Role badge, Archetype badge & Color */}
                         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
-                          <span style={{ fontWeight: 700, color: "#fff", fontSize: "0.9rem" }}>
+                          <span style={{ fontWeight: 800, color: "#fff", fontSize: "0.95rem" }}>
                             {b.character.name}
                           </span>
                           <span className="admin-role-badge">{b.categoryTitle}</span>
@@ -375,9 +440,9 @@ export function AdminBannersPage() {
                             <span
                               className="admin-archetype-badge"
                               style={{
-                                background: `${activeColor}22`,
-                                color: activeColor,
-                                border: `1px solid ${activeColor}44`,
+                                background: `${activeColor}28`,
+                                color: "#ffffff",
+                                border: `1px solid ${activeColor}55`,
                               }}
                             >
                               Arquétipo: {b.archetype}
@@ -385,22 +450,22 @@ export function AdminBannersPage() {
                           )}
 
                           {/* Color Picker */}
-                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                            <span style={{ fontSize: "0.78rem", color: "#94a3b8" }}>Cor Tema:</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "0.25rem" }}>
+                            <span style={{ fontSize: "0.78rem", color: "#94a3b8" }}>Cor Fundo/Tema:</span>
                             <input
                               type="color"
                               value={activeColor}
                               onChange={(e) => handleColorChange(b.character, e.target.value)}
                               style={{
-                                width: "28px",
-                                height: "24px",
+                                width: "30px",
+                                height: "26px",
                                 padding: "0",
-                                border: "1px solid #334155",
+                                border: "1px solid #475569",
                                 borderRadius: "4px",
                                 background: "transparent",
                                 cursor: "pointer",
                               }}
-                              title="Alterar cor de tema do personagem"
+                              title="Alterar cor de tema/fundo do personagem"
                             />
                             <span style={{ fontSize: "0.75rem", color: "#64748b", fontFamily: "monospace" }}>
                               {activeColor}
@@ -408,8 +473,101 @@ export function AdminBannersPage() {
                           </div>
                         </div>
 
-                        {/* Right: Actions */}
+                        {/* Center: Position Controls (Cima, Baixo, Esquerda, Direita, Escala) */}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.4rem",
+                            background: "rgba(0, 0, 0, 0.35)",
+                            padding: "4px 8px",
+                            borderRadius: "8px",
+                            border: "1px solid rgba(255, 255, 255, 0.05)",
+                          }}
+                        >
+                          <span style={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 600, marginRight: "4px" }}>
+                            Posição Recorte:
+                          </span>
+                          <button
+                            type="button"
+                            className="btn btn--secondary btn--xs"
+                            onClick={() => adjustOffsetX(b.character.id, -10)}
+                            title="Mover para esquerda (X -10)"
+                            style={{ minWidth: "26px", padding: "2px 6px" }}
+                          >
+                            ←
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn--secondary btn--xs"
+                            onClick={() => adjustOffsetX(b.character.id, 10)}
+                            title="Mover para direita (X +10)"
+                            style={{ minWidth: "26px", padding: "2px 6px" }}
+                          >
+                            →
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn--secondary btn--xs"
+                            onClick={() => adjustOffsetY(b.character.id, -10)}
+                            title="Mover para cima (Y -10)"
+                            style={{ minWidth: "26px", padding: "2px 6px" }}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn--secondary btn--xs"
+                            onClick={() => adjustOffsetY(b.character.id, 10)}
+                            title="Mover para baixo (Y +10)"
+                            style={{ minWidth: "26px", padding: "2px 6px" }}
+                          >
+                            ↓
+                          </button>
+                          <span style={{ fontSize: "0.72rem", color: "#64748b", margin: "0 2px" }}>|</span>
+                          <button
+                            type="button"
+                            className="btn btn--secondary btn--xs"
+                            onClick={() => adjustScale(b.character.id, 0.05)}
+                            title="Aumentar tamanho do personagem (+5%)"
+                            style={{ minWidth: "26px", padding: "2px 6px" }}
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn--secondary btn--xs"
+                            onClick={() => adjustScale(b.character.id, -0.05)}
+                            title="Diminuir tamanho do personagem (-5%)"
+                            style={{ minWidth: "26px", padding: "2px 6px" }}
+                          >
+                            −
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn--secondary btn--xs"
+                            onClick={() => resetPosition(b.character.id)}
+                            title="Restaurar posição original"
+                            style={{ padding: "2px 6px", fontSize: "0.7rem" }}
+                          >
+                            ↺ Reset
+                          </button>
+                          <span style={{ fontSize: "0.72rem", color: "#00d4ff", marginLeft: "4px", fontFamily: "monospace" }}>
+                            X:{state.characterOffsetX} Y:{state.characterOffsetY} Z:{Math.round(state.characterScale * 100)}%
+                          </span>
+                        </div>
+
+                        {/* Right: Button Color, Logo Position & Fullscreen */}
                         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          <button
+                            type="button"
+                            className="btn btn--secondary btn--xs"
+                            onClick={() => toggleButtonColor(b.character.id)}
+                            title="Alternar estilo de cor do botão 'ASSISTA JÁ'"
+                          >
+                            Botão: {state.buttonColorStyle === "cyan" ? "Ciano" : state.buttonColorStyle === "theme" ? "Tema" : "Laranja"}
+                          </button>
+
                           <button
                             type="button"
                             className="btn btn--secondary btn--xs"
@@ -420,7 +578,7 @@ export function AdminBannersPage() {
                             }
                             title="Alternar posição do logotipo entre esquerda e direita"
                           >
-                            Posição: {state.logoPosition === "right" ? "Direita" : "Esquerda"}
+                            Logo: {state.logoPosition === "right" ? "Direita" : "Esquerda"}
                           </button>
 
                           <button
@@ -434,6 +592,10 @@ export function AdminBannersPage() {
                                 categorySubtitle: b.categorySubtitle,
                                 logoPosition: state.logoPosition,
                                 customColor: activeColor,
+                                buttonColorStyle: state.buttonColorStyle,
+                                characterOffsetX: state.characterOffsetX,
+                                characterOffsetY: state.characterOffsetY,
+                                characterScale: state.characterScale,
                               })
                             }
                           >
@@ -504,6 +666,10 @@ export function AdminBannersPage() {
               categoryTitle={fullscreenBanner.categoryTitle}
               categorySubtitle={fullscreenBanner.categorySubtitle}
               customColor={fullscreenBanner.customColor}
+              buttonColorStyle={fullscreenBanner.buttonColorStyle}
+              characterOffsetX={fullscreenBanner.characterOffsetX}
+              characterOffsetY={fullscreenBanner.characterOffsetY}
+              characterScale={fullscreenBanner.characterScale}
             />
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>

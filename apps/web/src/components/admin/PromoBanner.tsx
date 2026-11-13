@@ -7,8 +7,13 @@ export interface PromoBannerProps {
   work?: Work | null;
   categoryTitle?: string;
   categorySubtitle?: string;
+  tagline?: string;
   logoPosition?: "left" | "right";
   customColor?: string;
+  buttonColorStyle?: "theme" | "cyan" | "orange";
+  characterOffsetX?: number;
+  characterOffsetY?: number;
+  characterScale?: number;
   ctaText?: string;
   className?: string;
   onClickCta?: () => void;
@@ -39,13 +44,18 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
   work,
   categoryTitle,
   categorySubtitle,
+  tagline,
   logoPosition = "right",
   customColor,
+  buttonColorStyle = "cyan",
+  characterOffsetX = 0,
+  characterOffsetY = 0,
+  characterScale = 1.2,
   ctaText = "ASSISTA JÁ",
   className = "",
   onClickCta,
 }) => {
-  const themeColor = customColor || character.themeColor || "#0284C7";
+  const themeColor = customColor || character.themeColor || "#2b1854";
 
   // Resolve Category Titles (Role + Archetype)
   const defaultCats = getDefaultCategoryTitles(character.role, character.archetype);
@@ -59,12 +69,25 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
   const logoUrl = work ? getLogoUrl(work) : null;
   const workTitle = work?.title || (character.work ? character.work.title : "CyanFlix Original");
 
-  // Watermark Name - Last or primary uppercase word
-  const nameParts = character.name.trim().split(/\s+/);
-  const watermarkName =
-    nameParts.length > 1
-      ? nameParts[nameParts.length - 1].toUpperCase()
-      : character.name.toUpperCase();
+  // Watermark Name - Primary uppercase word (first or single) and full name above
+  const fullName = character.name.trim().toUpperCase();
+  const nameParts = fullName.split(/\s+/);
+  const giantWatermark = nameParts.length > 0 ? nameParts[0] : fullName;
+
+  // Button background & color based on buttonColorStyle
+  let buttonBg = "linear-gradient(135deg, #00d4ff 0%, #00a8cc 100%)";
+  let buttonTextColor = "#060d17";
+  let buttonShadow = "0 8px 24px -3px rgba(0, 212, 255, 0.65), 0 2px 6px rgba(0, 0, 0, 0.4)";
+
+  if (buttonColorStyle === "theme") {
+    buttonBg = `linear-gradient(135deg, ${themeColor} 0%, rgba(255, 255, 255, 0.2) 100%)`;
+    buttonTextColor = "#ffffff";
+    buttonShadow = `0 8px 24px -3px ${themeColor}88, 0 2px 6px rgba(0, 0, 0, 0.5)`;
+  } else if (buttonColorStyle === "orange") {
+    buttonBg = "linear-gradient(135deg, #ff6b1a 0%, #ea580c 100%)";
+    buttonTextColor = "#ffffff";
+    buttonShadow = "0 8px 24px -3px rgba(234, 88, 12, 0.65), 0 2px 6px rgba(0, 0, 0, 0.4)";
+  }
 
   return (
     <div
@@ -72,77 +95,77 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
       style={{
         position: "relative",
         width: "100%",
-        minHeight: "260px",
-        maxHeight: "380px",
+        minHeight: "270px",
+        maxHeight: "390px",
         aspectRatio: "3.2 / 1",
         borderRadius: "14px",
         overflow: "hidden",
-        backgroundColor: "#0d111a",
-        backgroundImage: `
-          radial-gradient(ellipse 65% 90% at ${logoPosition === "right" ? "42%" : "58%"} 55%, ${themeColor}38 0%, transparent 75%),
-          linear-gradient(135deg, #090c14 0%, #111726 50%, #080b12 100%)
-        `,
-        border: `1px solid ${themeColor}44`,
-        boxShadow: `0 16px 36px -10px rgba(0, 0, 0, 0.7), 0 0 25px -5px ${themeColor}22`,
+        backgroundColor: themeColor,
+        backgroundImage:
+          "linear-gradient(180deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.18) 38%, rgba(0, 0, 0, 0) 75%)",
+        border: "1px solid rgba(255, 255, 255, 0.14)",
+        boxShadow: `0 18px 45px -10px rgba(0, 0, 0, 0.8), 0 0 35px -5px ${themeColor}44`,
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "0 2.5rem",
+        padding: "0 2.8rem",
         boxSizing: "border-box",
         userSelect: "none",
         fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
       }}
     >
-      {/* Dynamic Background Watermark Typography */}
+      {/* Giant Background Character Name (Occupies almost full height) */}
       <div
         style={{
           position: "absolute",
-          top: "4%",
-          left: logoPosition === "right" ? "20%" : "30%",
-          right: logoPosition === "right" ? "25%" : "20%",
-          bottom: "4%",
+          top: "2%",
+          left: logoPosition === "right" ? "18%" : "28%",
+          right: logoPosition === "right" ? "28%" : "18%",
+          bottom: "2%",
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
           alignItems: "center",
           pointerEvents: "none",
           zIndex: 1,
-          opacity: 0.22,
           overflow: "hidden",
         }}
       >
+        {/* Full Name above */}
         <span
           style={{
-            fontSize: "clamp(0.75rem, 1.3vw, 1.05rem)",
+            fontSize: "clamp(0.75rem, 1.25vw, 1.1rem)",
             fontWeight: 800,
-            letterSpacing: "0.22em",
+            letterSpacing: "0.28em",
             textTransform: "uppercase",
-            color: "#ffffff",
-            marginBottom: "-0.2rem",
+            color: "rgba(255, 255, 255, 0.6)",
+            marginBottom: "-0.5rem",
             whiteSpace: "nowrap",
+            textShadow: "0 2px 8px rgba(0, 0, 0, 0.6)",
           }}
         >
-          {character.name}
+          {fullName}
         </span>
+        {/* Huge vertical letters */}
         <span
           style={{
-            fontSize: "clamp(4.2rem, 11vw, 9.5rem)",
+            fontSize: "clamp(7rem, 20vw, 16rem)",
             fontWeight: 900,
-            lineHeight: 0.85,
-            letterSpacing: "-0.04em",
+            lineHeight: 0.82,
+            letterSpacing: "-0.01em",
             textTransform: "uppercase",
-            color: "#ffffff",
-            fontFamily: "'Impact', 'Arial Black', sans-serif",
+            color: "rgba(255, 255, 255, 0.24)",
+            fontFamily: "'Bebas Neue', 'Impact', sans-serif",
             textAlign: "center",
             whiteSpace: "nowrap",
-            textShadow: `0 0 20px ${themeColor}66`,
+            textShadow: "0 0 30px rgba(255, 255, 255, 0.12)",
           }}
         >
-          {watermarkName}
+          {giantWatermark}
         </span>
       </div>
 
-      {/* Role / Category Title Section (Role + Archetype) */}
+      {/* Role + Archetype Section (Both white, ultra-condensed font) */}
       <div
         style={{
           zIndex: 3,
@@ -151,25 +174,26 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
-          maxWidth: "32%",
+          maxWidth: "34%",
         }}
       >
         <div
           style={{
             display: "flex",
             flexDirection: "column",
-            lineHeight: 0.9,
-            fontFamily: "'Impact', 'Arial Black', sans-serif",
+            lineHeight: 0.84,
+            fontFamily: "'Bebas Neue', 'Impact', sans-serif",
             textTransform: "uppercase",
-            color: "#ffffff",
-            letterSpacing: "-0.02em",
-            textShadow: "0 4px 14px rgba(0, 0, 0, 0.8)",
+            letterSpacing: "0.01em",
+            textShadow: "0 4px 18px rgba(0, 0, 0, 0.95)",
           }}
         >
           <span
             style={{
-              fontSize: "clamp(1.8rem, 3.8vw, 3.4rem)",
+              fontSize: "clamp(2.5rem, 5.8vw, 5.4rem)",
               fontWeight: 900,
+              color: "#ffffff",
+              whiteSpace: "nowrap",
             }}
           >
             {displayTitle}
@@ -177,11 +201,10 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
           {displaySubtitle && (
             <span
               style={{
-                fontSize: "clamp(1.3rem, 2.6vw, 2.4rem)",
-                fontWeight: 800,
-                color: themeColor,
-                textShadow: `0 0 16px ${themeColor}66`,
-                marginTop: "0.2rem",
+                fontSize: "clamp(2.1rem, 4.8vw, 4.5rem)",
+                fontWeight: 900,
+                color: "#ffffff",
+                whiteSpace: "normal",
                 wordBreak: "break-word",
               }}
             >
@@ -191,14 +214,14 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
         </div>
       </div>
 
-      {/* Center Character Cutout - ONLY body photo */}
+      {/* Center Character Cutout (Adjustable position and scale) */}
       <div
         style={{
           position: "absolute",
           top: 0,
           bottom: 0,
-          left: logoPosition === "right" ? "24%" : "28%",
-          right: logoPosition === "right" ? "28%" : "24%",
+          left: logoPosition === "right" ? "22%" : "28%",
+          right: logoPosition === "right" ? "28%" : "22%",
           display: "flex",
           justifyContent: "center",
           alignItems: "flex-end",
@@ -212,15 +235,17 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
             src={charPhoto}
             alt={character.name}
             style={{
-              maxHeight: "115%",
-              maxWidth: "100%",
+              maxHeight: "135%",
+              maxWidth: "115%",
               objectFit: "contain",
               objectPosition: "bottom center",
               filter: `
-                drop-shadow(0 15px 30px rgba(0, 0, 0, 0.75))
-                drop-shadow(0 0 25px ${themeColor}44)
+                drop-shadow(0 18px 36px rgba(0, 0, 0, 0.85))
+                drop-shadow(0 0 25px rgba(0, 0, 0, 0.5))
               `,
-              transform: "translateY(0%)",
+              transform: `translate(${characterOffsetX}px, ${characterOffsetY}px) scale(${characterScale})`,
+              transformOrigin: "bottom center",
+              transition: "transform 0.12s ease-out",
             }}
           />
         ) : (
@@ -229,13 +254,13 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
               width: "160px",
               height: "220px",
               borderRadius: "16px",
-              background: `linear-gradient(180deg, ${themeColor}33 0%, rgba(15,23,42,0.6) 100%)`,
-              border: `2px dashed ${themeColor}66`,
+              background: "rgba(0, 0, 0, 0.4)",
+              border: "2px dashed rgba(255, 255, 255, 0.3)",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
-              color: "#94a3b8",
+              color: "#cbd5e1",
               fontSize: "0.85rem",
               textAlign: "center",
               padding: "1rem",
@@ -248,7 +273,7 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
         )}
       </div>
 
-      {/* Obra Logo & Call To Action Section */}
+      {/* Obra Logo & Call To Action Section (Enlarged) */}
       <div
         style={{
           zIndex: 3,
@@ -258,31 +283,48 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
           flexDirection: "column",
           alignItems: logoPosition === "right" ? "flex-end" : "flex-start",
           justifyContent: "center",
-          maxWidth: "34%",
-          gap: "0.9rem",
+          maxWidth: "36%",
+          gap: "1rem",
           textAlign: logoPosition === "right" ? "right" : "left",
         }}
       >
-        {/* Logo da Obra */}
+        {/* Optional Tagline above logo (like 'Junte-se à invasão') */}
+        {tagline && (
+          <span
+            style={{
+              color: "#ffffff",
+              fontSize: "clamp(0.95rem, 1.4vw, 1.3rem)",
+              fontWeight: 800,
+              textTransform: "none",
+              letterSpacing: "-0.01em",
+              textShadow: "0 3px 12px rgba(0, 0, 0, 0.9)",
+              marginBottom: "-0.3rem",
+            }}
+          >
+            {tagline}
+          </span>
+        )}
+
+        {/* Logo da Obra Oficial (Maior) */}
         {logoUrl ? (
           <img
             src={logoUrl}
             alt={workTitle}
             style={{
-              maxHeight: "clamp(50px, 7vw, 90px)",
-              maxWidth: "260px",
+              maxHeight: "clamp(65px, 9.5vw, 120px)",
+              maxWidth: "300px",
               objectFit: "contain",
-              filter: "drop-shadow(0 4px 14px rgba(0, 0, 0, 0.85))",
+              filter: "drop-shadow(0 6px 18px rgba(0, 0, 0, 0.9))",
             }}
           />
         ) : (
           <div
             style={{
-              padding: "0.4rem 0.8rem",
+              padding: "0.5rem 1rem",
               borderRadius: "8px",
-              border: "1px dashed rgba(255, 255, 255, 0.2)",
-              color: "rgba(255, 255, 255, 0.4)",
-              fontSize: "0.75rem",
+              border: "1px dashed rgba(255, 255, 255, 0.25)",
+              color: "rgba(255, 255, 255, 0.6)",
+              fontSize: "0.8rem",
               fontWeight: 600,
               letterSpacing: "0.05em",
               textTransform: "uppercase",
@@ -292,7 +334,7 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
           </div>
         )}
 
-        {/* CTA Button */}
+        {/* CTA Button (Maior e com cor do tema ou ciano) */}
         <button
           type="button"
           onClick={onClickCta}
@@ -300,23 +342,23 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            padding: "0.6rem 1.8rem",
-            backgroundColor: "#ff5e00",
-            backgroundImage: "linear-gradient(135deg, #ff6b1a 0%, #ea580c 100%)",
-            color: "#ffffff",
-            fontSize: "clamp(0.85rem, 1.1vw, 1.05rem)",
-            fontWeight: 800,
-            letterSpacing: "0.04em",
+            padding: "clamp(0.7rem, 1.1vw, 0.95rem) clamp(2.2rem, 3vw, 3.2rem)",
+            backgroundColor: "#00d4ff",
+            backgroundImage: buttonBg,
+            color: buttonTextColor,
+            fontSize: "clamp(0.95rem, 1.3vw, 1.25rem)",
+            fontWeight: 900,
+            letterSpacing: "0.06em",
             textTransform: "uppercase",
             borderRadius: "9999px",
             border: "none",
             cursor: "pointer",
-            boxShadow: "0 6px 20px -3px rgba(234, 88, 12, 0.6), 0 2px 6px rgba(0, 0, 0, 0.4)",
+            boxShadow: buttonShadow,
             transition: "transform 0.15s ease, filter 0.15s ease",
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = "scale(1.05)";
-            e.currentTarget.style.filter = "brightness(1.1)";
+            e.currentTarget.style.filter = "brightness(1.12)";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = "scale(1)";
@@ -329,10 +371,10 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({
         {/* Studio / Copyright Footnote */}
         <div
           style={{
-            fontSize: "0.65rem",
-            color: "rgba(255, 255, 255, 0.45)",
+            fontSize: "0.68rem",
+            color: "rgba(255, 255, 255, 0.55)",
             letterSpacing: "0.02em",
-            marginTop: "0.2rem",
+            textShadow: "0 1px 4px rgba(0, 0, 0, 0.8)",
           }}
         >
           © CyanFlix • {workTitle}
