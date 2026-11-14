@@ -1396,7 +1396,7 @@
 }
 
 /* Remote / Keyboard Focus Styles for TVs and Accessibility */
-:focus-visible {
+.welcome-page :focus-visible:not(input):not(textarea) {
   outline: 3px solid #00d4ff !important;
   outline-offset: 4px !important;
 }

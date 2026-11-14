@@ -100,8 +100,23 @@ export function PlayerOverlay({
             event.currentTarget.blur();
             onSkip(skippableMarker.end_ms);
           }}
+          aria-label={activeSkipLabel}
         >
-          {activeSkipLabel}
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <polygon points="5 4 15 12 5 20 5 4" fill="currentColor" />
+            <line x1="19" y1="5" x2="19" y2="19" strokeWidth="2.5" />
+          </svg>
+          <span>{activeSkipLabel}</span>
         </button>
       )}
 

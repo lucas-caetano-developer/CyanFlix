@@ -143,6 +143,14 @@ export function WatchPage() {
     if (compatibilityFallbackRequired && data?.fallback?.available && !fallbackUrl && !data.fallback.url) void requestFallback();
   }, [compatibilityFallbackRequired, data?.fallback?.available, data?.fallback?.url, fallbackUrl, requestFallback]);
 
+  const handleBackToTitle = () => {
+    if (data?.details?.workId) {
+      navigate(`/title/${data.details.workId}`);
+    } else {
+      navigate(-1);
+    }
+  };
+
   if (isLoading || (profileId && (progress.isLoading || preferences.isLoading))) {
     return (
       <div className="watch-state" aria-busy="true">
@@ -160,7 +168,7 @@ export function WatchPage() {
         <div className="watch-state__card" role="alert">
           <div className="watch-state__error">Não foi possível carregar o vídeo.</div>
           <p className="watch-state__hint">Volte ao catálogo e tente novamente.</p>
-          <button className="btn btn--primary" onClick={() => navigate(-1)}>
+          <button className="btn btn--primary" onClick={handleBackToTitle}>
             Voltar
           </button>
         </div>
@@ -186,7 +194,7 @@ export function WatchPage() {
           <button className="btn btn--primary" onClick={() => { fallbackRequestRef.current = false; void requestFallback(); }}>Tentar novamente</button>
           <button className="btn btn--secondary" onClick={() => setForceOriginal(true)}>Tentar mídia original</button>
         </div>}
-        <button className="watch-fallback__back" onClick={() => navigate(-1)}>Voltar</button>
+        <button className="watch-fallback__back" onClick={handleBackToTitle}>Voltar</button>
       </div>
     );
   }
@@ -217,7 +225,7 @@ export function WatchPage() {
           episodes={data.episodes}
           currentEpisodeId={data.itemId}
           onEpisodeChange={(episodeId) => navigate(`/watch/episode/${episodeId}`)}
-          onBack={() => navigate(-1)}
+          onBack={handleBackToTitle}
           onNextEpisode={handleNextEpisode}
           startTime={progress.data?.completed ? 0 : progress.data?.positionSeconds}
           audioOffsetSeconds={playbackAudioOffsetSeconds(data.delivery)}
@@ -244,11 +252,6 @@ export function WatchPage() {
             if (profileId) void api.updateProfilePreferences(profileId, { autoplayNextEpisode: enabled, subtitleStyle });
           }}
         />
-        {!fallbackUrl && !data.fallback?.url && data.fallback?.available && !pollingJobId && fallbackStatus !== "requesting" && (
-          <button className="watch-page__fallback-action" onClick={requestFallback}>
-            Usar modo adaptativo H.264
-          </button>
-        )}
         {(pollingJobId || fallbackStatus === "requesting") && (
           <div className="watch-page__fallback-status" role="status">
             {fallbackStatus === "requesting" ? "Solicitando fallback…" : "Preparando H.264 adaptativo…"}

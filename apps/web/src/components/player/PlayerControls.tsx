@@ -82,6 +82,8 @@ interface PlayerControlsProps {
   hasOpeningMarker?: boolean;
   autoSkipOpening?: boolean;
   onAutoSkipOpeningChange?: (enabled: boolean) => void;
+  autoSkipEnding?: boolean;
+  onAutoSkipEndingChange?: (enabled: boolean) => void;
 }
 
 type SettingsPage =
@@ -93,6 +95,7 @@ type SettingsPage =
   | "speed"
   | "nextEpisode"
   | "skipOpening"
+  | "skipEnding"
   | "episodes";
 
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -153,6 +156,8 @@ export const PlayerControls = memo(function PlayerControls({
   hasOpeningMarker = false,
   autoSkipOpening = false,
   onAutoSkipOpeningChange,
+  autoSkipEnding = false,
+  onAutoSkipEndingChange,
 }: PlayerControlsProps & { menuOpen?: boolean }) {
   const progressRef = useRef<HTMLDivElement>(null);
   const audioModalWrapperRef = useRef<HTMLDivElement>(null);
@@ -187,7 +192,7 @@ export const PlayerControls = memo(function PlayerControls({
 
   useEffect(() => {
     onInteractionChange?.(menuOpen || audioMenuOpen || isDragging);
-    onMenuOpenChange?.(menuOpen || audioMenuOpen);
+    onMenuOpenChange?.(menuOpen);
   }, [
     audioMenuOpen,
     isDragging,
@@ -382,6 +387,7 @@ export const PlayerControls = memo(function PlayerControls({
   const currentSpeedLabel = playbackRate === 1 ? "Normal" : `${playbackRate}×`;
   const currentNextEpLabel = autoPlayNextEpisode ? "Automático" : "Manual";
   const currentSkipLabel = autoSkipOpening ? "Automático" : "Manual";
+  const currentSkipEndingLabel = autoSkipEnding ? "Automático" : "Manual";
 
   const renderSettingsRoot = () => (
     <div role="menu" aria-labelledby={settingsTitleId}>
@@ -433,17 +439,24 @@ export const PlayerControls = memo(function PlayerControls({
           <Icon name="chevron-right" />
         </button>
       )}
-      {hasOpeningMarker && (
-        <button
-          className="player__settings-row"
-          role="menuitem"
-          onClick={() => setSettingsPage("skipOpening")}
-        >
-          <span className="player__settings-row-label">Pular abertura</span>
-          <span className="player__settings-row-value">{currentSkipLabel}</span>
-          <Icon name="chevron-right" />
-        </button>
-      )}
+      <button
+        className="player__settings-row"
+        role="menuitem"
+        onClick={() => setSettingsPage("skipOpening")}
+      >
+        <span className="player__settings-row-label">Pular abertura</span>
+        <span className="player__settings-row-value">{currentSkipLabel}</span>
+        <Icon name="chevron-right" />
+      </button>
+      <button
+        className="player__settings-row"
+        role="menuitem"
+        onClick={() => setSettingsPage("skipEnding")}
+      >
+        <span className="player__settings-row-label">Pular encerramento</span>
+        <span className="player__settings-row-value">{currentSkipEndingLabel}</span>
+        <Icon name="chevron-right" />
+      </button>
     </div>
   );
 
@@ -733,6 +746,16 @@ export const PlayerControls = memo(function PlayerControls({
           autoSkipOpening ? "auto" : "manual",
           (id) => onAutoSkipOpeningChange?.(id === "auto"),
         );
+      case "skipEnding":
+        return renderSubPage(
+          "Pular encerramento",
+          [
+            { id: "auto", label: "Automático" },
+            { id: "manual", label: "Manual" },
+          ],
+          autoSkipEnding ? "auto" : "manual",
+          (id) => onAutoSkipEndingChange?.(id === "auto"),
+        );
       default:
         return renderSettingsRoot();
     }
@@ -878,7 +901,13 @@ export const PlayerControls = memo(function PlayerControls({
             <button
               ref={audioModalButtonRef}
               className="player__btn"
-              onClick={() => setAudioMenuOpen((open) => !open)}
+              onClick={() => {
+                setAudioMenuOpen((open) => {
+                  const next = !open;
+                  if (next) setMenuOpen(false);
+                  return next;
+                });
+              }}
               aria-label="Áudio e legendas"
               aria-haspopup="dialog"
               aria-expanded={audioMenuOpen}
@@ -902,7 +931,13 @@ export const PlayerControls = memo(function PlayerControls({
             <button
               ref={settingsButtonRef}
               className="player__btn"
-              onClick={() => setMenuOpen((open) => !open)}
+              onClick={() => {
+                setMenuOpen((open) => {
+                  const next = !open;
+                  if (next) setAudioMenuOpen(false);
+                  return next;
+                });
+              }}
               aria-label="Configurações de reprodução"
               aria-haspopup="dialog"
               aria-expanded={menuOpen}

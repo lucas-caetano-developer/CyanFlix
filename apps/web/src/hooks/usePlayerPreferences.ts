@@ -23,17 +23,30 @@ function loadMuted(): boolean {
   return safeGet(MUTED_KEY) === 'true';
 }
 
+function loadPref<T>(profileId: string | null | undefined, key: string, fallback: T, parser?: (raw: string) => T): T {
+  if (!profileId) return fallback;
+  const raw = safeGet(`cyanflix.player.${profileId}.${key}`);
+  if (raw === null) return fallback;
+  return parser ? parser(raw) : (raw as unknown as T);
+}
+
 export interface PlayerPreferences {
   volume: number;
   muted: boolean;
   audioLang: string | null;
   subtitleLang: string | null;
   autoSkipOpening: boolean;
+  autoSkipEnding: boolean;
+  playbackRate: number;
+  quality: number;
   saveVolume: (value: number) => void;
   saveMuted: (value: boolean) => void;
   saveAudioLang: (lang: string) => void;
   saveSubtitleLang: (lang: string | 'off') => void;
   saveAutoSkipOpening: (enabled: boolean) => void;
+  saveAutoSkipEnding: (enabled: boolean) => void;
+  savePlaybackRate: (rate: number) => void;
+  saveQuality: (quality: number) => void;
 }
 
 export function usePlayerPreferences(): PlayerPreferences {
@@ -41,17 +54,31 @@ export function usePlayerPreferences(): PlayerPreferences {
 
   const [volume, setVolume] = useState<number>(() => loadVolume());
   const [muted, setMuted] = useState<boolean>(() => loadMuted());
-  const [audioLang, setAudioLang] = useState<string | null>(null);
-  const [subtitleLang, setSubtitleLang] = useState<string | null>(null);
-  const [autoSkipOpening, setAutoSkipOpening] = useState<boolean>(false);
+  const [audioLang, setAudioLang] = useState<string | null>(() => loadPref(profileId, 'audioLang', null));
+  const [subtitleLang, setSubtitleLang] = useState<string | null>(() => loadPref(profileId, 'subtitleLang', null));
+  const [autoSkipOpening, setAutoSkipOpening] = useState<boolean>(() =>
+    loadPref(profileId, 'autoSkipOpening', false, (v) => v === 'true')
+  );
+  const [autoSkipEnding, setAutoSkipEnding] = useState<boolean>(() =>
+    loadPref(profileId, 'autoSkipEnding', false, (v) => v === 'true')
+  );
+  const [playbackRate, setPlaybackRate] = useState<number>(() =>
+    loadPref(profileId, 'playbackRate', 1, (v) => Number(v) || 1)
+  );
+  const [quality, setQuality] = useState<number>(() =>
+    loadPref(profileId, 'quality', -1, (v) => Number(v) ?? -1)
+  );
 
   const volumeTimerRef = useRef<number>();
 
   useEffect(() => {
     if (!profileId) return;
-    setAudioLang(safeGet(`cyanflix.player.${profileId}.audioLang`));
-    setSubtitleLang(safeGet(`cyanflix.player.${profileId}.subtitleLang`));
-    setAutoSkipOpening(safeGet(`cyanflix.player.${profileId}.autoSkipOpening`) === 'true');
+    setAudioLang(loadPref(profileId, 'audioLang', null));
+    setSubtitleLang(loadPref(profileId, 'subtitleLang', null));
+    setAutoSkipOpening(loadPref(profileId, 'autoSkipOpening', false, (v) => v === 'true'));
+    setAutoSkipEnding(loadPref(profileId, 'autoSkipEnding', false, (v) => v === 'true'));
+    setPlaybackRate(loadPref(profileId, 'playbackRate', 1, (v) => Number(v) || 1));
+    setQuality(loadPref(profileId, 'quality', -1, (v) => Number(v) ?? -1));
   }, [profileId]);
 
   const saveVolume = useCallback((value: number) => {
@@ -84,5 +111,40 @@ export function usePlayerPreferences(): PlayerPreferences {
     safeSet(`cyanflix.player.${profileId}.autoSkipOpening`, String(enabled));
   }, [profileId]);
 
-  return { volume, muted, audioLang, subtitleLang, autoSkipOpening, saveVolume, saveMuted, saveAudioLang, saveSubtitleLang, saveAutoSkipOpening };
+  const saveAutoSkipEnding = useCallback((enabled: boolean) => {
+    setAutoSkipEnding(enabled);
+    if (!profileId) return;
+    safeSet(`cyanflix.player.${profileId}.autoSkipEnding`, String(enabled));
+  }, [profileId]);
+
+  const savePlaybackRate = useCallback((rate: number) => {
+    setPlaybackRate(rate);
+    if (!profileId) return;
+    safeSet(`cyanflix.player.${profileId}.playbackRate`, String(rate));
+  }, [profileId]);
+
+  const saveQuality = useCallback((q: number) => {
+    setQuality(q);
+    if (!profileId) return;
+    safeSet(`cyanflix.player.${profileId}.quality`, String(q));
+  }, [profileId]);
+
+  return {
+    volume,
+    muted,
+    audioLang,
+    subtitleLang,
+    autoSkipOpening,
+    autoSkipEnding,
+    playbackRate,
+    quality,
+    saveVolume,
+    saveMuted,
+    saveAudioLang,
+    saveSubtitleLang,
+    saveAutoSkipOpening,
+    saveAutoSkipEnding,
+    savePlaybackRate,
+    saveQuality,
+  };
 }

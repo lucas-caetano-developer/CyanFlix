@@ -187,19 +187,27 @@ export function VideoPlayer({
   const [audioTracks, setAudioTracks] = useState<
     Array<{ id: number; label: string; lang?: string }>
   >([]);
+  const prefs = usePlayerPreferences();
+
   const [selectedAudioTrack, setSelectedAudioTrack] = useState(-1);
   const [selectedSubtitleTrack, setSelectedSubtitleTrack] = useState(-1);
-  const [playbackRate, setPlaybackRate] = useState(1);
+  const [playbackRate, setPlaybackRate] = useState(() => prefs.playbackRate);
   const [qualityLevels, setQualityLevels] = useState<
     Array<{ id: number; label: string }>
   >([]);
-  const [selectedQuality, setSelectedQuality] = useState(-1);
+  const [selectedQuality, setSelectedQuality] = useState(() => prefs.quality);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [autoSkipOpening, setAutoSkipOpening] = useState(autoSkipOpeningProp);
+  const [autoSkipOpening, setAutoSkipOpening] = useState(
+    () => prefs.autoSkipOpening || autoSkipOpeningProp,
+  );
+  const [autoSkipEnding, setAutoSkipEnding] = useState(
+    () => prefs.autoSkipEnding,
+  );
   const [ratingBannerVisible, setRatingBannerVisible] = useState(false);
   const [showResumeNotice, setShowResumeNotice] = useState(false);
   const resumeNoticeTimerRef = useRef<number>();
   const [showUndoSkip, setShowUndoSkip] = useState(false);
+  const [undoSkipLabel, setUndoSkipLabel] = useState("Abertura pulada");
   const undoSkipTimerRef = useRef<number>();
   const undoSkipTargetRef = useRef(0);
   const [endScreen, setEndScreen] = useState(false);
@@ -212,11 +220,22 @@ export function VideoPlayer({
   } | null>(null);
   const doubleTapIndicatorTimerRef = useRef<number>();
 
-  const prefs = usePlayerPreferences();
-
   // Initialize volume/muted from persistent prefs (lazy init via useState)
   const [volume, setVolume] = useState(() => prefs.volume);
   const [muted, setMuted] = useState(() => prefs.muted);
+
+  useEffect(() => {
+    setAutoSkipOpening(prefs.autoSkipOpening);
+  }, [prefs.autoSkipOpening]);
+
+  useEffect(() => {
+    setAutoSkipEnding(prefs.autoSkipEnding);
+  }, [prefs.autoSkipEnding]);
+
+  useEffect(() => {
+    setPlaybackRate(prefs.playbackRate);
+    if (videoRef.current) videoRef.current.playbackRate = prefs.playbackRate;
+  }, [prefs.playbackRate]);
 
   const isTvMode = useMemo(() => shouldUseTvLikeInput(), []);
 
@@ -730,6 +749,7 @@ export function VideoPlayer({
     // Apply saved preferences to video element before first play
     video.volume = prefs.volume;
     video.muted = prefs.muted;
+    video.playbackRate = prefs.playbackRate;
 
     const resumeAt = Math.max(resumeTimeRef.current, startTimeRef.current ?? 0);
 
@@ -793,7 +813,24 @@ export function VideoPlayer({
               : `Nível ${index + 1}`,
           })),
         );
+        if (prefs.quality === 0) {
+          hlsInstance.autoLevelCapping = -1;
+          hlsInstance.currentLevel = -1;
+        } else if (prefs.quality === 1) {
+          const moderateIndex = hlsInstance.levels.findIndex(
+            (l) => l.height && l.height >= 720,
+          );
+          hlsInstance.currentLevel = -1;
+          hlsInstance.autoLevelCapping =
+            moderateIndex >= 0
+              ? moderateIndex
+              : Math.floor(hlsInstance.levels.length / 2);
+        } else if (prefs.quality === 2) {
+          hlsInstance.autoLevelCapping = -1;
+          hlsInstance.currentLevel = 0;
+        }
         if (resumeAt) video.currentTime = resumeAt;
+        video.playbackRate = prefs.playbackRate;
         void video.play().catch(() => undefined);
       });
 
@@ -1254,29 +1291,64 @@ export function VideoPlayer({
     togglePlayback,
   ]);
 
-  // Auto-skip opening
+  // Auto-skip opening and ending
   useEffect(() => {
-    if (!autoSkipOpening || !hasOpeningMarker) return;
-    const openingMarker = markers.find((m) => m.type === "opening");
-    if (!openingMarker) return;
     const currentTimeMs = currentTime * 1000;
-    if (
-      currentTimeMs >= openingMarker.start_ms &&
-      currentTimeMs < openingMarker.end_ms &&
-      autoSkippedMarkerRef.current !== openingMarker.start_ms
-    ) {
-      autoSkippedMarkerRef.current = openingMarker.start_ms;
-      undoSkipTargetRef.current = openingMarker.start_ms / 1000;
-      seekTo(openingMarker.end_ms / 1000);
-      setShowUndoSkip(true);
-      if (undoSkipTimerRef.current)
-        window.clearTimeout(undoSkipTimerRef.current);
-      undoSkipTimerRef.current = window.setTimeout(
-        () => setShowUndoSkip(false),
-        UNDO_SKIP_DURATION_MS,
-      );
+
+    if (autoSkipOpening && hasOpeningMarker) {
+      const openingMarker = markers.find((m) => m.type === "opening");
+      if (
+        openingMarker &&
+        currentTimeMs >= openingMarker.start_ms &&
+        currentTimeMs < openingMarker.end_ms &&
+        autoSkippedMarkerRef.current !== openingMarker.start_ms
+      ) {
+        autoSkippedMarkerRef.current = openingMarker.start_ms;
+        undoSkipTargetRef.current = openingMarker.start_ms / 1000;
+        setUndoSkipLabel("Abertura pulada");
+        seekTo(openingMarker.end_ms / 1000);
+        setShowUndoSkip(true);
+        if (undoSkipTimerRef.current)
+          window.clearTimeout(undoSkipTimerRef.current);
+        undoSkipTimerRef.current = window.setTimeout(
+          () => setShowUndoSkip(false),
+          UNDO_SKIP_DURATION_MS,
+        );
+        return;
+      }
     }
-  }, [autoSkipOpening, currentTime, hasOpeningMarker, markers, seekTo]);
+
+    if (autoSkipEnding) {
+      const endingMarker = markers.find(
+        (m) => m.type === "ending" || m.type === "outro" || m.type === "credits",
+      );
+      if (
+        endingMarker &&
+        currentTimeMs >= endingMarker.start_ms &&
+        currentTimeMs < endingMarker.end_ms &&
+        autoSkippedMarkerRef.current !== endingMarker.start_ms
+      ) {
+        autoSkippedMarkerRef.current = endingMarker.start_ms;
+        undoSkipTargetRef.current = endingMarker.start_ms / 1000;
+        setUndoSkipLabel("Encerramento pulado");
+        seekTo(endingMarker.end_ms / 1000);
+        setShowUndoSkip(true);
+        if (undoSkipTimerRef.current)
+          window.clearTimeout(undoSkipTimerRef.current);
+        undoSkipTimerRef.current = window.setTimeout(
+          () => setShowUndoSkip(false),
+          UNDO_SKIP_DURATION_MS,
+        );
+      }
+    }
+  }, [
+    autoSkipOpening,
+    autoSkipEnding,
+    currentTime,
+    hasOpeningMarker,
+    markers,
+    seekTo,
+  ]);
 
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
@@ -1666,7 +1738,7 @@ export function VideoPlayer({
           {/* Undo auto-skip banner */}
           {showUndoSkip && (
             <div className="player__undo-skip" role="status">
-              <span>Abertura pulada</span>
+              <span>{undoSkipLabel}</span>
               <button
                 className="player__undo-skip-btn"
                 onClick={() => {
@@ -1727,11 +1799,15 @@ export function VideoPlayer({
               }
             }}
             playbackRate={playbackRate}
-            onPlaybackRateChange={setPlaybackRate}
+            onPlaybackRateChange={(rate) => {
+              setPlaybackRate(rate);
+              prefs.savePlaybackRate(rate);
+            }}
             qualityLevels={qualityLevels}
             selectedQuality={selectedQuality}
             onQualityChange={(levelId) => {
               setSelectedQuality(levelId);
+              prefs.saveQuality(levelId);
               if (!hlsRef.current) return;
 
               const hls = hlsRef.current;
@@ -1781,7 +1857,13 @@ export function VideoPlayer({
             autoSkipOpening={autoSkipOpening}
             onAutoSkipOpeningChange={(enabled) => {
               setAutoSkipOpening(enabled);
+              prefs.saveAutoSkipOpening(enabled);
               onAutoSkipOpeningChange?.(enabled);
+            }}
+            autoSkipEnding={autoSkipEnding}
+            onAutoSkipEndingChange={(enabled) => {
+              setAutoSkipEnding(enabled);
+              prefs.saveAutoSkipEnding(enabled);
             }}
           />
         </>

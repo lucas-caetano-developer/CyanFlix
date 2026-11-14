@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../../lib/api';
+import { useProfileStore } from '../../stores/useProfileStore';
+import { useFavoriteMutation } from '../../hooks/useFavoriteMutation';
 import { Work } from '../../lib/types';
 import { getBackdropUrl, getLogoUrl, getGenres, getCertification, getMotionPreviewUrl } from '../../lib/utils';
 import { Badge } from '../ui/Badge';
@@ -65,6 +69,15 @@ export function HeroCarousel({
 
   const currentWork = carouselItems[currentIndex];
   const motionPreview = currentWork ? getMotionPreviewUrl(currentWork) : null;
+
+  const profileId = useProfileStore((state) => state.profileId);
+  const { data: favorites } = useQuery({
+    queryKey: ['favorites', profileId],
+    queryFn: () => (profileId ? api.getFavorites(profileId) : Promise.resolve([])),
+    enabled: Boolean(profileId),
+  });
+  const isFavorite = Boolean(favorites?.some((item) => item.id === currentWork?.id));
+  const favoriteMutation = useFavoriteMutation(profileId);
 
   // Video presentation playback
   useEffect(() => {
@@ -261,17 +274,22 @@ export function HeroCarousel({
             {buttonLabel}
           </Link>
 
-          <Link
-            to="/my-list"
-            className="hero__btn-watchlist"
-            title="Abrir Minha Lista"
-            aria-label="Abrir Minha Lista"
+          <button
+            type="button"
+            className={`hero__btn-watchlist ${isFavorite ? 'hero__btn-watchlist--active' : ''}`}
+            title={isFavorite ? "Remover da Minha Lista" : "Adicionar à Minha Lista"}
+            aria-label={isFavorite ? "Remover da Minha Lista" : "Adicionar à Minha Lista"}
+            onClick={() => {
+              if (!currentWork) return;
+              favoriteMutation.mutate({ work: currentWork, nextFavorite: !isFavorite });
+            }}
+            disabled={favoriteMutation.isPending}
           >
             <svg
               viewBox="0 0 24 24"
               width="24"
               height="24"
-              fill="none"
+              fill={isFavorite ? "currentColor" : "none"}
               stroke="currentColor"
               strokeWidth="2.5"
               strokeLinecap="round"
@@ -279,7 +297,7 @@ export function HeroCarousel({
             >
               <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
             </svg>
-          </Link>
+          </button>
         </div>
 
         {/* Timeline Pills directly under watch action buttons (Image 3) */}

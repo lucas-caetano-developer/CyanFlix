@@ -43,8 +43,8 @@ export function BrowseCatExplore() {
           />
           {/* Cyan inner ear glow */}
           <path d="M171 61L180 77L186 79" fill="#00d4ff" opacity="0.85" />
-          {/* Orange ear tip accent (matching the anime reference) */}
-          <path d="M168 59L166 56C164 53 169 50 172 53L175 58Z" fill="#ff640a" />
+          {/* Cyan ear tip accent */}
+          <path d="M168 59L166 56C164 53 169 50 172 53L175 58Z" fill="#38e8ff" />
 
           {/* Right Cat Ear */}
           <path
@@ -56,8 +56,8 @@ export function BrowseCatExplore() {
           />
           {/* Cyan inner ear glow */}
           <path d="M231 59L226 77L220 80" fill="#00d4ff" opacity="0.85" />
-          {/* Orange ear tip accent */}
-          <path d="M232 57L234 54C236 51 241 53 239 57L237 60Z" fill="#ff640a" />
+          {/* Cyan ear tip accent */}
+          <path d="M232 57L234 54C236 51 241 53 239 57L237 60Z" fill="#38e8ff" />
 
           {/* Cute Little Cyan Paws peeking from blanket */}
           <ellipse cx="168" cy="124" rx="10" ry="7" fill="#00d4ff" />
@@ -86,8 +86,8 @@ export function BrowseCatExplore() {
           <path d="M190 102C193 105 198 105 201 102" stroke="#00d4ff" strokeWidth="3" strokeLinecap="round" />
           <path d="M218 101C221 104 226 104 229 101" stroke="#00d4ff" strokeWidth="3" strokeLinecap="round" />
 
-          {/* Cute Little Mouth (peaceful sleeping line with sweet tongue peek) */}
-          <path d="M208 110C209 113 213 113 214 110Z" fill="#ff640a" stroke="#ffedd5" strokeWidth="1" />
+          {/* Cute Little Mouth */}
+          <path d="M208 110C209 113 213 113 214 110Z" fill="#38e8ff" stroke="#bae6fd" strokeWidth="1" />
 
           {/* Soft Cyan Cheek Blushes */}
           <ellipse cx="184" cy="107" rx="6" ry="3.5" fill="#00d4ff" opacity="0.4" />
