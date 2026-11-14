@@ -277,15 +277,12 @@ export function BrowsePage() {
     (row) => row.id !== 'featured' && row.title.toLowerCase() !== 'destaques'
   );
 
-  const featuredWorkIds = useMemo(() => heroItems.map((w) => w.id), [heroItems]);
-  const allWorksMap = useMemo(() => {
-    const map = new Map<string, Work>();
-    for (const item of heroItems) map.set(item.id, item);
-    for (const row of data.rows) {
-      for (const item of row.items) map.set(item.id, item);
-    }
-    return map;
-  }, [heroItems, data.rows]);
+  const featuredWorkIds = heroItems.map((w) => w.id);
+  const allWorksMap = new Map<string, Work>();
+  for (const item of heroItems) allWorksMap.set(item.id, item);
+  for (const row of data.rows) {
+    for (const item of row.items) allWorksMap.set(item.id, item);
+  }
 
   // Combine rows into ordered topics so we can inject the promo banner exactly after the 3rd topic
   type TopicRowItem = {

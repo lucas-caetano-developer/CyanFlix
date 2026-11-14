@@ -146,7 +146,7 @@ export function WorkCard({
 
           {/* Full hover card overlay for regular works (Print 1) */}
           {!resume && (
-            <div className="work-card__overlay" aria-hidden="true">
+            <div className="work-card__overlay">
               <h3 className="work-card__hover-title">{work.title}</h3>
 
               <div className="work-card__hover-meta">
