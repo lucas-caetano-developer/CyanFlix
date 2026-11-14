@@ -26,16 +26,17 @@ export function HeroCarousel({
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const precisePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
-    const refresh = () => setMotionAllowed(!reducedMotion.matches && precisePointer.matches && !connection?.saveData && !['slow-2g', '2g'].includes(connection?.effectiveType ?? ''));
+    const refresh = () => {
+      const isSaveData = Boolean(connection?.saveData || ['slow-2g', '2g'].includes(connection?.effectiveType ?? ''));
+      const isReduced = Boolean(reducedMotion?.matches);
+      setMotionAllowed(!isReduced && !isSaveData);
+    };
     refresh();
-    reducedMotion.addEventListener('change', refresh);
-    precisePointer.addEventListener('change', refresh);
+    reducedMotion?.addEventListener?.('change', refresh);
     return () => {
-      reducedMotion.removeEventListener('change', refresh);
-      precisePointer.removeEventListener('change', refresh);
+      reducedMotion?.removeEventListener?.('change', refresh);
     };
   }, []);
 

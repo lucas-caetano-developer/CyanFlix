@@ -9,6 +9,7 @@ import { CatalogHeader } from '../components/catalog/CatalogHeader';
 import { CatalogMessage } from '../components/catalog/CatalogMessage';
 import { FilterChips } from '../components/catalog/FilterChips';
 import { BrowseCatExplore } from '../components/catalog/BrowseCatExplore';
+import { BrowsePromoBannerSection } from '../components/catalog/BrowsePromoBannerSection';
 import { Skeleton } from '../components/ui/Skeleton';
 import { useProfileStore } from '../stores/useProfileStore';
 import { useScrollRestoration } from '../hooks/useScrollRestoration';
@@ -276,22 +277,78 @@ export function BrowsePage() {
     (row) => row.id !== 'featured' && row.title.toLowerCase() !== 'destaques'
   );
 
+  const featuredWorkIds = useMemo(() => heroItems.map((w) => w.id), [heroItems]);
+  const allWorksMap = useMemo(() => {
+    const map = new Map<string, Work>();
+    for (const item of heroItems) map.set(item.id, item);
+    for (const row of data.rows) {
+      for (const item of row.items) map.set(item.id, item);
+    }
+    return map;
+  }, [heroItems, data.rows]);
+
+  // Combine rows into ordered topics so we can inject the promo banner exactly after the 3rd topic
+  type TopicRowItem = {
+    key: string;
+    title: string;
+    items: Work[];
+    seeAllLink?: string;
+  };
+
+  const topicRows: TopicRowItem[] = [];
+  if (continueItems.length > 0) {
+    topicRows.push({
+      key: 'continue-watching',
+      title: 'Continuar assistindo',
+      items: continueItems,
+    });
+  }
+  if (nextItems.length > 0) {
+    topicRows.push({
+      key: 'up-next',
+      title: 'Próximo episódio',
+      items: nextItems,
+    });
+  }
+  for (const row of contentRows) {
+    topicRows.push({
+      key: row.id,
+      title: row.title,
+      items: row.items,
+      seeAllLink: seeAllLinkForRow(row.id, row.title),
+    });
+  }
+
+  // Pass 3 topics from top to bottom, then promotional banner, then the rest
+  const firstThreeRows = topicRows.slice(0, 3);
+  const remainingRows = topicRows.slice(3);
+
   return (
     <div className="browse">
       {heroItems.length > 0 && <HeroCarousel items={heroItems} continueItems={continueItems} />}
       <div className="browse__rows">
-        {continueItems.length > 0 && (
-          <ContentRow title="Continuar assistindo" items={continueItems} />
-        )}
-        {nextItems.length > 0 && (
-          <ContentRow title="Próximo episódio" items={nextItems} />
-        )}
-        {contentRows.map((row) => (
+        {firstThreeRows.map((row) => (
           <ContentRow
-            key={row.id}
+            key={row.key}
             title={row.title}
             items={row.items}
-            seeAllLink={seeAllLinkForRow(row.id, row.title)}
+            seeAllLink={row.seeAllLink}
+          />
+        ))}
+
+        {heroItems.length > 0 && (
+          <BrowsePromoBannerSection
+            featuredWorkIds={featuredWorkIds}
+            worksMap={allWorksMap}
+          />
+        )}
+
+        {remainingRows.map((row) => (
+          <ContentRow
+            key={row.key}
+            title={row.title}
+            items={row.items}
+            seeAllLink={row.seeAllLink}
           />
         ))}
       </div>

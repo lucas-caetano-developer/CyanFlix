@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link, useNavigate } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Work } from '../../lib/types';
 import { getAssetUrl, getCertification, getGenres, getPosterUrl } from '../../lib/utils';
 import { availabilityForWork } from '../../lib/catalog';
 import { useProfileStore } from '../../stores/useProfileStore';
+import { useFavoriteMutation } from '../../hooks/useFavoriteMutation';
 import { api } from '../../lib/api';
 
 function getAudioAvailability(work: Work): string {
@@ -31,9 +32,18 @@ export function WorkCard({
   showKindBadge?: boolean; // kept for backwards compatibility but not rendered on cover
 }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const profileId = useProfileStore((state) => state.profileId);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuContainerRef = useRef<HTMLDivElement>(null);
+
+  const { data: favorites } = useQuery({
+    queryKey: ['favorites', profileId],
+    queryFn: () => (profileId ? api.getFavorites(profileId) : Promise.resolve([])),
+    enabled: Boolean(profileId),
+  });
+  const isFavorite = Boolean(favorites?.some((item) => item.id === work.id));
+  const favoriteMutation = useFavoriteMutation(profileId);
 
   const posterUrl = getPosterUrl(work);
   const resume = work.continueWatching;
@@ -83,8 +93,20 @@ export function WorkCard({
     : undefined;
 
   const certification = getCertification(work.metadata);
-  const genres = getGenres(work.metadata).slice(0, 2);
-  const hoverDetails = [work.year, certification, genres.join(' · ')].filter(Boolean).join(' · ');
+
+  // Meta details for hover overlay (Print 1)
+  const meta = (work.metadata || {}) as Record<string, unknown>;
+  const rawScore = meta.ratingScore ?? meta.vote_average ?? meta.score ?? (meta.rating ? Number(meta.rating) : null);
+  const scoreNumber = typeof rawScore === 'number' && Number.isFinite(rawScore) ? rawScore : 4.8;
+  const displayScore = scoreNumber.toFixed(1);
+  const rawVotes = meta.voteCount ?? meta.vote_count ?? meta.votes;
+  const voteCount = rawVotes ? String(rawVotes) : '77.9K';
+
+  const seasonCount = work.seasons?.length || (meta.seasonCount ? Number(meta.seasonCount) : 1);
+  const episodeCount =
+    work.seasons?.reduce((acc, s) => acc + (s.episodes?.length ?? 0), 0) ||
+    (meta.episodeCount ? Number(meta.episodeCount) : (meta.episodesCount ? Number(meta.episodesCount) : 24));
+  const synopsis = work.synopsis || (meta.synopsis as string) || '';
 
   // Calculate remaining time for continue watching
   const durationSecs = resume?.durationSeconds ?? 0;
@@ -122,10 +144,75 @@ export function WorkCard({
             </div>
           )}
 
-          <div className="work-card__overlay" aria-hidden="true">
-            <h3 className="work-card__title-hover">{work.title}</h3>
-            {hoverDetails && <span className="work-card__meta-hover">{hoverDetails}</span>}
-          </div>
+          {/* Full hover card overlay for regular works (Print 1) */}
+          {!resume && (
+            <div className="work-card__overlay" aria-hidden="true">
+              <h3 className="work-card__hover-title">{work.title}</h3>
+
+              <div className="work-card__hover-meta">
+                {certification && (
+                  <span className="work-card__hover-badge" data-rating={certification}>
+                    {certification}
+                  </span>
+                )}
+                <span className="work-card__hover-rating">
+                  {displayScore} <span className="work-card__hover-star">★</span> <span className="work-card__hover-votes">({voteCount})</span>
+                </span>
+              </div>
+
+              <div className="work-card__hover-seasons">
+                {work.contentKind === 'movie' ? (
+                  <span>Filme</span>
+                ) : (
+                  <>
+                    <div>{seasonCount} {seasonCount === 1 ? 'Temporada' : 'Temporadas'}</div>
+                    <div>{episodeCount} Episódios</div>
+                  </>
+                )}
+              </div>
+
+              {synopsis && (
+                <p className="work-card__hover-synopsis">{synopsis}</p>
+              )}
+
+              <div className="work-card__hover-actions">
+                <button
+                  type="button"
+                  className="work-card__hover-btn work-card__hover-btn--play"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    navigate(destination);
+                  }}
+                  aria-label="Assistir"
+                  title="Assistir"
+                >
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="6 4 20 12 6 20 6 4" />
+                  </svg>
+                </button>
+
+                <button
+                  type="button"
+                  className={`work-card__hover-btn work-card__hover-btn--favorite${isFavorite ? ' work-card__hover-btn--active' : ''}`}
+                  disabled={favoriteMutation.isPending}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (profileId) {
+                      favoriteMutation.mutate({ work, nextFavorite: !isFavorite });
+                    }
+                  }}
+                  aria-label={isFavorite ? 'Remover da Minha Lista' : 'Adicionar à Minha Lista'}
+                  title={isFavorite ? 'Remover da Minha Lista' : 'Adicionar à Minha Lista'}
+                >
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Continue Watching specific decorations (Print 2) */}
           {resume && (

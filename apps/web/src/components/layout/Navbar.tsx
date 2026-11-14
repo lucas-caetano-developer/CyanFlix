@@ -250,9 +250,9 @@ export function Navbar({ children }: { children?: React.ReactNode }) {
       </div>
       <div className="navbar__right">
         {children}
-        <div className="navbar__search" ref={searchContainerRef}>
+        <div className="navbar__search" ref={searchContainerRef} data-spatial-skip="true">
           {searchOpen ? (
-            <form className="navbar__search-form" role="search" aria-label="Busca rápida" onSubmit={submitSearch}>
+            <form className="navbar__search-form" role="search" aria-label="Busca rápida" onSubmit={submitSearch} data-spatial-skip="true">
               <Icon name="search" />
               <label htmlFor={searchId} className="sr-only">Buscar no catálogo</label>
               <input
@@ -267,6 +267,7 @@ export function Navbar({ children }: { children?: React.ReactNode }) {
                 onKeyDown={handleSearchKeyDown}
                 enterKeyHint="search"
                 autoComplete="off"
+                data-spatial-skip="true"
               />
               {searchValue && (
                 <button
