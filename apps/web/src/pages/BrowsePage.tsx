@@ -8,6 +8,7 @@ import { WorkCard } from '../components/cards/WorkCard';
 import { CatalogHeader } from '../components/catalog/CatalogHeader';
 import { CatalogMessage } from '../components/catalog/CatalogMessage';
 import { FilterChips } from '../components/catalog/FilterChips';
+import { BrowseCatExplore } from '../components/catalog/BrowseCatExplore';
 import { Skeleton } from '../components/ui/Skeleton';
 import { useProfileStore } from '../stores/useProfileStore';
 import { useScrollRestoration } from '../hooks/useScrollRestoration';
@@ -294,6 +295,7 @@ export function BrowsePage() {
           />
         ))}
       </div>
+      <BrowseCatExplore />
     </div>
   );
 }
