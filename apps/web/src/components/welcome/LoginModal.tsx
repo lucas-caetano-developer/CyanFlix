@@ -7,9 +7,10 @@ import { CyanFlixLogo } from '../ui/CyanFlixLogo';
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
+  redirectTo?: string | null;
 }
 
-export function LoginModal({ isOpen, onClose }: LoginModalProps) {
+export function LoginModal({ isOpen, onClose, redirectTo }: LoginModalProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [username, setUsername] = useState('');
@@ -47,7 +48,11 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
       const session = await api.login(username.trim(), password);
       queryClient.setQueryData(['auth', 'session'], session);
       onClose();
-      navigate('/profiles', { replace: true });
+      if (redirectTo) {
+        navigate(`/profiles?redirect=${encodeURIComponent(redirectTo)}`, { replace: true });
+      } else {
+        navigate('/profiles', { replace: true });
+      }
     } catch {
       setError('Credenciais inválidas. Verifique seu usuário e senha.');
     } finally {

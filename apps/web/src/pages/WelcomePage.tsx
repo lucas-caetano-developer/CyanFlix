@@ -12,6 +12,7 @@ import '../styles/welcome.css';
 export function WelcomePage() {
   const navigate = useNavigate();
   const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [pendingRedirect, setPendingRedirect] = useState<string | null>(null);
 
   // Monitor auth session
   const session = useQuery({
@@ -30,10 +31,15 @@ export function WelcomePage() {
 
   const isAuthenticated = Boolean(session.data?.authenticated);
 
-  const handleAction = () => {
+  const handleAction = (targetWorkId?: string) => {
     if (isAuthenticated) {
-      navigate('/profiles');
+      if (targetWorkId) {
+        navigate(`/title/${targetWorkId}`);
+      } else {
+        navigate('/profiles');
+      }
     } else {
+      setPendingRedirect(targetWorkId ? `/title/${targetWorkId}` : null);
       setLoginModalOpen(true);
     }
   };
@@ -92,7 +98,7 @@ export function WelcomePage() {
             <button
               type="button"
               className="welcome-btn welcome-btn--hero"
-              onClick={handleAction}
+              onClick={() => handleAction()}
             >
               <span>{isAuthenticated ? 'Continuar Assistindo' : 'Acessar Minha Conta'}</span>
               <svg className="welcome-btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -126,14 +132,14 @@ export function WelcomePage() {
 
       {/* 3. Promotional Character Spotlight Banner */}
       <div id="destaques" className="welcome-showcase">
-        <WelcomePromoBanner onLoginClick={handleAction} />
+        <WelcomePromoBanner onLoginClick={(workId) => handleAction(workId)} />
       </div>
 
       {/* 4. Trending Rail (Netflix-style numbered cards) */}
       <TrendingTopList
         works={showcase.data?.trending}
         isLoading={showcase.isLoading}
-        onItemClick={handleAction}
+        onItemClick={() => handleAction()}
       />
 
       {/* 5. Features Grid ("Mais motivos para assistir no CyanFlix") */}
@@ -215,7 +221,7 @@ export function WelcomePage() {
           <button
             type="button"
             className="welcome-btn welcome-btn--hero"
-            onClick={handleAction}
+            onClick={() => handleAction()}
           >
             <span>{isAuthenticated ? 'Ir para Perfis' : 'Entrar no CyanFlix'}</span>
             <svg className="welcome-btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -245,7 +251,11 @@ export function WelcomePage() {
       {/* Login Modal */}
       <LoginModal
         isOpen={loginModalOpen}
-        onClose={() => setLoginModalOpen(false)}
+        onClose={() => {
+          setLoginModalOpen(false);
+          setPendingRedirect(null);
+        }}
+        redirectTo={pendingRedirect}
       />
     </div>
   );

@@ -78,10 +78,10 @@ export function PromoBannerCoordinatorProvider({
   rotationIntervalMs?: number;
   children: React.ReactNode;
 }) {
-  // Fetch Server-persisted Banner Custom States
+  // Fetch Server-persisted Banner Custom States (public endpoint available to everyone)
   const { data: serverCustomStates } = useQuery({
-    queryKey: ['admin', 'bannerCustomStates'],
-    queryFn: () => api.getBannerCustomStates(),
+    queryKey: ['public', 'bannerCustomStates'],
+    queryFn: () => api.getPublicBannerCustomStates().catch(() => api.getBannerCustomStates()),
     staleTime: 30_000,
   });
 
@@ -98,10 +98,16 @@ export function PromoBannerCoordinatorProvider({
     }
   }, [serverCustomStates]);
 
-  // Fetch characters
+  // Fetch characters (public endpoint with fallback to admin)
   const { data: characters = [] } = useQuery({
-    queryKey: ['admin', 'characters'],
-    queryFn: () => api.getAdminCharacters(),
+    queryKey: ['characters', 'promo'],
+    queryFn: async () => {
+      try {
+        return await api.getPublicCharacters();
+      } catch {
+        return await api.getAdminCharacters();
+      }
+    },
     staleTime: 5 * 60 * 1000,
   });
 
@@ -297,13 +303,13 @@ export function BrowsePromoBannerSlot({
 export function WelcomePromoBanner({
   onLoginClick,
 }: {
-  onLoginClick: () => void;
+  onLoginClick: (workId?: string) => void;
 }) {
   return (
     <PromoBannerCoordinatorProvider slotCount={1} rotationIntervalMs={6500}>
       <BrowsePromoBannerSlot
         slotIndex={0}
-        onCtaClick={() => onLoginClick()}
+        onCtaClick={(workId) => onLoginClick(workId)}
         ctaText="ASSISTA JÁ"
         style={{ padding: 0, margin: 0 }}
       />

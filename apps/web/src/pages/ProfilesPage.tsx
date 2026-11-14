@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate, Navigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useProfileStore } from "../stores/useProfileStore";
@@ -59,11 +59,17 @@ export function ProfilesPage() {
     clearScrollRestoration();
   };
 
-  const destinationFor = (profile: Profile) => (
-    profile.role === "admin" && (session?.role === "owner" || session?.role === "admin")
+  const [searchParams] = useSearchParams();
+  const redirectParam = searchParams.get("redirect");
+
+  const destinationFor = (profile: Profile) => {
+    if (redirectParam && redirectParam.startsWith("/")) {
+      return redirectParam;
+    }
+    return profile.role === "admin" && (session?.role === "owner" || session?.role === "admin")
       ? "/admin"
-      : "/browse"
-  );
+      : "/browse";
+  };
 
   const enterProfile = async (profile: Profile, candidatePin?: string) => {
     if (busy) return;

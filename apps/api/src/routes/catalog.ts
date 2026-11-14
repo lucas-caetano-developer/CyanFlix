@@ -20,6 +20,44 @@ import { getStoredHomeSections } from "../services/home-sections.js";
 import { findPlayableSeasonEpisodes } from "../services/playback.js";
 
 export async function catalogRoutes(app: FastifyInstance) {
+app.get("/api/public/characters", async () => {
+  const characters = await prisma.character.findMany({
+    where: {
+      bodyPhotoUrl: { not: null },
+    },
+    include: {
+      works: {
+        select: {
+          id: true,
+          title: true,
+          contentKind: true,
+          year: true,
+          assets: {
+            where: { type: { in: ["logo", "logo_webp", "logo-webp"] } },
+            select: {
+              id: true,
+              type: true,
+              publicPath: true,
+              sizeBytes: true,
+              metadata: true,
+              relativePath: true,
+            },
+          },
+        },
+      },
+      voiceActor: { select: { id: true, name: true, photoUrl: true } },
+    },
+    orderBy: [{ createdAt: "desc" }],
+  });
+  return toJson(
+    characters.map((c) => ({
+      ...c,
+      workId: c.works[0]?.id || "",
+      work: c.works[0] || null,
+    })),
+  );
+});
+
 app.get("/api/public/showcase", async () => {
   const works = await prisma.work.findMany({
     where: { hidden: false },
