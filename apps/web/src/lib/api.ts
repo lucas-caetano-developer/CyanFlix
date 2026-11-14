@@ -176,6 +176,13 @@ export const api = {
     fetchApi<{ voiceAudioUrl: string }>('/api/admin/characters/extract-voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clips }) }),
   getHomeSections: () => fetchApi<HomeSectionConfig[]>('/api/admin/home-sections'),
   updateHomeSections: (sections: HomeSectionConfig[]) => fetchApi<{ success: boolean; sections: HomeSectionConfig[] }>('/api/admin/home-sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sections }) }),
+  getBannerCustomStates: () => fetchApi<Record<string, import('./promoBanners').BannerCustomState>>('/api/admin/banners/custom-states'),
+  updateBannerCustomStates: (states: Record<string, import('./promoBanners').BannerCustomState>) =>
+    fetchApi<{ success: true; states: Record<string, import('./promoBanners').BannerCustomState> }>('/api/admin/banners/custom-states', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ states }),
+    }),
   addFavorite: (profileId: string, workId: string) => fetchApi<void>(`/api/profiles/${profileId}/favorites/${workId}`, { method: 'POST' }),
   removeFavorite: (profileId: string, workId: string) => fetchApi<void>(`/api/profiles/${profileId}/favorites/${workId}`, { method: 'DELETE' }),
   getFavorites: (profileId: string) => fetchApi<Work[]>(`/api/profiles/${profileId}/favorites`),

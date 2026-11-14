@@ -1,49 +1,19 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
-import { PromoBanner, getDefaultCategoryTitles } from "../../components/admin/PromoBanner";
-import { parseArchetypes } from "../../lib/characterConstants";
-import type { Character, AdminCatalogWork } from "../../lib/types";
+import { PromoBanner } from "../../components/admin/PromoBanner";
+import {
+  type BannerCustomState,
+  type PromoBannerItem,
+  loadLocalBannerStates,
+  saveLocalBannerStates,
+  getBannerCustomState,
+  generateAdminPromoBanners,
+} from "../../lib/promoBanners";
+import type { Character, AdminCatalogWork, Work } from "../../lib/types";
 
 type RoleFilter = "all" | "protagonist" | "supporting" | "villain";
-
-const BANNER_STORAGE_KEY = "cyanflix.admin.banner_custom_states";
-
-interface BannerCustomState {
-  logoPosition: "left" | "right";
-  customColor?: string;
-  flipHorizontal?: boolean;
-  characterOffsetX: number;
-  characterOffsetY: number;
-  characterScale: number;
-  tagline?: string;
-}
-
-function loadSavedBannerStates(): Record<string, BannerCustomState> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = localStorage.getItem(BANNER_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch (err) {
-    console.error("Erro ao carregar estados dos banners do localStorage:", err);
-    return {};
-  }
-}
-
-interface BannerItem {
-  id: string;
-  character: Character;
-  archetype: string | null;
-  categoryTitle: string;
-  categorySubtitle: string;
-}
-
-function isEligibleBannerRole(role?: string | null): boolean {
-  if (!role) return false;
-  const r = role.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  return r.includes("protag") || r.includes("coadj") || r.includes("apoio") || r.includes("antag") || r.includes("vil");
-}
 
 export function AdminBannersPage() {
   const queryClient = useQueryClient();
@@ -64,17 +34,42 @@ export function AdminBannersPage() {
     characterScale?: number;
   } | null>(null);
 
-  // Custom override state (position, scale, color, logoPosition, flip) persisted in localStorage
-  const [customStates, setCustomStates] = useState<Record<string, BannerCustomState>>(loadSavedBannerStates);
+  // Fetch Server-persisted Banner Custom States
+  const { data: serverCustomStates } = useQuery({
+    queryKey: ["admin", "bannerCustomStates"],
+    queryFn: () => api.getBannerCustomStates(),
+    staleTime: 30_000,
+  });
 
-  // Synchronize banner modifications with localStorage so they persist across page changes and browser reloads
+  const [customStates, setCustomStates] = useState<Record<string, BannerCustomState>>(loadLocalBannerStates);
+
+  // Sync server custom states into local state if available
   useEffect(() => {
-    try {
-      localStorage.setItem(BANNER_STORAGE_KEY, JSON.stringify(customStates));
-    } catch (err) {
-      console.error("Erro ao salvar estados dos banners no localStorage:", err);
+    if (serverCustomStates && Object.keys(serverCustomStates).length > 0) {
+      setCustomStates((prev) => {
+        const merged = { ...serverCustomStates, ...prev };
+        saveLocalBannerStates(merged);
+        return merged;
+      });
     }
-  }, [customStates]);
+  }, [serverCustomStates]);
+
+  const updateBannerCustomStatesMutation = useMutation({
+    mutationFn: (states: Record<string, BannerCustomState>) => api.updateBannerCustomStates(states),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "bannerCustomStates"] });
+      void queryClient.invalidateQueries({ queryKey: ["public", "bannerCustomStates"] });
+    },
+  });
+
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const queueServerSave = (states: Record<string, BannerCustomState>) => {
+    saveLocalBannerStates(states);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      updateBannerCustomStatesMutation.mutate(states);
+    }, 500);
+  };
 
   // Fetch Catalog & Characters
   const { data: catalogData, isLoading: isLoadingCatalog } = useQuery({
@@ -99,62 +94,40 @@ export function AdminBannersPage() {
     },
   });
 
-  // Group banners by Work (only Protagonistas, Coadjuvantes, Antagonistas; 1 banner per archetype)
+  // Group promotional banners by Work using the single unified generator
   const groupedWorks = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    const map = new Map<string, { work: AdminCatalogWork | null; banners: BannerItem[] }>();
+    const allBanners = generateAdminPromoBanners(
+      characters,
+      worksMap as unknown as Map<string, Work>,
+      customStates
+    );
 
-    for (const char of characters) {
-      // Rule 1: Only Protagonistas, Coadjuvantes, Antagonistas
-      if (!isEligibleBannerRole(char.role)) continue;
+    const map = new Map<string, { work: AdminCatalogWork | null; banners: PromoBannerItem[] }>();
 
-      const roleLower = (char.role || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    for (const b of allBanners) {
+      // Role filter
+      const roleLower = (b.character.role || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       if (selectedRole === "villain" && !roleLower.includes("vil") && !roleLower.includes("antag")) continue;
       if (selectedRole === "protagonist" && !roleLower.includes("protag")) continue;
       if (selectedRole === "supporting" && !roleLower.includes("coadj") && !roleLower.includes("apoio")) continue;
 
+      // Work filter
+      if (selectedWorkId !== "all" && b.workId !== selectedWorkId) continue;
+
       // Search query filter
-      if (q && !char.name.toLowerCase().includes(q)) {
-        const matchesWork = char.works?.some((w) => w.title.toLowerCase().includes(q)) || char.work?.title.toLowerCase().includes(q);
-        if (!matchesWork) continue;
+      if (q && !b.character.name.toLowerCase().includes(q) && !b.work?.title?.toLowerCase().includes(q)) {
+        continue;
       }
 
-      // Rule 2: 1 banner per archetype
-      const archetypes = parseArchetypes(char.archetype);
-      const bannerArchetypes = archetypes.length > 0 ? archetypes : [null];
-
-      const charWorks = char.works && char.works.length > 0
-        ? char.works
-        : char.workId
-        ? [{ id: char.workId, title: char.work?.title || "Obra Desconhecida", contentKind: "series" as const }]
-        : [{ id: "unassigned", title: "CyanFlix Originals", contentKind: "series" as const }];
-
-      for (const w of charWorks) {
-        if (selectedWorkId !== "all" && w.id !== selectedWorkId) continue;
-
-        let entry = map.get(w.id);
-        if (!entry) {
-          const fullWork = worksMap.get(w.id) || null;
-          entry = { work: fullWork, banners: [] };
-          map.set(w.id, entry);
-        }
-
-        for (let i = 0; i < bannerArchetypes.length; i++) {
-          const arch = bannerArchetypes[i];
-          const titles = getDefaultCategoryTitles(char.role, arch);
-          const bannerId = `${char.id}-${w.id}-${i}-${arch ? arch.toLowerCase().replace(/\s+/g, "-") : "base"}`;
-
-          if (!entry.banners.some((b) => b.id === bannerId)) {
-            entry.banners.push({
-              id: bannerId,
-              character: char,
-              archetype: arch,
-              categoryTitle: titles.title,
-              categorySubtitle: titles.subtitle,
-            });
-          }
-        }
+      let entry = map.get(b.workId);
+      if (!entry) {
+        const fullWork = worksMap.get(b.workId) || null;
+        entry = { work: fullWork, banners: [] };
+        map.set(b.workId, entry);
       }
+
+      entry.banners.push(b);
     }
 
     return Array.from(map.entries())
@@ -168,18 +141,10 @@ export function AdminBannersPage() {
           banners: data.banners,
         };
       });
-  }, [characters, worksMap, selectedRole, selectedWorkId, searchQuery]);
+  }, [characters, worksMap, customStates, selectedRole, selectedWorkId, searchQuery]);
 
   const getBannerState = (bannerId: string, charId?: string): BannerCustomState => {
-    return (
-      customStates[bannerId] ||
-      (charId ? customStates[charId] : undefined) || {
-        logoPosition: "right",
-        characterOffsetX: 0,
-        characterOffsetY: 0,
-        characterScale: 1.25,
-      }
-    );
+    return getBannerCustomState(customStates, bannerId, charId);
   };
 
   const updateBannerState = (
@@ -188,25 +153,14 @@ export function AdminBannersPage() {
     charId?: string
   ) => {
     setCustomStates((prev) => {
-      const existing =
-        prev[bannerId] ||
-        (charId ? prev[charId] : undefined) || {
-          logoPosition: "right",
-          characterOffsetX: 0,
-          characterOffsetY: 0,
-          characterScale: 1.25,
-        };
+      const existing = getBannerCustomState(prev, bannerId, charId);
       const updated = { ...existing, ...partial };
-      const next = { ...prev, [bannerId]: updated };
+      const next: Record<string, BannerCustomState> = { ...prev, [bannerId]: updated };
       if (charId) {
-        const charExisting = prev[charId] || {
-          logoPosition: "right",
-          characterOffsetX: 0,
-          characterOffsetY: 0,
-          characterScale: 1.25,
-        };
+        const charExisting = getBannerCustomState(prev, charId);
         next[charId] = { ...charExisting, ...partial };
       }
+      queueServerSave(next);
       return next;
     });
   };
@@ -249,11 +203,8 @@ export function AdminBannersPage() {
   const resetAllBannerStates = () => {
     if (window.confirm("Deseja restaurar a posição e personalizações originais de todos os banners?")) {
       setCustomStates({});
-      try {
-        localStorage.removeItem(BANNER_STORAGE_KEY);
-      } catch (err) {
-        console.error("Erro ao limpar localStorage dos banners:", err);
-      }
+      saveLocalBannerStates({});
+      updateBannerCustomStatesMutation.mutate({});
     }
   };
 

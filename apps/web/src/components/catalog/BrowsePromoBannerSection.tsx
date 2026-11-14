@@ -3,38 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { PromoBanner } from '../admin/PromoBanner';
-import { parseArchetypes } from '../../lib/characterConstants';
-import type { Character, Work } from '../../lib/types';
+import {
+  type BannerCustomState,
+  type PromoBannerItem,
+  loadLocalBannerStates,
+  saveLocalBannerStates,
+  generateAdminPromoBanners,
+} from '../../lib/promoBanners';
+import type { Work } from '../../lib/types';
 
-export interface BannerCustomState {
-  logoPosition: 'left' | 'right';
-  customColor?: string;
-  flipHorizontal?: boolean;
-  characterOffsetX: number;
-  characterOffsetY: number;
-  characterScale: number;
-  tagline?: string;
-}
-
-export interface PromoBannerItem {
-  id: string;
-  character: Character;
-  archetype: string | null;
-  work: Work | null;
-  customState?: BannerCustomState;
-}
-
-const BANNER_STORAGE_KEY = 'cyanflix.admin.banner_custom_states';
-
-function loadCustomStates(): Record<string, BannerCustomState> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = localStorage.getItem(BANNER_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
+export type { BannerCustomState, PromoBannerItem };
 
 // Helper to pick initial unique indices ensuring zero duplicates across slots
 function pickDistinctIndices(items: PromoBannerItem[], count: number): number[] {
@@ -100,7 +78,25 @@ export function PromoBannerCoordinatorProvider({
   rotationIntervalMs?: number;
   children: React.ReactNode;
 }) {
-  const [customStates] = useState<Record<string, BannerCustomState>>(() => loadCustomStates());
+  // Fetch Server-persisted Banner Custom States
+  const { data: serverCustomStates } = useQuery({
+    queryKey: ['admin', 'bannerCustomStates'],
+    queryFn: () => api.getBannerCustomStates(),
+    staleTime: 30_000,
+  });
+
+  const [customStates, setCustomStates] = useState<Record<string, BannerCustomState>>(loadLocalBannerStates);
+
+  // Sync server custom states into local state if available
+  useEffect(() => {
+    if (serverCustomStates && Object.keys(serverCustomStates).length > 0) {
+      setCustomStates((prev) => {
+        const merged = { ...serverCustomStates, ...prev };
+        saveLocalBannerStates(merged);
+        return merged;
+      });
+    }
+  }, [serverCustomStates]);
 
   // Fetch characters
   const { data: characters = [] } = useQuery({
@@ -114,57 +110,22 @@ export function PromoBannerCoordinatorProvider({
     [featuredWorkIds]
   );
 
-  // Filter to characters with body photo and eligible role (protagonist, supporting, antagonist)
-  const eligibleCharacters = useMemo(() => {
-    return characters.filter((c) => {
-      if (!c.bodyPhotoUrl) return false;
+  // Single unified promotional banner generation from Admin models
+  const allBanners = useMemo(() => {
+    return generateAdminPromoBanners(characters, worksMap, customStates);
+  }, [characters, worksMap, customStates]);
 
-      if (featuredSet) {
-        const inFeatured =
-          (c.workId && featuredSet.has(c.workId)) ||
-          (c.works && c.works.some((w) => featuredSet.has(w.id)));
-        if (!inFeatured) return false;
-      }
-
-      const role = (c.role || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      return (
-        role.includes('protag') ||
-        role.includes('coadj') ||
-        role.includes('apoio') ||
-        role.includes('antag') ||
-        role.includes('vil')
-      );
-    });
-  }, [characters, featuredSet]);
-
-  // Generate banners for each archetype of eligible characters
+  // Filter to featured works if specified (e.g. for Browse hero works)
   const bannerItems = useMemo(() => {
-    const items: PromoBannerItem[] = [];
-
-    for (const char of eligibleCharacters) {
-      const workId = char.workId || char.works?.[0]?.id;
-      const work =
-        (workId && worksMap ? worksMap.get(workId) : null) ??
-        (char.works?.[0] as unknown as Work) ??
-        (char.work as unknown as Work) ??
-        null;
-
-      const archetypes = parseArchetypes(char.archetype);
-      const archetypesList = archetypes.length > 0 ? archetypes : [null];
-
-      for (const arch of archetypesList) {
-        const id = `${char.id}-${arch ?? 'default'}`;
-        items.push({
-          id,
-          character: char,
-          archetype: arch,
-          work,
-          customState: customStates[id],
-        });
-      }
-    }
-    return items;
-  }, [eligibleCharacters, worksMap, customStates]);
+    if (!featuredSet || featuredSet.size === 0) return allBanners;
+    const filtered = allBanners.filter(
+      (b) =>
+        featuredSet.has(b.workId) ||
+        (b.character.workId && featuredSet.has(b.character.workId)) ||
+        (b.character.works && b.character.works.some((w) => featuredSet.has(w.id)))
+    );
+    return filtered.length > 0 ? filtered : allBanners;
+  }, [allBanners, featuredSet]);
 
   const [activeIndices, setActiveIndices] = useState<number[]>([]);
   const rotateSlotRef = useRef(0);
@@ -315,14 +276,15 @@ export function BrowsePromoBannerSlot({
           key={item.id}
           character={item.character}
           work={targetWork}
-          categorySubtitle={item.archetype ? item.archetype.trim().toUpperCase() : undefined}
-          tagline={cs?.tagline}
-          logoPosition={cs?.logoPosition ?? 'right'}
-          customColor={cs?.customColor}
-          flipHorizontal={cs?.flipHorizontal}
-          characterOffsetX={cs?.characterOffsetX ?? 0}
-          characterOffsetY={cs?.characterOffsetY ?? 0}
-          characterScale={cs?.characterScale ?? 1.25}
+          categoryTitle={item.categoryTitle}
+          categorySubtitle={item.categorySubtitle}
+          tagline={cs.tagline}
+          logoPosition={cs.logoPosition}
+          customColor={cs.customColor || item.character.themeColor || undefined}
+          flipHorizontal={cs.flipHorizontal}
+          characterOffsetX={cs.characterOffsetX}
+          characterOffsetY={cs.characterOffsetY}
+          characterScale={cs.characterScale}
           ctaText={ctaText}
           onClickCta={handleClick}
         />
