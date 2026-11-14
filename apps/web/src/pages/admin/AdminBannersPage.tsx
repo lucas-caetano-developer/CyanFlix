@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
@@ -8,6 +8,8 @@ import type { Character, AdminCatalogWork } from "../../lib/types";
 
 type RoleFilter = "all" | "protagonist" | "supporting" | "villain";
 
+const BANNER_STORAGE_KEY = "cyanflix.admin.banner_custom_states";
+
 interface BannerCustomState {
   logoPosition: "left" | "right";
   customColor?: string;
@@ -16,6 +18,17 @@ interface BannerCustomState {
   characterOffsetY: number;
   characterScale: number;
   tagline?: string;
+}
+
+function loadSavedBannerStates(): Record<string, BannerCustomState> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(BANNER_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (err) {
+    console.error("Erro ao carregar estados dos banners do localStorage:", err);
+    return {};
+  }
 }
 
 interface BannerItem {
@@ -51,8 +64,17 @@ export function AdminBannersPage() {
     characterScale?: number;
   } | null>(null);
 
-  // Per-character custom override state (position, scale, color, logoPosition, flip)
-  const [customStates, setCustomStates] = useState<Record<string, BannerCustomState>>({});
+  // Custom override state (position, scale, color, logoPosition, flip) persisted in localStorage
+  const [customStates, setCustomStates] = useState<Record<string, BannerCustomState>>(loadSavedBannerStates);
+
+  // Synchronize banner modifications with localStorage so they persist across page changes and browser reloads
+  useEffect(() => {
+    try {
+      localStorage.setItem(BANNER_STORAGE_KEY, JSON.stringify(customStates));
+    } catch (err) {
+      console.error("Erro ao salvar estados dos banners no localStorage:", err);
+    }
+  }, [customStates]);
 
   // Fetch Catalog & Characters
   const { data: catalogData, isLoading: isLoadingCatalog } = useQuery({
@@ -148,9 +170,10 @@ export function AdminBannersPage() {
       });
   }, [characters, worksMap, selectedRole, selectedWorkId, searchQuery]);
 
-  const getCharState = (charId: string): BannerCustomState => {
+  const getBannerState = (bannerId: string, charId?: string): BannerCustomState => {
     return (
-      customStates[charId] || {
+      customStates[bannerId] ||
+      (charId ? customStates[charId] : undefined) || {
         logoPosition: "right",
         characterOffsetX: 0,
         characterOffsetY: 0,
@@ -159,53 +182,79 @@ export function AdminBannersPage() {
     );
   };
 
-  const updateCustomState = (charId: string, partial: Partial<BannerCustomState>) => {
+  const updateBannerState = (
+    bannerId: string,
+    partial: Partial<BannerCustomState>,
+    charId?: string
+  ) => {
     setCustomStates((prev) => {
-      const existing = prev[charId] || {
-        logoPosition: "right",
-        characterOffsetX: 0,
-        characterOffsetY: 0,
-        characterScale: 1.25,
-      };
-      return {
-        ...prev,
-        [charId]: {
-          ...existing,
-          ...partial,
-        },
-      };
+      const existing =
+        prev[bannerId] ||
+        (charId ? prev[charId] : undefined) || {
+          logoPosition: "right",
+          characterOffsetX: 0,
+          characterOffsetY: 0,
+          characterScale: 1.25,
+        };
+      const updated = { ...existing, ...partial };
+      const next = { ...prev, [bannerId]: updated };
+      if (charId) {
+        const charExisting = prev[charId] || {
+          logoPosition: "right",
+          characterOffsetX: 0,
+          characterOffsetY: 0,
+          characterScale: 1.25,
+        };
+        next[charId] = { ...charExisting, ...partial };
+      }
+      return next;
     });
   };
 
-  const handleColorChange = (char: Character, newColor: string) => {
-    updateCustomState(char.id, { customColor: newColor });
+  const handleColorChange = (bannerId: string, char: Character, newColor: string) => {
+    updateBannerState(bannerId, { customColor: newColor }, char.id);
     updateCharacterColorMutation.mutate({ id: char.id, themeColor: newColor });
   };
 
   // Step adjust helpers
-  const adjustOffsetX = (charId: string, delta: number) => {
-    const cur = getCharState(charId);
-    updateCustomState(charId, { characterOffsetX: cur.characterOffsetX + delta });
+  const adjustOffsetX = (bannerId: string, delta: number, charId?: string) => {
+    const cur = getBannerState(bannerId, charId);
+    updateBannerState(bannerId, { characterOffsetX: cur.characterOffsetX + delta }, charId);
   };
 
-  const adjustOffsetY = (charId: string, delta: number) => {
-    const cur = getCharState(charId);
-    updateCustomState(charId, { characterOffsetY: cur.characterOffsetY + delta });
+  const adjustOffsetY = (bannerId: string, delta: number, charId?: string) => {
+    const cur = getBannerState(bannerId, charId);
+    updateBannerState(bannerId, { characterOffsetY: cur.characterOffsetY + delta }, charId);
   };
 
-  const adjustScale = (charId: string, delta: number) => {
-    const cur = getCharState(charId);
+  const adjustScale = (bannerId: string, delta: number, charId?: string) => {
+    const cur = getBannerState(bannerId, charId);
     const nextScale = Math.max(0.6, Math.min(2.5, Number((cur.characterScale + delta).toFixed(2))));
-    updateCustomState(charId, { characterScale: nextScale });
+    updateBannerState(bannerId, { characterScale: nextScale }, charId);
   };
 
-  const resetPosition = (charId: string) => {
-    updateCustomState(charId, {
-      characterOffsetX: 0,
-      characterOffsetY: 0,
-      characterScale: 1.25,
-      flipHorizontal: undefined,
-    });
+  const resetPosition = (bannerId: string, charId?: string) => {
+    updateBannerState(
+      bannerId,
+      {
+        characterOffsetX: 0,
+        characterOffsetY: 0,
+        characterScale: 1.25,
+        flipHorizontal: undefined,
+      },
+      charId
+    );
+  };
+
+  const resetAllBannerStates = () => {
+    if (window.confirm("Deseja restaurar a posição e personalizações originais de todos os banners?")) {
+      setCustomStates({});
+      try {
+        localStorage.removeItem(BANNER_STORAGE_KEY);
+      } catch (err) {
+        console.error("Erro ao limpar localStorage dos banners:", err);
+      }
+    }
   };
 
   const totalBannersCount = groupedWorks.reduce((acc, g) => acc + g.banners.length, 0);
@@ -213,7 +262,7 @@ export function AdminBannersPage() {
   return (
     <div className="admin-page">
       {/* Header */}
-      <div className="admin-header-row" style={{ alignItems: "flex-start", marginBottom: "1.75rem" }}>
+      <div className="admin-header-row" style={{ alignItems: "flex-start", marginBottom: "1.75rem", justifyContent: "space-between" }}>
         <div>
           <span className="admin-page__eyebrow">Marketing & Identidade Visual</span>
           <h1 className="admin-page__title">Banners Promocionais de Personagens</h1>
@@ -222,6 +271,21 @@ export function AdminBannersPage() {
             para cada arquétipo. Fundo imersivo com a cor tema e degradê com preto no topo, tipografia ultra-condensada,
             recortes ampliados com espelhamento inteligente e controle de posição, logo oficial centralizada com o botão branco.
           </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.5rem" }}>
+          <span style={{ fontSize: "0.8rem", color: "#10b981", display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+            ✓ Posições salvas automaticamente
+          </span>
+          {Object.keys(customStates).length > 0 && (
+            <button
+              type="button"
+              className="btn btn--secondary btn--xs"
+              onClick={resetAllBannerStates}
+              title="Redefinir todas as alterações e posições para o padrão"
+            >
+              ↺ Redefinir Todos
+            </button>
+          )}
         </div>
       </div>
 
@@ -371,7 +435,7 @@ export function AdminBannersPage() {
               {/* Banners List for this Work */}
               <div style={{ display: "flex", flexDirection: "column", gap: "2.75rem" }}>
                 {group.banners.map((b) => {
-                  const state = getCharState(b.character.id);
+                  const state = getBannerState(b.id, b.character.id);
                   const activeColor = state.customColor || b.character.themeColor || "#2b1854";
                   const isFlipped =
                     state.flipHorizontal !== undefined
@@ -447,7 +511,7 @@ export function AdminBannersPage() {
                             <input
                               type="color"
                               value={activeColor}
-                              onChange={(e) => handleColorChange(b.character, e.target.value)}
+                              onChange={(e) => handleColorChange(b.id, b.character, e.target.value)}
                               style={{
                                 width: "30px",
                                 height: "26px",
@@ -483,7 +547,7 @@ export function AdminBannersPage() {
                           <button
                             type="button"
                             className="btn btn--secondary btn--xs"
-                            onClick={() => adjustOffsetX(b.character.id, -10)}
+                            onClick={() => adjustOffsetX(b.id, -10, b.character.id)}
                             title="Mover para esquerda (X -10)"
                             style={{ minWidth: "26px", padding: "2px 6px" }}
                           >
@@ -492,7 +556,7 @@ export function AdminBannersPage() {
                           <button
                             type="button"
                             className="btn btn--secondary btn--xs"
-                            onClick={() => adjustOffsetX(b.character.id, 10)}
+                            onClick={() => adjustOffsetX(b.id, 10, b.character.id)}
                             title="Mover para direita (X +10)"
                             style={{ minWidth: "26px", padding: "2px 6px" }}
                           >
@@ -501,7 +565,7 @@ export function AdminBannersPage() {
                           <button
                             type="button"
                             className="btn btn--secondary btn--xs"
-                            onClick={() => adjustOffsetY(b.character.id, -10)}
+                            onClick={() => adjustOffsetY(b.id, -10, b.character.id)}
                             title="Mover para cima (Y -10)"
                             style={{ minWidth: "26px", padding: "2px 6px" }}
                           >
@@ -510,7 +574,7 @@ export function AdminBannersPage() {
                           <button
                             type="button"
                             className="btn btn--secondary btn--xs"
-                            onClick={() => adjustOffsetY(b.character.id, 10)}
+                            onClick={() => adjustOffsetY(b.id, 10, b.character.id)}
                             title="Mover para baixo (Y +10)"
                             style={{ minWidth: "26px", padding: "2px 6px" }}
                           >
@@ -520,7 +584,7 @@ export function AdminBannersPage() {
                           <button
                             type="button"
                             className="btn btn--secondary btn--xs"
-                            onClick={() => adjustScale(b.character.id, 0.05)}
+                            onClick={() => adjustScale(b.id, 0.05, b.character.id)}
                             title="Aumentar tamanho do personagem (+5%)"
                             style={{ minWidth: "26px", padding: "2px 6px" }}
                           >
@@ -529,7 +593,7 @@ export function AdminBannersPage() {
                           <button
                             type="button"
                             className="btn btn--secondary btn--xs"
-                            onClick={() => adjustScale(b.character.id, -0.05)}
+                            onClick={() => adjustScale(b.id, -0.05, b.character.id)}
                             title="Diminuir tamanho do personagem (-5%)"
                             style={{ minWidth: "26px", padding: "2px 6px" }}
                           >
@@ -538,7 +602,7 @@ export function AdminBannersPage() {
                           <button
                             type="button"
                             className="btn btn--secondary btn--xs"
-                            onClick={() => resetPosition(b.character.id)}
+                            onClick={() => resetPosition(b.id, b.character.id)}
                             title="Restaurar posição original"
                             style={{ padding: "2px 6px", fontSize: "0.7rem" }}
                           >
@@ -555,9 +619,9 @@ export function AdminBannersPage() {
                             type="button"
                             className={`btn btn--xs ${isFlipped ? "btn--primary" : "btn--secondary"}`}
                             onClick={() =>
-                              updateCustomState(b.character.id, {
+                              updateBannerState(b.id, {
                                 flipHorizontal: !isFlipped,
-                              })
+                              }, b.character.id)
                             }
                             title="Virar/inverter orientação do personagem horizontalmente"
                           >
@@ -569,10 +633,10 @@ export function AdminBannersPage() {
                             className="btn btn--secondary btn--xs"
                             onClick={() => {
                               const nextLogo = state.logoPosition === "right" ? "left" : "right";
-                              updateCustomState(b.character.id, {
+                              updateBannerState(b.id, {
                                 logoPosition: nextLogo,
                                 flipHorizontal: nextLogo === "left",
-                              });
+                              }, b.character.id);
                             }}
                             title="Alternar posição do logotipo entre esquerda e direita (com virada automática do personagem)"
                           >
