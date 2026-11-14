@@ -1,22 +1,29 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Work } from '../../lib/types';
 import { getBackdropUrl, getLogoUrl, getGenres, getCertification, getMotionPreviewUrl } from '../../lib/utils';
 import { Badge } from '../ui/Badge';
-import { Icon } from '../ui/Icon';
 
-export function HeroCarousel({ items }: { items: Work[] }) {
-  const carouselItems = items.slice(0, 5);
+export function HeroCarousel({
+  items,
+  continueItems = [],
+}: {
+  items: Work[];
+  continueItems?: Work[];
+}) {
+  const carouselItems = items.slice(0, 8);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isRotationPaused, setIsRotationPaused] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [hasFocus, setHasFocus] = useState(false);
   const [motionAllowed, setMotionAllowed] = useState(false);
   const [showMotion, setShowMotion] = useState(false);
   const [motionReady, setMotionReady] = useState(false);
   const [heroInView, setHeroInView] = useState(true);
-  const [pageVisible, setPageVisible] = useState(() => document.visibilityState === 'visible');
+  const [pageVisible, setPageVisible] = useState(() => typeof document !== 'undefined' ? document.visibilityState === 'visible' : true);
+  const [progress, setProgress] = useState(0);
+
   const heroRef = useRef<HTMLElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -49,32 +56,48 @@ export function HeroCarousel({ items }: { items: Work[] }) {
     return () => observer.disconnect();
   }, []);
 
-  const isUserInteracting = isHovered || hasFocus;
-  const rotationActive = motionAllowed
-    && pageVisible
-    && heroInView
-    && !isRotationPaused
-    && !isUserInteracting
-    && carouselItems.length > 1;
-
-  useEffect(() => {
-    if (!rotationActive) return;
-    const timer = window.setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % carouselItems.length);
-    }, 8000);
-    return () => window.clearInterval(timer);
-  }, [carouselItems.length, currentIndex, rotationActive]);
+  const changeSlide = useCallback((index: number) => {
+    if (carouselItems.length === 0) return;
+    setProgress(0);
+    setCurrentIndex(((index % carouselItems.length) + carouselItems.length) % carouselItems.length);
+  }, [carouselItems.length]);
 
   const currentWork = carouselItems[currentIndex];
   const motionPreview = currentWork ? getMotionPreviewUrl(currentWork) : null;
 
+  // Video presentation playback
   useEffect(() => {
     setShowMotion(false);
     setMotionReady(false);
     if (!motionAllowed || !motionPreview || !pageVisible || !heroInView) return;
-    const timer = window.setTimeout(() => setShowMotion(true), 1_200);
+    const timer = window.setTimeout(() => setShowMotion(true), 800);
     return () => window.clearTimeout(timer);
   }, [currentWork?.id, heroInView, motionAllowed, motionPreview, pageVisible]);
+
+  // Fallback timer when motion preview is not driving progress
+  useEffect(() => {
+    setProgress(0);
+    // If motion video is active and ready, video timeupdate drives progress and onEnded advances slide
+    if (showMotion && motionPreview && motionReady) {
+      return;
+    }
+
+    const duration = 8000;
+    const intervalMs = 60;
+    const step = (intervalMs / duration) * 100;
+
+    const timer = window.setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 100) {
+          changeSlide(currentIndex + 1);
+          return 0;
+        }
+        return Math.min(100, prev + step);
+      });
+    }, intervalMs);
+
+    return () => window.clearInterval(timer);
+  }, [currentIndex, showMotion, motionPreview, motionReady, changeSlide]);
 
   useEffect(() => {
     if (currentIndex >= carouselItems.length && carouselItems.length > 0) setCurrentIndex(0);
@@ -87,21 +110,35 @@ export function HeroCarousel({ items }: { items: Work[] }) {
   const genres = getGenres(currentWork.metadata);
   const certification = getCertification(currentWork.metadata);
 
-  const firstEpisodeId = currentWork.seasons?.[0]?.episodes?.[0]?.id;
-  const playUrl = currentWork.contentKind === 'movie'
-    ? `/watch/movie/${currentWork.id}`
-    : (firstEpisodeId ? `/watch/episode/${firstEpisodeId}` : `/title/${currentWork.id}`);
+  // Check viewing progress for the active work
+  const continueItem = continueItems.find((item) => item.id === currentWork.id);
+  const hasProgress = Boolean(continueItem && continueItem.continueWatching);
+  const episodeNumber = continueItem?.continueWatching?.episodeNumber;
 
-  const changeSlide = (index: number) => {
-    if (carouselItems.length === 0) return;
-    setCurrentIndex(((index % carouselItems.length) + carouselItems.length) % carouselItems.length);
-  };
+  let playUrl: string;
+  if (continueItem?.continueWatching) {
+    const cw = continueItem.continueWatching;
+    playUrl = cw.itemType === 'movie' ? `/watch/movie/${currentWork.id}` : `/watch/episode/${cw.itemId}`;
+  } else if (currentWork.contentKind === 'movie') {
+    playUrl = `/watch/movie/${currentWork.id}`;
+  } else {
+    const firstEpId = currentWork.seasons?.[0]?.episodes?.[0]?.id;
+    playUrl = firstEpId ? `/watch/episode/${firstEpId}` : `/title/${currentWork.id}`;
+  }
+
+  let buttonLabel: string;
+  if (currentWork.contentKind === 'movie') {
+    buttonLabel = hasProgress ? 'CONTINUAR ASSISTINDO' : 'COMEÇAR A ASSISTIR';
+  } else {
+    const epNum = episodeNumber ?? 1;
+    buttonLabel = hasProgress ? `CONTINUAR ASSISTINDO E${epNum}` : 'COMEÇAR A ASSISTIR E1';
+  }
 
   return (
     <section
       ref={heroRef}
       className="hero"
-      aria-label="Destaques"
+      aria-label="Animes em Destaque"
       aria-roledescription="carrossel"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -129,20 +166,29 @@ export function HeroCarousel({ items }: { items: Work[] }) {
 
       {showMotion && motionPreview && (
         <video
+          ref={videoRef}
           key={motionPreview}
           className={`hero__motion ${motionReady ? 'hero__motion--visible' : ''}`}
           src={motionPreview}
           poster={backdrop ?? undefined}
           muted
           autoPlay
-          loop
           playsInline
-          preload="metadata"
+          preload="auto"
           aria-hidden="true"
           tabIndex={-1}
           onCanPlay={() => setMotionReady(true)}
-          onLoadedData={() => setMotionReady(true)}
+          onLoadedMetadata={() => setMotionReady(true)}
           onPlaying={() => setMotionReady(true)}
+          onTimeUpdate={(e) => {
+            const v = e.currentTarget;
+            if (v.duration && !isNaN(v.duration) && v.duration > 0) {
+              setProgress(Math.min(100, (v.currentTime / v.duration) * 100));
+            }
+          }}
+          onEnded={() => {
+            changeSlide(currentIndex + 1);
+          }}
           onError={() => setShowMotion(false)}
         />
       )}
@@ -168,66 +214,75 @@ export function HeroCarousel({ items }: { items: Work[] }) {
           <p className="hero__synopsis">{currentWork.synopsis}</p>
         )}
 
+        {/* Action Buttons: Continuar/Começar a assistir + Minha Lista */}
         <div className="hero__actions">
-          <Link to={playUrl} className="btn btn--primary" data-spatial-initial="true">
-            <span className="hero__action-icon" aria-hidden="true"><Icon name="play" /></span>
-            Assistir
+          <Link to={playUrl} className="hero__btn-watch" data-spatial-initial="true">
+            <span className="hero__play-icon" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                width="22"
+                height="22"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+            </span>
+            {buttonLabel}
           </Link>
-          <Link to={`/title/${currentWork.id}`} className="btn btn--secondary">
-            <span className="hero__action-icon" aria-hidden="true"><Icon name="info" /></span>
-            Mais informações
-          </Link>
-        </div>
-      </div>
 
-      {carouselItems.length > 1 && (
-        <div className="hero__controls" role="group" aria-label="Controles dos destaques">
-          <button
-            className="hero__arrow"
-            type="button"
-            onClick={() => changeSlide(currentIndex - 1)}
-            aria-label="Destaque anterior"
+          <Link
+            to="/my-list"
+            className="hero__btn-watchlist"
+            title="Abrir Minha Lista"
+            aria-label="Abrir Minha Lista"
           >
-            <Icon name="chevron-left" />
-          </button>
-
-          <div className="hero__dots">
-            {carouselItems.map((item, index) => (
-              <button
-                key={item.id}
-                className={`hero__dot ${index === currentIndex ? 'hero__dot--active' : ''}`}
-                type="button"
-                onClick={() => changeSlide(index)}
-                aria-label={`Exibir destaque ${index + 1}: ${item.title}`}
-                aria-current={index === currentIndex ? 'true' : undefined}
-              />
-            ))}
-          </div>
-
-          <button
-            className="hero__arrow"
-            type="button"
-            onClick={() => changeSlide(currentIndex + 1)}
-            aria-label="Próximo destaque"
-          >
-            <Icon name="chevron-right" />
-          </button>
-
-          {motionAllowed && (
-            <button
-              className="hero__pause"
-              type="button"
-              onClick={() => setIsRotationPaused((paused) => !paused)}
-              aria-pressed={isRotationPaused}
-              aria-label={isRotationPaused ? 'Retomar rotação dos destaques' : 'Pausar rotação dos destaques'}
-              title={isRotationPaused ? 'Retomar rotação dos destaques' : 'Pausar rotação dos destaques'}
+            <svg
+              viewBox="0 0 24 24"
+              width="24"
+              height="24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              <Icon name="rotate" />
-              <span className="hero__pause-label">{isRotationPaused ? 'Retomar' : 'Pausar'}</span>
-            </button>
-          )}
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+            </svg>
+          </Link>
         </div>
-      )}
+
+        {/* Timeline Pills directly under watch action buttons (Image 3) */}
+        {carouselItems.length > 1 && (
+          <div className="hero__timeline" role="tablist" aria-label="Navegação dos animes em destaque">
+            {carouselItems.map((item, index) => {
+              const isActive = index === currentIndex;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`hero__timebar ${isActive ? 'hero__timebar--active' : ''}`}
+                  onClick={() => changeSlide(index)}
+                  title={item.title}
+                  aria-label={`Ver destaque ${index + 1}: ${item.title}`}
+                >
+                  {isActive && (
+                    <div
+                      className="hero__timebar-fill"
+                      style={{ width: `${progress}%` }}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </section>
   );
 }

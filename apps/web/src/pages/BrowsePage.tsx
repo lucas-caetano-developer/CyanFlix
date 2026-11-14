@@ -242,23 +242,42 @@ export function BrowsePage() {
     );
   }
 
-  const heroById = new Map<string, Work>();
-  if (data.hero) heroById.set(data.hero.id, data.hero);
-  const recentRow = data.rows.find((row) => row.id === 'recent');
-  if (recentRow) {
-    for (const item of recentRow.items) {
-      if (heroById.size >= 5) break;
-      heroById.set(item.id, item);
+  // Only show featured works in the Hero Carousel
+  const featuredById = new Map<string, Work>();
+  const featuredRow = data.rows.find((row) => row.id === 'featured' || row.title.toLowerCase() === 'destaques');
+  if (featuredRow) {
+    for (const item of featuredRow.items) {
+      featuredById.set(item.id, item);
     }
   }
-  const heroItems = Array.from(heroById.values());
+  if (data.hero && data.hero.featured) {
+    featuredById.set(data.hero.id, data.hero);
+  }
+  for (const row of data.rows) {
+    for (const item of row.items) {
+      if (item.featured) {
+        featuredById.set(item.id, item);
+      }
+    }
+  }
+  // Fallback to data.hero if no items have featured flag yet
+  if (featuredById.size === 0 && data.hero) {
+    featuredById.set(data.hero.id, data.hero);
+  }
+  const heroItems = Array.from(featuredById.values());
+
   const continueItems = continueWatching.data ?? [];
   const continueIds = new Set(continueItems.map((item) => item.id));
   const nextItems = (upNext.data ?? []).filter((item) => !continueIds.has(item.id));
 
+  // The "Destaques" topic disappears from the rows below and is only shown in the top hero area
+  const contentRows = data.rows.filter(
+    (row) => row.id !== 'featured' && row.title.toLowerCase() !== 'destaques'
+  );
+
   return (
     <div className="browse">
-      {heroItems.length > 0 && <HeroCarousel items={heroItems} />}
+      {heroItems.length > 0 && <HeroCarousel items={heroItems} continueItems={continueItems} />}
       <div className="browse__rows">
         {continueItems.length > 0 && (
           <ContentRow title="Continuar assistindo" items={continueItems} />
@@ -266,7 +285,7 @@ export function BrowsePage() {
         {nextItems.length > 0 && (
           <ContentRow title="Próximo episódio" items={nextItems} />
         )}
-        {data.rows.map((row) => (
+        {contentRows.map((row) => (
           <ContentRow
             key={row.id}
             title={row.title}
