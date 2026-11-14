@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { CyanFlixLogo } from '../components/ui/CyanFlixLogo';
-import { WelcomeShowcaseBanner } from '../components/welcome/WelcomeShowcaseBanner';
+import { WelcomePromoBanner } from '../components/catalog/BrowsePromoBannerSection';
 import { TrendingTopList } from '../components/welcome/TrendingTopList';
 import { FaqSection } from '../components/welcome/FaqSection';
 import { LoginModal } from '../components/welcome/LoginModal';
@@ -124,9 +124,9 @@ export function WelcomePage() {
         </div>
       </section>
 
-      {/* 3. Showcase Thematic Spotlight Banner (Crunchyroll character banner aesthetic) */}
-      <div id="destaques">
-        <WelcomeShowcaseBanner onLoginClick={handleAction} />
+      {/* 3. Promotional Character Spotlight Banner */}
+      <div id="destaques" className="welcome-showcase">
+        <WelcomePromoBanner onLoginClick={handleAction} />
       </div>
 
       {/* 4. Trending Rail (Netflix-style numbered cards) */}

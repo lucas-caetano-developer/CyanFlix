@@ -9,7 +9,10 @@ import { CatalogHeader } from '../components/catalog/CatalogHeader';
 import { CatalogMessage } from '../components/catalog/CatalogMessage';
 import { FilterChips } from '../components/catalog/FilterChips';
 import { BrowseCatExplore } from '../components/catalog/BrowseCatExplore';
-import { BrowsePromoBannerSection } from '../components/catalog/BrowsePromoBannerSection';
+import {
+  PromoBannerCoordinatorProvider,
+  BrowsePromoBannerSlot,
+} from '../components/catalog/BrowsePromoBannerSection';
 import { Skeleton } from '../components/ui/Skeleton';
 import { useProfileStore } from '../stores/useProfileStore';
 import { useScrollRestoration } from '../hooks/useScrollRestoration';
@@ -316,40 +319,72 @@ export function BrowsePage() {
     });
   }
 
-  // Pass 3 topics from top to bottom, then promotional banner, then the rest
-  const firstThreeRows = topicRows.slice(0, 3);
-  const remainingRows = topicRows.slice(3);
+  // Chunk topics into groups of 3 for inserting promotional banners without repetition:
+  // 3 topics -> Banner 1 -> 3 topics -> Banner 2 -> 3 topics -> Banner 3 -> remaining topics
+  const chunk0 = topicRows.slice(0, 3);
+  const chunk1 = topicRows.slice(3, 6);
+  const chunk2 = topicRows.slice(6, 9);
+  const chunkRemaining = topicRows.slice(9);
 
   return (
-    <div className="browse">
-      {heroItems.length > 0 && <HeroCarousel items={heroItems} continueItems={continueItems} />}
-      <div className="browse__rows">
-        {firstThreeRows.map((row) => (
-          <ContentRow
-            key={row.key}
-            title={row.title}
-            items={row.items}
-            seeAllLink={row.seeAllLink}
-          />
-        ))}
+    <PromoBannerCoordinatorProvider
+      featuredWorkIds={featuredWorkIds}
+      worksMap={allWorksMap}
+      slotCount={3}
+    >
+      <div className="browse">
+        {heroItems.length > 0 && <HeroCarousel items={heroItems} continueItems={continueItems} />}
+        <div className="browse__rows">
+          {chunk0.map((row) => (
+            <ContentRow
+              key={row.key}
+              title={row.title}
+              items={row.items}
+              seeAllLink={row.seeAllLink}
+            />
+          ))}
 
-        {heroItems.length > 0 && (
-          <BrowsePromoBannerSection
-            featuredWorkIds={featuredWorkIds}
-            worksMap={allWorksMap}
-          />
-        )}
+          {heroItems.length > 0 && <BrowsePromoBannerSlot slotIndex={0} />}
 
-        {remainingRows.map((row) => (
-          <ContentRow
-            key={row.key}
-            title={row.title}
-            items={row.items}
-            seeAllLink={row.seeAllLink}
-          />
-        ))}
+          {chunk1.length > 0 && (
+            <>
+              {chunk1.map((row) => (
+                <ContentRow
+                  key={row.key}
+                  title={row.title}
+                  items={row.items}
+                  seeAllLink={row.seeAllLink}
+                />
+              ))}
+              {heroItems.length > 0 && <BrowsePromoBannerSlot slotIndex={1} />}
+            </>
+          )}
+
+          {chunk2.length > 0 && (
+            <>
+              {chunk2.map((row) => (
+                <ContentRow
+                  key={row.key}
+                  title={row.title}
+                  items={row.items}
+                  seeAllLink={row.seeAllLink}
+                />
+              ))}
+              {heroItems.length > 0 && <BrowsePromoBannerSlot slotIndex={2} />}
+            </>
+          )}
+
+          {chunkRemaining.map((row) => (
+            <ContentRow
+              key={row.key}
+              title={row.title}
+              items={row.items}
+              seeAllLink={row.seeAllLink}
+            />
+          ))}
+        </div>
+        <BrowseCatExplore />
       </div>
-      <BrowseCatExplore />
-    </div>
+    </PromoBannerCoordinatorProvider>
   );
 }
