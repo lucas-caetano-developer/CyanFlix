@@ -195,7 +195,33 @@ export function HeroCarousel({
 
       <div className="hero__gradient-overlay" aria-hidden="true" />
 
-      <div className="hero__content" key={currentWork.id}>
+      {/* Subtle Navigation Chevrons (Print 2) */}
+      {carouselItems.length > 1 && (
+        <>
+          <button
+            type="button"
+            className="hero__arrow hero__arrow--prev"
+            onClick={() => changeSlide(currentIndex - 1)}
+            aria-label="Destaque anterior"
+          >
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="hero__arrow hero__arrow--next"
+            onClick={() => changeSlide(currentIndex + 1)}
+            aria-label="Próximo destaque"
+          >
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+        </>
+      )}
+
+      <div className="hero__content">
         {logo ? (
           <img src={logo} alt={currentWork.title} className="hero__logo" decoding="async" draggable={false} />
         ) : (

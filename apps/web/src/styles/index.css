@@ -586,11 +586,11 @@ img, video {
 .hero {
   position: relative;
   isolation: isolate;
-  min-height: 88vh;
-  min-height: clamp(38rem, 88svh, 60rem);
+  min-height: 86vh;
+  min-height: clamp(38rem, 86svh, 58rem);
   display: flex;
   align-items: flex-end;
-  padding: calc(var(--navbar-height) + clamp(2rem, 5vh, 4rem)) var(--side-padding) clamp(4.5rem, 8vh, 7.5rem);
+  padding: calc(var(--navbar-height) + clamp(1.5rem, 3vh, 3rem)) var(--side-padding) clamp(8.5rem, 16vh, 13.5rem);
   overflow: hidden;
   background-color: #06090e;
 }
@@ -605,12 +605,13 @@ img, video {
   z-index: 0;
   opacity: 0;
   filter: saturate(1.04) brightness(0.95);
-  transition: opacity 0.9s ease;
+  transition: opacity 0.45s ease-in-out;
   pointer-events: none;
 }
 
 .hero__backdrop--active {
   opacity: 1;
+  z-index: 1;
 }
 
 .hero__motion {
@@ -620,10 +621,10 @@ img, video {
   height: 100%;
   object-fit: cover;
   object-position: center 28%;
-  z-index: 1;
+  z-index: 2;
   opacity: 0;
   filter: saturate(1.04) brightness(0.95);
-  transition: opacity 0.8s ease;
+  transition: opacity 0.45s ease;
   pointer-events: none;
 }
 
@@ -637,10 +638,40 @@ img, video {
   z-index: 2;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(4, 7, 12, 0.92) 0%, rgba(4, 7, 12, 0.72) 22%, rgba(4, 7, 12, 0.3) 46%, rgba(4, 7, 12, 0) 70%),
-    linear-gradient(0deg, var(--bg-primary) 0%, rgba(20, 20, 20, 0.92) 9%, rgba(20, 20, 20, 0.52) 24%, rgba(20, 20, 20, 0) 52%),
+    linear-gradient(90deg, rgba(4, 7, 12, 0.94) 0%, rgba(4, 7, 12, 0.74) 24%, rgba(4, 7, 12, 0.3) 48%, rgba(4, 7, 12, 0) 72%),
+    linear-gradient(0deg, var(--bg-primary) 0%, rgba(20, 20, 20, 0.94) 11%, rgba(20, 20, 20, 0.46) 28%, rgba(20, 20, 20, 0) 54%),
     linear-gradient(180deg, rgba(6, 9, 14, 0.66) 0%, rgba(6, 9, 14, 0.2) 16%, rgba(6, 9, 14, 0) 34%),
     radial-gradient(ellipse 55% 78% at 16% 74%, rgba(2, 5, 9, 0.52), transparent 70%);
+}
+
+.hero__arrow {
+  position: absolute;
+  top: 48%;
+  transform: translateY(-50%);
+  z-index: 5;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.65);
+  padding: 1.5rem 0.6rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.18s ease, transform 0.18s ease;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.85));
+}
+
+.hero__arrow:hover {
+  color: #ffffff;
+  transform: translateY(-50%) scale(1.15);
+}
+
+.hero__arrow--prev {
+  left: clamp(0.5rem, 1.2vw, 1.5rem);
+}
+
+.hero__arrow--next {
+  right: clamp(0.5rem, 1.2vw, 1.5rem);
 }
 
 .hero__content {
@@ -651,12 +682,6 @@ img, video {
   display: flex;
   flex-direction: column;
   gap: clamp(0.7rem, 1.2vh, 1.1rem);
-  animation: heroContentIn 0.55s ease both;
-}
-
-@keyframes heroContentIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: none; }
 }
 
 .hero__logo {
@@ -668,6 +693,7 @@ img, video {
   object-position: left center;
   margin-bottom: 0.15rem;
   filter: drop-shadow(0 6px 20px rgba(0, 0, 0, 0.85));
+  transition: opacity 0.2s ease;
 }
 
 .hero__title {
@@ -937,9 +963,9 @@ img, video {
 .browse__rows {
   display: flex;
   flex-direction: column;
-  gap: clamp(1.7rem, 2.4vw, 2.5rem);
+  gap: clamp(1.8rem, 2.6vw, 2.8rem);
   padding-bottom: calc(clamp(3rem, 6vh, 5rem) + env(safe-area-inset-bottom));
-  margin-top: clamp(-4.25rem, -5vh, -2.75rem);
+  margin-top: clamp(-3.5rem, -4vh, -2rem);
   position: relative;
   z-index: 5;
 }
@@ -1115,12 +1141,12 @@ img, video {
 
 .content-row__item {
   flex: 0 0 auto;
-  width: clamp(140px, 14vw, 210px);
+  width: clamp(185px, 16vw, 265px);
   scroll-snap-align: start;
 }
 
 .content-row__item--landscape {
-  width: clamp(250px, 25vw, 360px);
+  width: clamp(290px, 26vw, 420px);
 }
 
 .content-row__arrow {
@@ -6984,11 +7010,11 @@ img, video {
   }
 
   .content-row__item {
-    width: clamp(136px, 15vw, 184px);
+    width: clamp(165px, 18vw, 220px);
   }
 
   .content-row__item--landscape {
-    width: clamp(240px, 27vw, 330px);
+    width: clamp(270px, 28vw, 360px);
   }
 
   .catalog-grid {
@@ -7033,11 +7059,11 @@ img, video {
   }
 
   .content-row__item {
-    width: clamp(180px, 11vw, 232px);
+    width: clamp(210px, 12vw, 290px);
   }
 
   .content-row__item--landscape {
-    width: clamp(320px, 19vw, 420px);
+    width: clamp(340px, 20vw, 460px);
   }
 
   .hero__content {
