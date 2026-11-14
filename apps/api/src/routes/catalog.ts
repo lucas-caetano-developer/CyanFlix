@@ -574,6 +574,12 @@ app.get("/api/works/:id", async (request, reply) => {
         },
       },
       editorialOverride: true,
+      characters: {
+        include: {
+          voiceActor: { select: { id: true, name: true, photoUrl: true } },
+        },
+        orderBy: [{ createdAt: "asc" }],
+      },
     },
   });
   if (
@@ -630,6 +636,21 @@ app.get("/api/works/:id", async (request, reply) => {
     });
   }
   return toJson(toWorkDetailsDto(work));
+});
+
+app.get("/api/works/:id/characters", async (request) => {
+  const { id } = request.params as { id: string };
+  const characters = await prisma.character.findMany({
+    where: { works: { some: { id } } },
+    include: {
+      voiceActor: { select: { id: true, name: true, photoUrl: true } },
+    },
+    orderBy: [
+      { role: "asc" },
+      { createdAt: "asc" },
+    ],
+  });
+  return toJson(characters);
 });
 
 app.post(

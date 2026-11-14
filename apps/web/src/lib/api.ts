@@ -30,6 +30,7 @@ export const api = {
   getHome: (kind?: Work['contentKind']) => fetchApi<HomeData>(`/api/home${kind ? `?kind=${encodeURIComponent(kind)}` : ''}`),
   searchWorks: (q: string, cursor?: string, kind?: Work['contentKind']) => fetchApi<SearchResult>(`/api/search?q=${encodeURIComponent(q)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}${kind ? `&kind=${encodeURIComponent(kind)}` : ''}`),
   getWork: (id: string) => fetchApi<Work>(`/api/works/${id}`),
+  getWorkCharacters: (workId: string) => fetchApi<Character[]>(`/api/works/${encodeURIComponent(workId)}/characters`),
   getPlayback: (itemId: string) => fetchApi<PlaybackData>(`/api/playback/items/${itemId}`),
   requestFallback: (itemId: string) => fetchApi<FallbackJob>(`/api/playback/items/${itemId}/fallback`, { method: 'POST' }),
   getFallbackJob: (jobId: string) => fetchApi<FallbackJob>(`/api/playback/jobs/${jobId}`),

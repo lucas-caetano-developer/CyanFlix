@@ -36,6 +36,7 @@ import { Icon } from "../components/ui/Icon";
 import { EpisodeCard } from "../components/cards/EpisodeCard";
 import { SeasonSelector, SEASON_PANEL_ID, getSeasonTabId, seasonLabel } from "../components/title/SeasonSelector";
 import { TrailerDialog } from "../components/title/TrailerDialog";
+import { CharactersSection } from "../components/title/CharactersSection";
 import { Season, Episode } from "../lib/types";
 import { useProfileStore } from "../stores/useProfileStore";
 
@@ -60,6 +61,13 @@ export function TitlePage() {
     queryFn: () => api.getWork(id!),
     enabled: Boolean(id && profileId),
   });
+
+  const charactersQuery = useQuery({
+    queryKey: ["work-characters", id],
+    queryFn: () => api.getWorkCharacters(id!),
+    enabled: Boolean(id),
+  });
+  const characters = charactersQuery.data ?? work?.characters ?? [];
 
   const favorites = useQuery({
     queryKey: ["favorites", profileId],
@@ -301,6 +309,7 @@ export function TitlePage() {
   const heroArtworkIsPoster = !backdrop && Boolean(poster);
   const sections = [
     ...(hasEpisodes ? [{ id: "episodios", label: "Episódios" }] : []),
+    ...(characters.length > 0 ? [{ id: "personagens", label: "Personagens" }] : []),
     ...(showExtras ? [{ id: "trailer", label: "Trailer e extras" }] : []),
     ...(awards.length > 0 ? [{ id: "premios", label: "Prêmios" }] : []),
     ...(showInfo ? [{ id: "detalhes", label: "Informações" }] : []),
@@ -550,6 +559,10 @@ export function TitlePage() {
               </div>
             </div>
           </section>
+        )}
+
+        {characters.length > 0 && (
+          <CharactersSection characters={characters} workTitle={work.title} />
         )}
 
         {showExtras && trailer && (

@@ -483,6 +483,22 @@ export function toWorkCardDto(work: WorkCardDtoInput) {
   };
 }
 export type WorkDetailsDtoInput = Omit<WorkCardDtoInput, "seasons"> & {
+  characters?: Array<{
+    id: string;
+    name: string;
+    photoUrl?: string | null;
+    bodyPhotoUrl?: string | null;
+    role?: string | null;
+    archetype?: string | null;
+    profileSentiments?: string | null;
+    voiceAudioUrl?: string | null;
+    themeColor?: string | null;
+    voiceActor?: {
+      id: string;
+      name: string;
+      photoUrl?: string | null;
+    } | null;
+  }>;
   seasons: Array<{
     id: string;
     number: number;
@@ -516,6 +532,24 @@ export function toWorkDetailsDto(work: WorkDetailsDtoInput) {
     assets: preferredPresentationAssets(work.assets, overrideMetadata).map(
       toPresentationAssetDto,
     ),
+    characters: (work.characters ?? []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      photoUrl: c.photoUrl,
+      bodyPhotoUrl: c.bodyPhotoUrl,
+      role: c.role,
+      archetype: c.archetype,
+      profileSentiments: c.profileSentiments,
+      voiceAudioUrl: c.voiceAudioUrl,
+      themeColor: c.themeColor,
+      voiceActor: c.voiceActor
+        ? {
+            id: c.voiceActor.id,
+            name: c.voiceActor.name,
+            photoUrl: c.voiceActor.photoUrl,
+          }
+        : null,
+    })),
     seasons: work.seasons.map((season) => ({
       id: season.id,
       number: season.number,

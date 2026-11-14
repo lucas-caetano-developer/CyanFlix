@@ -43,6 +43,7 @@ export type AdminWorkDetail = {
       assets?: Array<{ id: string; type: string; publicPath?: string | null; sizeBytes?: number }>;
     }>;
   }>;
+  characters?: Character[];
 };
 export type AuditEntry = { id: string; action: string; targetType: string; targetId: string; beforeValue?: Record<string, unknown> | null; afterValue?: Record<string, unknown> | null; createdAt: string; actor: { username: string; role: string } };
 export type EditorialCollection = { id: string; slug: string; title: string; description?: string | null; state: "draft" | "published"; active: boolean; featured: boolean; sortOrder: number; publishedAt?: string | null; updatedAt: string; items: Array<{ position: number; workId: string; work: { id: string; title: string; contentKind: Work["contentKind"]; editorialOverride?: { title?: string | null; hidden?: boolean | null } | null } }> };
@@ -59,7 +60,7 @@ export type Season = { id: string; number: number; title?: string | null; metada
 
 export type ContinueWatching = { itemId: string; itemType: "movie" | "episode"; episodeNumber?: number | null; episodeTitle?: string | null; seasonNumber?: number | null; positionSeconds: number; durationSeconds?: number | null; progressPercent: number; updatedAt: string };
 
-export type Work = { id: string; title: string; originalTitle?: string | null; contentKind: "movie" | "series" | "anime"; year?: number | null; synopsis?: string | null; metadata?: Record<string, unknown>; hidden?: boolean; featured?: boolean; assets?: Asset[]; seasons?: Season[]; continueWatching?: ContinueWatching };
+export type Work = { id: string; title: string; originalTitle?: string | null; contentKind: "movie" | "series" | "anime"; year?: number | null; synopsis?: string | null; metadata?: Record<string, unknown>; hidden?: boolean; featured?: boolean; assets?: Asset[]; seasons?: Season[]; continueWatching?: ContinueWatching; characters?: Character[] };
 
 export type HomeData = { hero: Work | null; rows: Array<{ id: string; title: string; items: Work[] }> };
 export type SearchResult = { items: Work[]; nextCursor?: string | null };
